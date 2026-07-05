@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "755379343634",
+    "project_id": "radar-delivery-dd7f2",
+    "storage_bucket": "radar-delivery-dd7f2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:755379343634:android:5898fb5536bd219f69e3cb",
+        "android_client_info": {
+          "package_name": "com.aistudio.radardelivery.jkxwpa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDB2k0gU2leh9kHjHwxEuLfCVSoCfhmWH0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

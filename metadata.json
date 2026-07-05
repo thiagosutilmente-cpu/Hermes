@@ -1,0 +1,6 @@
+{
+  "name": "Radar Delivery AI",
+  "description": "Filtro inteligente de ofertas para entregadores com assistente por voz e trava de segurança por velocidade.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

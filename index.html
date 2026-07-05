@@ -1,0 +1,3855 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Radar Delivery - Painel do Motoboy</title>
+  
+  <!-- Fontes Premium & Ícones Material -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+
+  <!-- Import Map para carregar Firebase diretamente no navegador a partir de módulos ES -->
+  <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js"
+      }
+    }
+  </script>
+
+  <!-- React, ReactDOM, Babel, and Recharts for Weekly Earnings Trend -->
+  <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.12/babel.min.js" crossorigin></script>
+  <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js" crossorigin></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js" crossorigin></script>
+
+  <style>
+    :root {
+      --bg-dark: #0A0B10;
+      --surface: #141622;
+      --surface-hover: #1C1E2E;
+      --surface-variant: #1E2136;
+      --border: #2B2E4A;
+      --accent-blue: #3A86FF;
+      --accent-purple: #8338EC;
+      --accent-pink: #FF006E;
+      --text-main: #FFFFFF;
+      --text-muted: #8F95B2;
+      --text-dim: #5C627D;
+      --success: #00F5D4;
+      --error: #FF3B30;
+      
+      --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.1);
+      --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.2);
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.35);
+      --font-outfit: 'Outfit', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: var(--font-outfit);
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(58, 134, 255, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(131, 38, 236, 0.08) 0%, transparent 40%);
+      background-attachment: fixed;
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      overflow-x: hidden;
+      padding: 20px;
+    }
+
+    /* Header Global */
+    header {
+      width: 100%;
+      max-width: 650px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      animation: fadeInDown 0.6s ease;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand .logo-icon {
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      color: var(--text-main);
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(58, 134, 255, 0.3);
+    }
+
+    .brand h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, #FFFFFF, var(--text-muted));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand h1 span {
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-pink));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .server-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 6px 12px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      display: inline-block;
+    }
+
+    .status-dot.offline {
+      background-color: var(--text-dim);
+      box-shadow: none;
+    }
+
+    /* Container de Auth */
+    .auth-container {
+      width: 100%;
+      max-width: 480px;
+      background-color: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      box-shadow: var(--shadow-lg);
+      padding: 32px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      animation: scaleUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+
+    /* Abas de Navegação Sign In / Register */
+    .tabs {
+      display: flex;
+      background-color: rgba(255, 255, 255, 0.03);
+      padding: 4px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font-outfit);
+      font-size: 15px;
+      font-weight: 500;
+      padding: 12px;
+      cursor: pointer;
+      border-radius: 11px;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .tab-btn.active {
+      background-color: var(--accent-blue);
+      color: var(--text-main);
+      box-shadow: 0 4px 12px rgba(58, 134, 255, 0.25);
+    }
+
+    .tab-btn span {
+      font-size: 18px;
+    }
+
+    /* Formulários */
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-group label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-left: 4px;
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input-wrapper span.prefix-icon {
+      position: absolute;
+      left: 14px;
+      color: var(--text-dim);
+      font-size: 20px;
+      pointer-events: none;
+      transition: color 0.3s ease;
+    }
+
+    .input-wrapper input, .input-wrapper select {
+      width: 100%;
+      height: 48px;
+      background-color: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0 16px 0 44px;
+      color: var(--text-main);
+      font-family: var(--font-outfit);
+      font-size: 15px;
+      transition: all 0.3s ease;
+    }
+
+    .input-wrapper input:focus, .input-wrapper select:focus {
+      border-color: var(--accent-blue);
+      background-color: rgba(58, 134, 255, 0.02);
+      box-shadow: 0 0 0 3px rgba(58, 134, 255, 0.15);
+    }
+
+    .input-wrapper input:focus ~ span.prefix-icon {
+      color: var(--accent-blue);
+    }
+
+    .input-wrapper select {
+      appearance: none;
+      cursor: pointer;
+    }
+
+    .input-wrapper .toggle-pwd {
+      position: absolute;
+      right: 14px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .input-wrapper .toggle-pwd:hover {
+      color: var(--text-muted);
+    }
+
+    /* Checkbox list para Filtros */
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background-color: rgba(255, 255, 255, 0.01);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+
+    .checkbox-item input {
+      display: none;
+    }
+
+    .checkbox-item.checked {
+      background-color: rgba(58, 134, 255, 0.08);
+      border-color: var(--accent-blue);
+      color: var(--text-main);
+    }
+
+    /* Botão de Ação */
+    .btn-submit {
+      width: 100%;
+      height: 48px;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      color: var(--text-main);
+      border: none;
+      border-radius: 12px;
+      font-family: var(--font-outfit);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 4px 15px rgba(58, 134, 255, 0.2);
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-submit:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(58, 134, 255, 0.3);
+      filter: brightness(1.1);
+    }
+
+    .btn-submit:active {
+      transform: translateY(1px);
+      filter: brightness(0.9);
+    }
+
+    .btn-submit:disabled {
+      background: var(--border);
+      color: var(--text-dim);
+      box-shadow: none;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #FFFFFF;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    /* Links de rodapé */
+    .auth-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    .auth-footer a {
+      color: var(--accent-blue);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .auth-footer a:hover {
+      color: var(--accent-purple);
+      text-decoration: underline;
+    }
+
+    /* Painel do Motoboy Autenticado (Console) */
+    .driver-panel {
+      width: 100%;
+      max-width: 650px;
+      display: none; /* Ativado via JS */
+      flex-direction: column;
+      gap: 24px;
+      animation: scaleUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Banner do Motorista */
+    .driver-card {
+      background: linear-gradient(135deg, var(--surface) 0%, #1B1E30 100%);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      box-shadow: var(--shadow-md);
+      flex-wrap: wrap;
+    }
+
+    .driver-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .driver-avatar {
+      width: 58px;
+      height: 58px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, var(--accent-pink), var(--accent-purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 24px;
+      font-weight: 700;
+      box-shadow: 0 4px 12px rgba(255, 0, 110, 0.25);
+    }
+
+    .driver-details h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .driver-details p {
+      font-size: 13px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .driver-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-secondary {
+      background-color: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-family: var(--font-outfit);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--surface-hover);
+      border-color: var(--text-dim);
+    }
+
+    .btn-logout {
+      border-color: rgba(255, 59, 48, 0.2);
+      color: var(--error);
+    }
+
+    .btn-logout:hover {
+      background-color: rgba(255, 59, 48, 0.05);
+      border-color: var(--error);
+    }
+
+    /* Grid de Estatísticas e Configurações */
+    .panel-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    @media (min-width: 600px) {
+      .panel-grid {
+        grid-template-columns: 1.1fr 0.9fr;
+      }
+    }
+
+    /* Cards Gerais de Seção */
+    .section-card {
+      background-color: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-main);
+    }
+
+    .section-title span {
+      color: var(--accent-blue);
+      font-size: 20px;
+    }
+
+    /* Estatísticas Rápidas */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .stat-box {
+      background-color: rgba(255, 255, 255, 0.01);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .stat-value.highlight {
+      color: var(--success);
+    }
+
+    /* Lista de Ofertas do Motoboy */
+    .offers-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 280px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .offers-list::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .offers-list::-webkit-scrollbar-thumb {
+      background-color: var(--border);
+      border-radius: 4px;
+    }
+
+    .offer-item {
+      background-color: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+      transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      cursor: pointer;
+    }
+
+    .offer-item.expanded {
+      background-color: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.12);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .offer-item:hover {
+      background-color: var(--surface-hover);
+      transform: translateY(-2px) scale(1.015);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    @keyframes slideDownAndHighlight {
+      0% {
+        transform: translateY(-20px);
+        opacity: 0;
+        border-color: var(--accent-blue);
+        box-shadow: 0 0 12px rgba(58, 134, 255, 0.4);
+        background-color: rgba(58, 134, 255, 0.08);
+      }
+      50% {
+        border-color: var(--accent-pink);
+        box-shadow: 0 0 16px rgba(255, 0, 110, 0.4);
+        background-color: rgba(255, 0, 110, 0.06);
+      }
+      100% {
+        transform: translateY(0);
+        opacity: 1;
+        border-color: rgba(255, 255, 255, 0.04);
+        box-shadow: none;
+        background-color: rgba(255, 255, 255, 0.02);
+      }
+    }
+
+    .new-offer-animation {
+      animation: slideDownAndHighlight 1.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+
+    .offer-main-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .offer-addresses {
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--text-main);
+    }
+
+    .offer-addresses span {
+      font-size: 14px;
+      color: var(--accent-pink);
+    }
+
+    .offer-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .offer-sub .badge-app {
+      background-color: rgba(58, 134, 255, 0.1);
+      color: var(--accent-blue);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 9px;
+      text-transform: uppercase;
+    }
+
+    .offer-financials {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 1px;
+    }
+
+    .offer-fare {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--success);
+    }
+
+    .offer-km-rate {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Estilos para Sugestão de Corridas Compatíveis (Uber/99/iFood) */
+    .offer-item.compatible-pulse {
+      position: relative;
+      background: rgba(58, 134, 255, 0.03);
+      border-color: rgba(58, 134, 255, 0.15) !important;
+      box-shadow: 0 0 10px rgba(58, 134, 255, 0.05);
+    }
+    .offer-item.compatible-pulse::before {
+      content: '';
+      position: absolute;
+      top: -1px; left: -1px; right: -1px; bottom: -1px;
+      border-radius: 12px;
+      border: 1.5px solid transparent;
+      animation: compatibleBorderGlow 3s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes compatibleBorderGlow {
+      0%, 100% { border-color: rgba(58, 134, 255, 0.15); box-shadow: 0 0 4px rgba(58, 134, 255, 0.05); }
+      50% { border-color: rgba(58, 134, 255, 0.45); box-shadow: 0 0 12px rgba(58, 134, 255, 0.2); }
+    }
+
+    .badge-compatibility {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    /* Painel de Corrida Ativa (Estilo de Alta Fidelidade similar ao Uber/iFood Driver) */
+    .active-ride-panel {
+      background: linear-gradient(135deg, #0f1c3f 0%, #070b19 100%);
+      border: 1.5px solid var(--success);
+      box-shadow: 0 4px 20px rgba(0, 245, 212, 0.12);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+      animation: activeRidePulse 4s ease-in-out infinite;
+    }
+    @keyframes activeRidePulse {
+      0%, 100% { border-color: var(--success); box-shadow: 0 4px 20px rgba(0, 245, 212, 0.08); }
+      50% { border-color: #00bfa6; box-shadow: 0 4px 24px rgba(0, 245, 212, 0.2); }
+    }
+    .active-ride-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+    .active-ride-badge {
+      background-color: rgba(0, 245, 212, 0.12);
+      color: var(--success);
+      font-size: 10px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      text-transform: uppercase;
+    }
+    .active-ride-eta-badge {
+      background-color: rgba(58, 134, 255, 0.15);
+      color: var(--accent-blue);
+      font-size: 10px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      text-transform: uppercase;
+    }
+    .active-ride-app {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    .active-ride-route {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .active-route-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .active-route-icon {
+      font-size: 16px;
+      margin-top: 1px;
+    }
+    .active-route-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .active-route-val {
+      font-weight: 500;
+      color: var(--text-main);
+      margin-top: 1px;
+    }
+    .active-ride-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .active-ride-value {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--success);
+    }
+    .btn-complete-ride {
+      background: linear-gradient(135deg, var(--success) 0%, #00bfa6 100%);
+      color: #0d1117;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+    .btn-complete-ride:hover {
+      transform: translateY(-1px);
+      opacity: 0.95;
+    }
+    .btn-complete-ride:active {
+      transform: translateY(1px);
+    }
+    .btn-cancel-ride {
+      background: linear-gradient(135deg, var(--error) 0%, var(--accent-pink) 100%);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+    .btn-cancel-ride:hover {
+      transform: translateY(-1px);
+      opacity: 0.95;
+    }
+    .btn-cancel-ride:active {
+      transform: translateY(1px);
+    }
+
+    .empty-offers {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 30px 10px;
+      color: var(--text-dim);
+      text-align: center;
+    }
+
+    .empty-offers span {
+      font-size: 32px;
+    }
+
+    /* Alertas Flutuantes (Toast) */
+    .toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+      max-width: 320px;
+      width: calc(100% - 48px);
+    }
+
+    .toast {
+      background-color: var(--surface);
+      border-left: 4px solid var(--accent-blue);
+      box-shadow: var(--shadow-lg);
+      padding: 14px 16px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--text-main);
+      font-size: 14px;
+      pointer-events: auto;
+      animation: slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: all 0.3s ease;
+    }
+
+    .toast.success {
+      border-left-color: var(--success);
+    }
+
+    .toast.error {
+      border-left-color: var(--error);
+    }
+
+    .toast span.icon {
+      font-size: 20px;
+    }
+
+    .toast.success span.icon {
+      color: var(--success);
+    }
+
+    .toast.error span.icon {
+      color: var(--error);
+    }
+
+    .toast .close-toast {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    /* Modal / Popup inline para recuperação de senha */
+    .reset-modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(10, 11, 16, 0.8);
+      backdrop-filter: blur(8px);
+      z-index: 90;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .reset-modal {
+      background-color: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      max-width: 400px;
+      width: 100%;
+      padding: 24px;
+      box-shadow: var(--shadow-lg);
+      animation: scaleUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .reset-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .reset-header h3 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .reset-header button {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    /* Animações */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes scaleUp {
+      from { transform: scale(0.96); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes fadeInDown {
+      from { transform: translateY(-12px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    @keyframes slideInLeft {
+      from { transform: translateX(50px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Estilo de formulários secundários no painel do motorista */
+    .compact-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .compact-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .compact-submit {
+      height: 40px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .compact-submit:hover {
+      background-color: var(--accent-blue);
+      border-color: var(--accent-blue);
+      box-shadow: 0 4px 12px rgba(58, 134, 255, 0.15);
+    }
+
+    /* Módulo do Agente Hermes (Voz) */
+    .voice-assistant-card {
+      background: linear-gradient(135deg, var(--surface) 0%, #151829 100%);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: var(--shadow-md);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .voice-assistant-card::before {
+      content: '';
+      position: absolute;
+      top: -100px;
+      right: -100px;
+      width: 200px;
+      height: 200px;
+      background: radial-gradient(circle, rgba(131, 56, 236, 0.1) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .voice-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 12px;
+    }
+
+    .voice-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .voice-title span {
+      color: var(--accent-purple);
+    }
+
+    .voice-wave {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 20px;
+    }
+
+    .voice-wave-bar {
+      width: 3px;
+      height: 4px;
+      background-color: var(--accent-purple);
+      border-radius: 2px;
+      transition: height 0.1s ease;
+    }
+
+    /* Wave animations when listening or speaking */
+    .voice-wave.active .voice-wave-bar {
+      animation: bounceWave 0.8s ease-in-out infinite alternate;
+    }
+
+    .voice-wave.active .voice-wave-bar:nth-child(1) { animation-delay: 0.1s; }
+    .voice-wave.active .voice-wave-bar:nth-child(2) { animation-delay: 0.3s; }
+    .voice-wave.active .voice-wave-bar:nth-child(3) { animation-delay: 0.5s; }
+    .voice-wave.active .voice-wave-bar:nth-child(4) { animation-delay: 0.2s; }
+    .voice-wave.active .voice-wave-bar:nth-child(5) { animation-delay: 0.4s; }
+
+    @keyframes bounceWave {
+      0% { height: 4px; }
+      100% { height: 20px; }
+    }
+
+    .voice-control-body {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .mic-button-outer {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .mic-btn {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+      border: none;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(131, 56, 236, 0.3);
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      z-index: 2;
+    }
+
+    .mic-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 20px rgba(131, 56, 236, 0.45);
+    }
+
+    .mic-btn:active {
+      transform: scale(0.95);
+    }
+
+    .mic-btn.listening {
+      background: linear-gradient(135deg, var(--accent-pink), var(--accent-purple));
+      box-shadow: 0 0 0 0 rgba(255, 0, 110, 0.7);
+      animation: micPulse 1.5s infinite;
+    }
+
+    @keyframes micPulse {
+      0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 0, 110, 0.7);
+      }
+      70% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 15px rgba(255, 0, 110, 0);
+      }
+      100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 0, 110, 0);
+      }
+    }
+
+    .mic-ripple {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 2px solid var(--accent-purple);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .mic-btn.listening + .mic-ripple {
+      animation: rippleEffect 1.5s infinite;
+    }
+
+    @keyframes rippleEffect {
+      0% {
+        transform: scale(1);
+        opacity: 0.8;
+      }
+      100% {
+        transform: scale(1.8);
+        opacity: 0;
+      }
+    }
+
+    .voice-status-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex-grow: 1;
+    }
+
+    .voice-status-text {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .voice-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--text-dim);
+    }
+
+    .voice-status-dot.listening {
+      background-color: var(--accent-pink);
+      animation: pulseDot 1s infinite alternate;
+    }
+
+    .voice-status-dot.speaking {
+      background-color: var(--success);
+    }
+
+    @keyframes pulseDot {
+      0% { opacity: 0.3; }
+      100% { opacity: 1; }
+    }
+
+    .voice-transcript-bubble {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-style: italic;
+      color: var(--text-muted);
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+    }
+
+    .voice-transcript-bubble.has-content {
+      color: var(--text-main);
+      font-style: normal;
+      background: rgba(131, 56, 236, 0.04);
+      border-color: rgba(131, 56, 236, 0.15);
+    }
+
+    /* Command Quick Pills */
+    .voice-pills-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .voice-pills-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+    }
+
+    .voice-pills-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .voice-pill {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 6px 12px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .voice-pill:hover {
+      background: rgba(131, 56, 236, 0.08);
+      border-color: var(--accent-purple);
+      color: var(--text-main);
+      transform: translateY(-1px);
+    }
+
+    .voice-pill span {
+      font-size: 14px;
+      color: var(--accent-blue);
+    }
+
+    /* Switch de Modo HUD (Apenas Voz) */
+    .hud-switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 22px;
+    }
+
+    .hud-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .hud-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.1);
+      transition: .3s;
+      border-radius: 22px;
+      border: 1px solid var(--border);
+    }
+
+    .hud-slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: var(--text-muted);
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    .hud-switch input:checked + .hud-slider {
+      background-color: rgba(131, 56, 236, 0.2);
+      border-color: var(--accent-purple);
+    }
+
+    .hud-switch input:checked + .hud-slider:before {
+      transform: translateX(22px);
+      background-color: var(--accent-purple);
+    }
+
+    /* Quando o Modo Apenas Voz está ativo */
+    .driver-panel.voice-only-active {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding: 10px;
+    }
+
+    /* Minimiza elementos não essenciais */
+    .driver-panel.voice-only-active .driver-card {
+      display: none !important; /* Oculta card de perfil */
+    }
+
+    .driver-panel.voice-only-active .stats-row {
+      display: grid !important;
+      grid-template-columns: repeat(4, 1fr) !important;
+      gap: 8px !important;
+      margin-bottom: 0 !important;
+    }
+
+    .driver-panel.voice-only-active .stats-row .stat-box {
+      padding: 8px 12px !important;
+      border-radius: 12px !important;
+      text-align: center !important;
+    }
+
+    .driver-panel.voice-only-active .stats-row .stat-label {
+      font-size: 9px !important;
+      letter-spacing: 0.3px !important;
+    }
+
+    .driver-panel.voice-only-active .stats-row .stat-value {
+      font-size: 14px !important;
+    }
+
+    /* Oculta o grid principal de duas colunas (filtros, lista de ofertas e simulador) */
+    .driver-panel.voice-only-active .panel-grid {
+      display: none !important;
+    }
+
+    /* Maximiza o Card do Agente Hermes (Voz) como Painel HUD de alto contraste */
+    .driver-panel.voice-only-active .voice-assistant-card {
+      flex-grow: 1;
+      padding: 30px !important;
+      min-height: 480px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 24px;
+      background: radial-gradient(circle at top right, rgba(131, 56, 236, 0.18) 0%, #0d0f1a 100%) !important;
+      border: 2px solid var(--accent-purple) !important;
+      box-shadow: 0 0 30px rgba(131, 56, 236, 0.25) !important;
+    }
+
+    /* Títulos e ondas maiores no modo HUD */
+    .driver-panel.voice-only-active .voice-title {
+      font-size: 20px !important;
+    }
+
+    /* Centraliza e aumenta a seção do microfone */
+    .driver-panel.voice-only-active .voice-control-body {
+      flex-direction: column !important;
+      justify-content: center !important;
+      gap: 24px !important;
+      padding: 20px 0 !important;
+      flex-grow: 1;
+    }
+
+    .driver-panel.voice-only-active .mic-btn {
+      width: 120px !important;
+      height: 120px !important;
+    }
+
+    .driver-panel.voice-only-active .mic-btn span {
+      font-size: 56px !important;
+    }
+
+    .driver-panel.voice-only-active .voice-status-info {
+      text-align: center !important;
+      align-items: center !important;
+    }
+
+    .driver-panel.voice-only-active .voice-status-text {
+      font-size: 18px !important;
+    }
+
+    .driver-panel.voice-only-active .voice-transcript-bubble {
+      font-size: 18px !important;
+      padding: 20px !important;
+      border-radius: 16px !important;
+      min-height: 80px !important;
+      text-align: center !important;
+      justify-content: center !important;
+      background: rgba(131, 56, 236, 0.05) !important;
+      border-color: rgba(131, 56, 236, 0.25) !important;
+    }
+
+    .driver-panel.voice-only-active .voice-pills-label {
+      font-size: 12px !important;
+      text-align: center !important;
+    }
+
+    .driver-panel.voice-only-active .voice-pills-row {
+      justify-content: center !important;
+      gap: 12px !important;
+    }
+
+    .driver-panel.voice-only-active .voice-pill {
+      font-size: 13px !important;
+      padding: 10px 18px !important;
+      border-radius: 16px !important;
+    }
+
+    @keyframes warningPulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(255, 0, 110, 0.4);
+        border-color: var(--accent-pink);
+      }
+      70% {
+        box-shadow: 0 0 0 10px rgba(255, 0, 110, 0);
+        border-color: var(--error);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(255, 0, 110, 0);
+        border-color: var(--accent-pink);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toasts Flutuantes -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Cabeçalho Principal -->
+  <header>
+    <div class="brand">
+      <div class="logo-icon">
+        <span class="material-symbols-rounded">navigation</span>
+      </div>
+      <h1>Radar<span>Delivery</span></h1>
+    </div>
+    <div class="server-status">
+      <span class="status-dot" id="serverDot"></span>
+      <span id="serverStatusText">Firestore Conectado</span>
+    </div>
+  </header>
+
+  <!-- FORMULÁRIO DE LOGIN / CADASTRO -->
+  <div class="auth-container" id="authContainer">
+    <!-- Abas -->
+    <div class="tabs">
+      <button class="tab-btn active" id="tabLogin" onclick="switchTab('login')">
+        <span class="material-symbols-rounded">login</span>
+        Entrar
+      </button>
+      <button class="tab-btn" id="tabRegister" onclick="switchTab('register')">
+        <span class="material-symbols-rounded">person_add</span>
+        Cadastrar
+      </button>
+    </div>
+
+    <!-- Tela 1: Login -->
+    <form id="loginForm" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label for="loginEmail">Email do Motoboy</label>
+        <div class="input-wrapper">
+          <input type="email" id="loginEmail" required placeholder="exemplo@motoboy.com">
+          <span class="prefix-icon material-symbols-rounded">mail</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="loginPassword">Senha</label>
+        <div class="input-wrapper">
+          <input type="password" id="loginPassword" required placeholder="Digite sua senha" minlength="6">
+          <span class="prefix-icon material-symbols-rounded">lock</span>
+          <button type="button" class="toggle-pwd" onclick="togglePasswordVisibility('loginPassword', this)">
+            <span class="material-symbols-rounded">visibility</span>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-submit" id="btnLoginSubmit">
+        <span>Acessar Canal do Motoboy</span>
+        <span class="material-symbols-rounded">arrow_forward</span>
+      </button>
+
+      <div class="auth-footer">
+        <a href="#" onclick="openResetModal()">Esqueceu sua senha?</a>
+      </div>
+    </form>
+
+    <!-- Tela 2: Cadastro -->
+    <form id="registerForm" onsubmit="handleRegister(event)" style="display: none;">
+      <div class="form-group">
+        <label for="regName">Nome Completo</label>
+        <div class="input-wrapper">
+          <input type="text" id="regName" required placeholder="Nome do Piloto">
+          <span class="prefix-icon material-symbols-rounded">badge</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="regEmail">Email</label>
+        <div class="input-wrapper">
+          <input type="email" id="regEmail" required placeholder="motoboy@radar.com">
+          <span class="prefix-icon material-symbols-rounded">mail</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="regPassword">Senha (mínimo 6 caracteres)</label>
+        <div class="input-wrapper">
+          <input type="password" id="regPassword" required placeholder="Crie uma senha forte" minlength="6">
+          <span class="prefix-icon material-symbols-rounded">lock_open</span>
+          <button type="button" class="toggle-pwd" onclick="togglePasswordVisibility('regPassword', this)">
+            <span class="material-symbols-rounded">visibility</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="regConfirmPassword">Confirmar Senha</label>
+        <div class="input-wrapper">
+          <input type="password" id="regConfirmPassword" required placeholder="Repita a senha anterior" minlength="6">
+          <span class="prefix-icon material-symbols-rounded">lock</span>
+          <button type="button" class="toggle-pwd" onclick="togglePasswordVisibility('regConfirmPassword', this)">
+            <span class="material-symbols-rounded">visibility</span>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-submit" id="btnRegisterSubmit">
+        <span>Criar Conta & Configurar Radar</span>
+        <span class="material-symbols-rounded">person_add</span>
+      </button>
+    </form>
+  </div>
+
+  <!-- CONSOLE CENTRAL DO MOTOBOY (Autenticado) -->
+  <div class="driver-panel" id="driverPanel">
+    <!-- Card Perfil Principal -->
+    <div class="driver-card">
+      <div class="driver-info">
+        <div class="driver-avatar" id="avatarLetter">M</div>
+        <div class="driver-details">
+          <h2 id="driverDisplayName">Nome do Motoboy</h2>
+          <p>
+            <span class="material-symbols-rounded" style="font-size: 15px;">mail</span>
+            <span id="driverEmail">motoboy@email.com</span>
+          </p>
+        </div>
+      </div>
+      <div class="driver-actions">
+        <button class="btn-secondary btn-logout" onclick="handleLogout()">
+          <span class="material-symbols-rounded">logout</span>
+          Sair
+        </button>
+      </div>
+    </div>
+
+    <!-- Estatísticas Rápidas do Piloto -->
+    <div class="stats-row">
+      <div class="stat-box">
+        <span class="stat-label">Ganhos Totais</span>
+        <span class="stat-value highlight" id="statsEarnings">R$ 0,00</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Distância Total</span>
+        <span class="stat-value" id="statsDistance">0,0 KM</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Média por KM</span>
+        <span class="stat-value highlight" id="statsAvgKm">R$ 0,00</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Total Ofertas</span>
+        <span class="stat-value" id="statsCount">0</span>
+      </div>
+    </div>
+
+    <!-- Tendência de Ganhos Semanais (Recharts) -->
+    <div class="section-card" style="margin-bottom: 20px;">
+      <div class="section-header">
+        <div class="section-title">
+          <span class="material-symbols-rounded" style="color: var(--success);">analytics</span>
+          Tendência de Ganhos Semanais (Últimos 7 dias)
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); font-weight: bold; text-transform: uppercase; font-family: var(--font-mono);">
+          Real-Time Firestore
+        </div>
+      </div>
+      <div style="width: 100%; height: 260px; margin-top: 12px; position: relative;">
+        <!-- Elemento onde o Recharts será montado -->
+        <div id="weekly-earnings-chart" style="width: 100%; height: 100%;"></div>
+      </div>
+    </div>
+
+    <!-- Alerta de Velocidade de Segurança (Bloqueio) -->
+    <div id="speedLockWarning" style="display: none; padding: 20px; text-align: center; background: rgba(255, 0, 110, 0.12); border: 2px dashed var(--accent-pink); border-radius: 16px; margin-bottom: 20px; animation: warningPulse 2s infinite;">
+      <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px;">
+        <span class="material-symbols-rounded" style="font-size: 32px; color: var(--accent-pink);">warning</span>
+        <h3 style="color: white; margin: 0; font-size: 18px; font-family: var(--font-outfit);">Velocidade de Segurança Excedida!</h3>
+      </div>
+      <p style="color: var(--text-muted); font-size: 13px; line-height: 1.5; margin: 0 0 10px 0;">
+        Foco na via! A lista de ofertas foi bloqueada e ocultada automaticamente para evitar distração ao pilotar.
+      </p>
+      <div style="font-size: 24px; font-weight: bold; color: var(--accent-pink); font-family: var(--font-mono);">
+        Sua Velocidade: <span id="currentSpeedDisplay">0</span> km/h (Limite: <span id="speedLimitWarningDisplay">50</span> km/h)
+      </div>
+    </div>
+
+    <!-- Módulo de Comando de Voz -->
+    <div class="voice-assistant-card">
+      <div class="voice-header-row">
+        <div class="voice-title">
+          <span class="material-symbols-rounded" style="color: var(--accent-purple);">graphic_eq</span>
+          Comando de Voz Viva-Voz
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Apenas Voz</span>
+            <label class="hud-switch">
+              <input type="checkbox" id="voiceOnlyToggle" onchange="toggleVoiceOnlyMode(this.checked)">
+              <span class="hud-slider"></span>
+            </label>
+          </div>
+          <div class="voice-wave" id="voiceWave">
+            <div class="voice-wave-bar"></div>
+            <div class="voice-wave-bar"></div>
+            <div class="voice-wave-bar"></div>
+            <div class="voice-wave-bar"></div>
+            <div class="voice-wave-bar"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="voice-control-body">
+        <div class="mic-button-outer">
+          <button class="mic-btn" id="voiceMicBtn" onclick="toggleVoiceRecognition()" title="Ativar Comando de Voz">
+            <span class="material-symbols-rounded" id="micIcon" style="font-size: 28px;">mic</span>
+          </button>
+          <div class="mic-ripple"></div>
+        </div>
+        <div class="voice-status-info">
+          <div class="voice-status-text">
+            <span class="voice-status-dot" id="voiceStatusDot"></span>
+            <span id="voiceStatusLabel">Agente Hermes: Ocioso</span>
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted)">
+            Mantenha os olhos na pista. Clique no microfone e fale um comando.
+          </div>
+        </div>
+      </div>
+
+      <div class="voice-transcript-bubble" id="voiceTranscript">
+        "Toque no microfone e fale..."
+      </div>
+
+      <div class="voice-pills-container">
+        <div class="voice-pills-label">Comandos Recomendados</div>
+        <div class="voice-pills-row">
+          <button class="voice-pill" onclick="simulateVoiceCommand('Ler última oferta')">
+            <span class="material-symbols-rounded">volume_up</span> Ler última oferta
+          </button>
+          <button class="voice-pill" onclick="simulateVoiceCommand('Definir corrida mínima para 12 reais')">
+            <span class="material-symbols-rounded">payments</span> Corrida mínima para R$ 12
+          </button>
+          <button class="voice-pill" onclick="simulateVoiceCommand('Definir valor de KM para 2.50 reais')">
+            <span class="material-symbols-rounded">distance</span> KM mínimo para R$ 2.50
+          </button>
+          <button class="voice-pill" onclick="simulateVoiceCommand('Ativar iFood')">
+            <span class="material-symbols-rounded">power_settings_new</span> Ativar iFood
+          </button>
+          <button class="voice-pill" onclick="simulateVoiceCommand('Ajuda')">
+            <span class="material-symbols-rounded">help</span> Ajuda
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid do Dashboard -->
+    <div class="panel-grid">
+      <!-- Coluna da Esquerda: Configurações & Filtros -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <span class="material-symbols-rounded">tune</span>
+            Configuração de Filtro de Ofertas
+          </div>
+        </div>
+
+        <form id="settingsForm" class="compact-form" onsubmit="handleSaveSettings(event)">
+          <div class="compact-row">
+            <div class="form-group">
+              <label for="setMinFare">Corrida Mínima (R$)</label>
+              <div class="input-wrapper">
+                <input type="number" step="0.5" id="setMinFare" required placeholder="Ex: 8.00">
+                <span class="prefix-icon material-symbols-rounded">payments</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="setMinKm">Valor Mínimo/KM (R$)</label>
+              <div class="input-wrapper">
+                <input type="number" step="0.1" id="setMinKm" required placeholder="Ex: 2.0">
+                <span class="prefix-icon material-symbols-rounded">distance</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Tipo de Veículo</label>
+            <div class="input-wrapper">
+              <select id="setVehicleType">
+                <option value="Motos">Moto (Motocicleta)</option>
+                <option value="Carros">Carro / Sedan</option>
+                <option value="Bicicletas">Bicicleta / Patinete</option>
+              </select>
+              <span class="prefix-icon material-symbols-rounded">two_wheeler</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="setSpeedLimit">Trava de Segurança por Velocidade (km/h)</label>
+            <div class="input-wrapper">
+              <input type="number" id="setSpeedLimit" min="0" required placeholder="Ex: 50 (0 para desativar)">
+              <span class="prefix-icon material-symbols-rounded">speed</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+              Bloqueia a lista de ofertas ao exceder este limite para evitar distrações enquanto dirige.
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Aplicativos Monitorados</label>
+            <div class="checkbox-grid">
+              <label class="checkbox-item checked" id="lblIfood">
+                <input type="checkbox" id="appIfood" checked onchange="toggleCheckboxClass(this, 'lblIfood')">
+                iFood
+              </label>
+              <label class="checkbox-item checked" id="lblRappi">
+                <input type="checkbox" id="appRappi" checked onchange="toggleCheckboxClass(this, 'lblRappi')">
+                Rappi
+              </label>
+              <label class="checkbox-item checked" id="lblUber">
+                <input type="checkbox" id="appUber" checked onchange="toggleCheckboxClass(this, 'lblUber')">
+                Uber Eats
+              </label>
+            </div>
+          </div>
+          <div class="form-group" style="margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 14px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <label style="margin-bottom: 2px;">Aceite Automático (Auto-Accept)</label>
+                <div style="font-size: 11px; color: var(--text-muted);">
+                  Aceita automaticamente ofertas de corridas que superam o valor definido.
+                </div>
+              </div>
+              <label class="hud-switch">
+                <input type="checkbox" id="settingsAutoAcceptToggle" onchange="toggleAutoAcceptField(this.checked)">
+                <span class="hud-slider"></span>
+              </label>
+            </div>
+            <div id="autoAcceptThresholdContainer" style="margin-top: 10px; display: none;">
+              <label for="setAutoAcceptThreshold">Valor de Ganhos Mínimo (R$)</label>
+              <div class="input-wrapper">
+                <input type="number" step="0.5" id="setAutoAcceptThreshold" placeholder="Ex: 15.00">
+                <span class="prefix-icon material-symbols-rounded">gavel</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 14px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <div>
+                <label style="margin-bottom: 2px;">Modo Apenas Voz (Foco no Trânsito)</label>
+                <div style="font-size: 11px; color: var(--text-muted);">
+                  Maximiza o assistente de voz e oculta elementos visuais obstrutivos.
+                </div>
+              </div>
+              <label class="hud-switch">
+                <input type="checkbox" id="settingsVoiceOnlyToggle" onchange="toggleVoiceOnlyMode(this.checked)">
+                <span class="hud-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <button type="submit" class="compact-submit" id="btnSaveSettings">
+            <span class="material-symbols-rounded">save</span>
+            Salvar Preferências na Nuvem
+          </button>
+        </form>
+      </div>
+
+      <!-- Coluna da Direita: Ofertas & Simulação -->
+      <div class="section-card">
+        <div class="section-header">
+          <div class="section-title">
+            <span class="material-symbols-rounded">history</span>
+            Histórico Recente de Ofertas
+          </div>
+          <!-- Estatísticas inline -->
+          <div class="server-status" style="padding: 4px 8px; font-size: 11px;">
+            Total: <strong id="offersCountText" style="color: white; font-family: var(--font-mono)">0</strong>
+          </div>
+        </div>
+
+        <!-- Lista de ofertas no Firestore -->
+        <div class="offers-list" id="offersListContainer">
+          <div class="empty-offers">
+            <span class="material-symbols-rounded">cloud_off</span>
+            <p>Nenhuma oferta sincronizada no momento.</p>
+          </div>
+        </div>
+
+        <!-- NOVO COMPONENTE: MINI-MAPA DA ÚLTIMA OFERTA -->
+        <div id="miniMapContainer" style="border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 14px; margin-top: 14px; display: none;">
+          <div class="section-title" style="font-size: 13px; margin-bottom: 10px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+            <span class="material-symbols-rounded" style="font-size: 18px; color: var(--accent-blue);">map</span>
+            <span>Rota da Última Oferta (Mini-Mapa)</span>
+          </div>
+          <div id="googleMap" style="width: 100%; height: 180px; border-radius: 12px; background: var(--surface-variant); border: 1px solid var(--border); overflow: hidden; position: relative;">
+            <!-- Fallback visual de alta fidelidade caso o Google Maps não esteja inicializado com chave ativa -->
+            <div id="mapFallback" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle, #1a1c2e 0%, #10121d 100%);">
+              <!-- Grade de simulação do mapa -->
+              <svg width="100%" height="100%" style="position: absolute; top: 0; left: 0; opacity: 0.12;" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <pattern id="map_grid" width="30" height="30" patternUnits="userSpaceOnUse">
+                    <path d="M 30 0 L 0 0 0 30" fill="none" stroke="white" stroke-width="0.5"/>
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#map_grid)" />
+              </svg>
+              <!-- Linha de rota simulada -->
+              <svg id="routeSvg" width="100%" height="100%" style="position: absolute; inset: 0; pointer-events: none; display: none;">
+                <path id="routePath" d="M 50,130 Q 150,40 250,70" fill="none" stroke="var(--accent-blue)" stroke-width="3" stroke-dasharray="6,4" style="animation: mapDash 10s linear infinite;" />
+                <circle id="routeProgressCircle" r="5" fill="var(--accent-pink)">
+                  <animateMotion dur="4s" repeatCount="indefinite" path="M 50,130 Q 150,40 250,70" />
+                </circle>
+                <style>
+                  @keyframes mapDash {
+                    to {
+                      stroke-dashoffset: -100;
+                    }
+                  }
+                </style>
+              </svg>
+              <!-- Pin de Coleta -->
+              <div id="pinPickup" class="map-pin" style="position: absolute; left: 40px; bottom: 35px; display: none; align-items: center; flex-direction: column; z-index: 2;">
+                <span class="material-symbols-rounded" style="color: var(--success); font-size: 24px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">location_on</span>
+                <span style="font-size: 9px; font-weight: bold; background: var(--surface); border: 1px solid var(--success); padding: 2px 4px; border-radius: 4px; color: var(--success); margin-top: -2px; white-space: nowrap;">Coleta</span>
+              </div>
+              <!-- Pin de Entrega -->
+              <div id="pinDelivery" class="map-pin" style="position: absolute; right: 50px; top: 40px; display: none; align-items: center; flex-direction: column; z-index: 2;">
+                <span class="material-symbols-rounded" style="color: var(--accent-pink); font-size: 24px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">flag</span>
+                <span style="font-size: 9px; font-weight: bold; background: var(--surface); border: 1px solid var(--accent-pink); padding: 2px 4px; border-radius: 4px; color: var(--accent-pink); margin-top: -2px; white-space: nowrap;">Entrega</span>
+              </div>
+              <!-- Informações textuais em tempo real -->
+              <div id="mapPlaceholderText" style="text-align: center; color: var(--text-muted); z-index: 3; pointer-events: none; padding: 10px;">
+                <span class="material-symbols-rounded" style="font-size: 32px; color: var(--text-dim); margin-bottom: 4px; display: block; animation: floatPin 2s ease-in-out infinite;">map</span>
+                <span style="font-size: 11px;">Aguardando nova oferta para carregar mapa...</span>
+              </div>
+              <style>
+                @keyframes floatPin {
+                  0%, 100% { transform: translateY(0); }
+                  50% { transform: translateY(-4px); }
+                }
+              </style>
+            </div>
+          </div>
+        </div>
+
+        <!-- Formulário de Simulação para Adicionar Oferta -->
+        <div style="border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 14px;">
+          <div class="section-title" style="font-size: 13px; margin-bottom: 10px; color: var(--text-muted);">
+            <span class="material-symbols-rounded" style="font-size: 16px;">add_circle</span>
+            Simular Recebimento de Oferta
+          </div>
+          <form id="mockOfferForm" class="compact-form" onsubmit="handleSimulateOffer(event)">
+            <div class="compact-row">
+              <div class="form-group">
+                <label for="mockFare">Valor (R$)</label>
+                <div class="input-wrapper">
+                  <input type="number" step="0.5" id="mockFare" required placeholder="12.50">
+                  <span class="prefix-icon material-symbols-rounded">attach_money</span>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="mockDist">Distância (KM)</label>
+                <div class="input-wrapper">
+                  <input type="number" step="0.1" id="mockDist" required placeholder="4.2">
+                  <span class="prefix-icon material-symbols-rounded">route</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="compact-row">
+              <div class="form-group">
+                <label for="mockApp">Aplicativo</label>
+                <div class="input-wrapper">
+                  <select id="mockApp">
+                    <option value="iFood">iFood</option>
+                    <option value="Rappi">Rappi</option>
+                    <option value="Uber Eats">Uber Eats</option>
+                  </select>
+                  <span class="prefix-icon material-symbols-rounded">apps</span>
+                </div>
+              </div>
+              <button type="submit" class="compact-submit" style="align-self: flex-end; height: 48px; background-color: rgba(58, 134, 255, 0.1); border-color: rgba(58, 134, 255, 0.2);">
+                <span class="material-symbols-rounded" style="color: var(--accent-blue);">send</span>
+                Enviar
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Simulador de Velocidade de Segurança -->
+        <div style="border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 14px; margin-top: 14px;">
+          <div class="section-title" style="font-size: 13px; margin-bottom: 10px; color: var(--text-muted);">
+            <span class="material-symbols-rounded" style="font-size: 16px;">speed</span>
+            Simulador de Velocidade do GPS (Testar Bloqueio)
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; background: rgba(255, 255, 255, 0.02); padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+            <input type="range" id="simSpeedRange" min="0" max="120" value="0" style="flex-grow: 1; accent-color: var(--accent-blue);" oninput="updateSimulatedSpeed(this.value)">
+            <span style="font-family: var(--font-mono); font-weight: bold; min-width: 60px; text-align: right; color: var(--accent-blue);">
+              <span id="simSpeedValue">0</span> km/h
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POPUP RECUPERAÇÃO DE SENHA -->
+  <div class="reset-modal-backdrop" id="resetModal">
+    <div class="reset-modal">
+      <div class="reset-header">
+        <h3>Recuperar Senha de Piloto</h3>
+        <button onclick="closeResetModal()">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      </div>
+      <p style="font-size: 13px; color: var(--text-muted);">Insera o email de cadastro do motoboy para receber instruções de redefinição de senha.</p>
+      <form onsubmit="handlePasswordReset(event)">
+        <div class="form-group">
+          <label for="resetEmail">Email Cadastrado</label>
+          <div class="input-wrapper">
+            <input type="email" id="resetEmail" required placeholder="exemplo@motoboy.com">
+            <span class="prefix-icon material-symbols-rounded">mail</span>
+          </div>
+        </div>
+        <button type="submit" class="btn-submit" id="btnResetSubmit">
+          <span>Enviar Link de Recuperação</span>
+          <span class="material-symbols-rounded">send</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- LÓGICA DO COMPONENTE INTEGRADOR COM FIREBASE -->
+  <script type="module">
+    import {
+      auth,
+      loginDriver,
+      registerDriver,
+      logoutDriver,
+      resetDriverPassword,
+      onDriverAuthStateChanged,
+      saveDriverProfile,
+      getDriverProfile,
+      saveDriverSettings,
+      getDriverSettings,
+      saveDeliveryOrder,
+      getDeliveryOrders,
+      subscribeToDeliveryOrders,
+      subscribeToDriverSettings,
+      saveRejectedOrder,
+      getRejectedOrders
+    } from './firebase.js';
+
+    // Utilitários de Toasts e UI
+    window.showToast = function(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      
+      const iconMap = {
+        'success': 'check_circle',
+        'error': 'error',
+        'info': 'info'
+      };
+      
+      toast.innerHTML = `
+        <span class="icon material-symbols-rounded">${iconMap[type] || 'info'}</span>
+        <span>${message}</span>
+        <button class="close-toast" onclick="this.parentElement.remove()">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+      `;
+      
+      container.appendChild(toast);
+      
+      // Auto dismiss
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(50px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 5000);
+    }
+
+    // Toggle de visualização da senha
+    window.togglePasswordVisibility = function(fieldId, btn) {
+      const input = document.getElementById(fieldId);
+      const iconSpan = btn.querySelector('.material-symbols-rounded');
+      if (input.type === 'password') {
+        input.type = 'text';
+        iconSpan.textContent = 'visibility_off';
+      } else {
+        input.type = 'password';
+        iconSpan.textContent = 'visibility';
+      }
+    }
+
+    // Gerenciador de Abas de Autenticação
+    window.switchTab = function(tab) {
+      const tabLogin = document.getElementById('tabLogin');
+      const tabRegister = document.getElementById('tabRegister');
+      const loginForm = document.getElementById('loginForm');
+      const registerForm = document.getElementById('registerForm');
+
+      if (tab === 'login') {
+        tabLogin.classList.add('active');
+        tabRegister.classList.remove('active');
+        loginForm.style.display = 'flex';
+        registerForm.style.display = 'none';
+      } else {
+        tabLogin.classList.remove('active');
+        tabRegister.classList.add('active');
+        loginForm.style.display = 'none';
+        registerForm.style.display = 'flex';
+      }
+    }
+
+    // Gerenciador de checkboxes customizados do formulário
+    window.toggleCheckboxClass = function(input, labelId) {
+      const label = document.getElementById(labelId);
+      if (input.checked) {
+        label.classList.add('checked');
+      } else {
+        label.classList.remove('checked');
+      }
+    }
+
+    // Recuperação de Senha Modal Control
+    window.openResetModal = function() {
+      document.getElementById('resetModal').style.display = 'flex';
+    }
+
+    window.closeResetModal = function() {
+      document.getElementById('resetModal').style.display = 'none';
+    }
+
+    // Estados locais
+    let currentDriverId = null;
+    let unsubscribeSettings = null;
+    let unsubscribeOrders = null;
+    let currentOrdersList = [];
+    let recognition = null;
+    let isListening = false;
+    let knownOrderIds = new Set();
+    let expandedOrderIds = new Set();
+    let rejectedOrderIds = new Set();
+    let activeOrderId = localStorage.getItem('activeOrderId') || null;
+    let currentDriverSettings = null;
+
+    window.toggleAutoAcceptField = function(checked) {
+      const container = document.getElementById('autoAcceptThresholdContainer');
+      const input = document.getElementById('setAutoAcceptThreshold');
+      if (container) {
+        container.style.display = checked ? 'block' : 'none';
+      }
+      if (input) {
+        input.required = checked;
+      }
+    };
+
+    // Função inteligente de verificação de compatibilidade (Uber/99/iFood)
+    window.checkCompatibility = function(active, pending) {
+      if (!active || !pending || active.id === pending.id) return null;
+      
+      const activePickup = active.pickup_address || "";
+      const activeDelivery = active.delivery_address || "";
+      const pendingPickup = pending.pickup_address || "";
+      const pendingDelivery = pending.delivery_address || "";
+      
+      // Extrator de bairro / região
+      const getNeighborhood = (addr) => {
+        const parts = addr.split('-');
+        if (parts.length > 1) {
+          return parts[1].split(',')[0].trim().toLowerCase();
+        }
+        return addr.toLowerCase();
+      };
+      
+      const activePNH = getNeighborhood(activePickup);
+      const activeDNH = getNeighborhood(activeDelivery);
+      const pendingPNH = getNeighborhood(pendingPickup);
+      const pendingDNH = getNeighborhood(pendingDelivery);
+      
+      // Definição de bairros adjacentes de SP para rotas realistas
+      const adjacencies = {
+        'bela vista': ['bela vista', 'consolação', 'cerqueira césar', 'jardim paulista'],
+        'consolação': ['consolação', 'bela vista', 'cerqueira césar', 'pinheiros'],
+        'cerqueira césar': ['cerqueira césar', 'bela vista', 'consolação', 'jardim paulista'],
+        'jardim paulista': ['jardim paulista', 'bela vista', 'cerqueira césar', 'pinheiros', 'itaim bibi'],
+        'pinheiros': ['pinheiros', 'jardim paulista', 'consolação', 'itaim bibi'],
+        'itaim bibi': ['itaim bibi', 'jardim paulista', 'pinheiros'],
+        'vila mariana': ['vila mariana', 'saúde', 'bela vista'],
+        'saúde': ['saúde', 'vila mariana']
+      };
+      
+      const isAdjacent = (nh1, nh2) => {
+        if (!nh1 || !nh2) return false;
+        if (nh1 === nh2) return true;
+        if (adjacencies[nh1] && adjacencies[nh1].includes(nh2)) return true;
+        if (adjacencies[nh2] && adjacencies[nh2].includes(nh1)) return true;
+        return false;
+      };
+      
+      // 1. Coleta Dupla: pontos de coleta muito próximos
+      if (isAdjacent(activePNH, pendingPNH)) {
+        return {
+          type: 'batched',
+          title: 'Coleta Dupla ⚡',
+          desc: `Coletas super próximas em ${pendingPNH.toUpperCase()}. Colete ambos pacotes juntos e otimize seu tempo!`,
+          color: '#00f5d4',
+          badgeBg: 'rgba(0, 245, 212, 0.1)',
+          borderColor: 'rgba(0, 245, 212, 0.3)'
+        };
+      }
+      
+      // 2. Corrida Encadeada: início da próxima é perto do destino da atual
+      if (isAdjacent(activeDNH, pendingPNH)) {
+        return {
+          type: 'back-to-back',
+          title: 'Corrida Encadeada 🔄',
+          desc: `Esta coleta começa bem perto de onde você vai entregar a corrida atual (${activeDNH.toUpperCase()}). Menos tempo de espera parado!`,
+          color: '#3a86ff',
+          badgeBg: 'rgba(58, 134, 255, 0.1)',
+          borderColor: 'rgba(58, 134, 255, 0.3)'
+        };
+      }
+      
+      // 3. Na Rota: destino final muito próximo do destino atual
+      if (isAdjacent(activeDNH, pendingDNH)) {
+        return {
+          type: 'along-route',
+          title: 'Mesmo Destino 📍',
+          desc: `O destino desta corrida fica ao lado da sua entrega atual. Praticamente nenhum desvio de rota!`,
+          color: '#ff006e',
+          badgeBg: 'rgba(255, 0, 110, 0.1)',
+          borderColor: 'rgba(255, 0, 110, 0.3)'
+        };
+      }
+      
+      return null;
+    };
+
+    window.acceptOrder = function(orderId) {
+      activeOrderId = orderId;
+      localStorage.setItem('activeOrderId', orderId);
+      
+      // Fala de confirmação de voz inteligente por segurança
+      const order = currentOrdersList.find(o => o.id === orderId);
+      if (order) {
+        const app = order.delivery_app || 'Aplicativo';
+        const pLoc = order.pickup_address ? order.pickup_address.split(',')[0] : 'coleta';
+        speakText(`Corrida aceita no ${app}. Iniciando navegação para ${pLoc}. Dirija com segurança.`);
+        showToast(`Corrida aceita! Vá até a coleta em: ${pLoc}`, 'success');
+        
+        // Desenha a rota no mapa para a corrida ativa
+        window.drawRouteOnMap(order);
+      }
+      
+      if (currentOrdersList) {
+        renderOffers(currentOrdersList);
+      }
+    };
+
+    window.completeOrder = function() {
+      if (!activeOrderId) return;
+      
+      // Salva estatística local de corridas completas se desejar
+      const completedCount = parseInt(localStorage.getItem('completedRidesCount') || '0') + 1;
+      localStorage.setItem('completedRidesCount', completedCount);
+      
+      speakText("Corrida concluída com sucesso! Ótimo trabalho. Aguardando novas ofertas inteligentes.");
+      showToast("Corrida concluída! Estatísticas atualizadas.", "success");
+      
+      activeOrderId = null;
+      localStorage.removeItem('activeOrderId');
+      
+      if (currentOrdersList) {
+        renderOffers(currentOrdersList);
+      }
+    };
+
+    window.cancelOrder = async function() {
+      if (!activeOrderId) return;
+      
+      const confirmCancel = confirm("Tem certeza de que deseja cancelar a corrida atual?");
+      if (!confirmCancel) return;
+      
+      const orderIdToCancel = activeOrderId;
+      
+      // Reset local state first for instant UI response
+      activeOrderId = null;
+      localStorage.removeItem('activeOrderId');
+      
+      speakText("Corrida cancelada. Retornando ao modo de espera para novas ofertas.");
+      showToast("Corrida cancelada com sucesso.", "info");
+      
+      // Update status in Firestore to 'canceled'
+      if (currentDriverId) {
+        const { success, error } = await saveDeliveryOrder(currentDriverId, orderIdToCancel, { status: 'canceled' });
+        if (error) {
+          console.error("Erro ao atualizar status de cancelamento no Firestore:", error);
+        }
+      }
+      
+      if (currentOrdersList) {
+        renderOffers(currentOrdersList);
+      }
+    };
+
+    window.rejectOrder = async function(orderId) {
+      if (!orderId) return;
+      
+      const order = currentOrdersList.find(o => o.id === orderId);
+      if (!order) return;
+      
+      // Feedback visual e sonoro imediato
+      rejectedOrderIds.add(orderId);
+      
+      speakText("Oferta recusada.");
+      showToast("Oferta recusada e oculta com sucesso.", "info");
+      
+      if (currentOrdersList) {
+        renderOffers(currentOrdersList);
+      }
+      
+      // Salva a rejeição de forma persistente no Firestore
+      if (currentDriverId) {
+        const { success, error } = await saveRejectedOrder(currentDriverId, orderId, order);
+        if (error) {
+          console.error("Erro ao registrar rejeição no Firestore:", error);
+        }
+      }
+    };
+
+    window.toggleOfferExpansion = function(orderId) {
+      if (expandedOrderIds.has(orderId)) {
+        expandedOrderIds.delete(orderId);
+      } else {
+        expandedOrderIds.add(orderId);
+      }
+      if (currentOrdersList) {
+        renderOffers(currentOrdersList);
+      }
+    }
+
+    let gpsWatchId = null;
+    let currentSpeedKmh = 0;
+    let speedLimitKmh = 50;
+
+    // Componente Integrador de Mapas (Google Maps JS API & Fallback de Alta Fidelidade)
+    let googleMapInstance = null;
+    let directionsService = null;
+    let directionsRenderer = null;
+    let geocoder = null;
+    let pickupMarker = null;
+    let deliveryMarker = null;
+    let latestMappedOffer = null;
+
+    window.loadGoogleMapsApi = function() {
+      if (window.google && window.google.maps) {
+        window.initGoogleMap();
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = "https://maps.googleapis.com/maps/api/js?key=&callback=initGoogleMap";
+      script.async = true;
+      script.defer = true;
+      script.onerror = () => {
+        console.warn("Google Maps API failed to load. Displaying simulated visual route.");
+      };
+      document.head.appendChild(script);
+    }
+
+    window.initGoogleMap = function() {
+      console.log("[Map] Google Maps API initialized!");
+      const mapElement = document.getElementById('googleMap');
+      if (!mapElement) return;
+
+      googleMapInstance = new google.maps.Map(mapElement, {
+        center: { lat: -23.55052, lng: -46.633308 }, // São Paulo
+        zoom: 13,
+        styles: [
+          { elementType: "geometry", stylers: [{ color: "#141622" }] },
+          { elementType: "labels.text.stroke", stylers: [{ color: "#141622" }] },
+          { elementType: "labels.text.fill", stylers: [{ color: "#8f95b2" }] },
+          { featureType: "road", elementType: "geometry", stylers: [{ color: "#1e2136" }] },
+          { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#2b2e4a" }] },
+          { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#8f95b2" }] },
+          { featureType: "water", elementType: "geometry", stylers: [{ color: "#0a0b10" }] }
+        ],
+        disableDefaultUI: true,
+        zoomControl: false,
+        gestureHandling: "cooperative"
+      });
+
+      directionsService = new google.maps.DirectionsService();
+      directionsRenderer = new google.maps.DirectionsRenderer({
+        map: googleMapInstance,
+        suppressMarkers: true,
+        polylineOptions: {
+          strokeColor: "#3a86ff",
+          strokeWeight: 4,
+          strokeOpacity: 0.8
+        }
+      });
+
+      geocoder = new google.maps.Geocoder();
+
+      // Se já temos uma oferta registrada, desenhamos agora
+      if (latestMappedOffer) {
+        window.drawRouteOnMap(latestMappedOffer);
+      }
+    }
+
+    window.drawRouteOnMap = function(offer) {
+      latestMappedOffer = offer;
+      const container = document.getElementById('miniMapContainer');
+      if (container) {
+        container.style.display = 'block';
+      }
+
+      const isSimulated = offer.pickup_address.includes("Próximo") || !geocoder;
+
+      if (googleMapInstance && geocoder && !isSimulated) {
+        geocodeAndRenderRoute(offer.pickup_address, offer.delivery_address);
+      } else {
+        renderSimulatedMapVisual(offer);
+      }
+    }
+
+    function geocodeAndRenderRoute(pickup, delivery) {
+      geocoder.geocode({ address: pickup }, (results1, status1) => {
+        if (status1 === 'OK' && results1[0]) {
+          const loc1 = results1[0].geometry.location;
+          geocoder.geocode({ address: delivery }, (results2, status2) => {
+            if (status2 === 'OK' && results2[0]) {
+              const loc2 = results2[0].geometry.location;
+              
+              // Ajusta zoom e centralização automaticamente
+              const bounds = new google.maps.LatLngBounds();
+              bounds.extend(loc1);
+              bounds.extend(loc2);
+              googleMapInstance.fitBounds(bounds);
+
+              if (pickupMarker) pickupMarker.setMap(null);
+              if (deliveryMarker) deliveryMarker.setMap(null);
+
+              pickupMarker = new google.maps.Marker({
+                position: loc1,
+                map: googleMapInstance,
+                title: "Coleta",
+                icon: {
+                  path: google.maps.SymbolPath.CIRCLE,
+                  fillColor: '#00f5d4',
+                  fillOpacity: 1.0,
+                  scale: 8,
+                  strokeColor: '#ffffff',
+                  strokeWeight: 2,
+                }
+              });
+
+              deliveryMarker = new google.maps.Marker({
+                position: loc2,
+                map: googleMapInstance,
+                title: "Entrega",
+                icon: {
+                  path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+                  fillColor: '#ff006e',
+                  fillOpacity: 1.0,
+                  scale: 6,
+                  strokeColor: '#ffffff',
+                  strokeWeight: 2,
+                }
+              });
+
+              // Esconde o overlay textual do placeholder
+              const textPlaceholder = document.getElementById('mapPlaceholderText');
+              if (textPlaceholder) textPlaceholder.style.display = 'none';
+
+              directionsRenderer.setDirections({routes: []});
+              directionsService.route({
+                origin: loc1,
+                destination: loc2,
+                travelMode: google.maps.TravelMode.DRIVING
+              }, (response, status) => {
+                if (status === 'OK') {
+                  directionsRenderer.setDirections(response);
+                } else {
+                  // Fallback de linha direta se rota falhar
+                  const fallbackLine = new google.maps.Polyline({
+                    path: [loc1, loc2],
+                    strokeColor: "#3a86ff",
+                    strokeOpacity: 0.8,
+                    strokeWeight: 4,
+                    map: googleMapInstance
+                  });
+                }
+              });
+            } else {
+              renderSimulatedRouteOnRealMap(loc1, null);
+            }
+          });
+        } else {
+          renderSimulatedMapVisual(latestMappedOffer);
+        }
+      });
+    }
+
+    function renderSimulatedRouteOnRealMap(customLoc1 = null, customLoc2 = null) {
+      if (!googleMapInstance) return;
+
+      const loc1 = customLoc1 || new google.maps.LatLng(-23.5615, -46.6562);
+      const loc2 = customLoc2 || new google.maps.LatLng(-23.5561, -46.6625);
+
+      const bounds = new google.maps.LatLngBounds();
+      bounds.extend(loc1);
+      bounds.extend(loc2);
+      googleMapInstance.fitBounds(bounds);
+
+      if (pickupMarker) pickupMarker.setMap(null);
+      if (deliveryMarker) deliveryMarker.setMap(null);
+
+      pickupMarker = new google.maps.Marker({
+        position: loc1,
+        map: googleMapInstance,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          fillColor: '#00f5d4',
+          fillOpacity: 1.0,
+          scale: 8,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+        }
+      });
+
+      deliveryMarker = new google.maps.Marker({
+        position: loc2,
+        map: googleMapInstance,
+        icon: {
+          path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+          fillColor: '#ff006e',
+          fillOpacity: 1.0,
+          scale: 6,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+        }
+      });
+
+      const fallbackLine = new google.maps.Polyline({
+        path: [loc1, loc2],
+        strokeColor: "#3a86ff",
+        strokeOpacity: 0.8,
+        strokeWeight: 4,
+        map: googleMapInstance
+      });
+
+      const textPlaceholder = document.getElementById('mapPlaceholderText');
+      if (textPlaceholder) textPlaceholder.style.display = 'none';
+    }
+
+    function renderSimulatedMapVisual(offer) {
+      const routeSvg = document.getElementById('routeSvg');
+      const pinPickup = document.getElementById('pinPickup');
+      const pinDelivery = document.getElementById('pinDelivery');
+      const textPlaceholder = document.getElementById('mapPlaceholderText');
+
+      if (routeSvg && pinPickup && pinDelivery) {
+        routeSvg.style.display = 'block';
+        pinPickup.style.display = 'flex';
+        pinDelivery.style.display = 'flex';
+        if (textPlaceholder) {
+          textPlaceholder.innerHTML = `
+            <span style="font-size: 11px; font-weight: bold; color: var(--text-main); text-shadow: 0 1px 3px rgba(0,0,0,0.9); display: block; margin-top: 4px;">
+              Rota: ${offer.pickup_address.split(',')[0]} ➔ ${offer.delivery_address.split(',')[0]}
+            </span>
+            <div style="font-size: 9px; color: var(--text-muted); margin-top: 2px;">
+              Simulando rota direta: ${parseFloat(offer.total_distance_km || 0).toFixed(1)} KM
+            </div>
+          `;
+          textPlaceholder.style.position = 'absolute';
+          textPlaceholder.style.top = '10px';
+          textPlaceholder.style.left = '50%';
+          textPlaceholder.style.transform = 'translateX(-50%)';
+          textPlaceholder.style.zIndex = '3';
+        }
+      }
+    }
+
+    // Feedback Háptico via Vibration API
+    window.triggerHapticFeedback = function(type) {
+      if (!navigator.vibrate) return;
+      try {
+        if (type === 'listening') {
+          // Feedback de clique curto ao iniciar escuta de voz
+          navigator.vibrate(100);
+        } else if (type === 'success') {
+          // Feedback duplo para confirmação de comando realizado com sucesso
+          navigator.vibrate([80, 50, 120]);
+        } else if (type === 'high_value') {
+          // Padrão de alerta mais forte/longo e ritmado para oferta de alto valor (VIP)
+          navigator.vibrate([300, 100, 300, 100, 300]);
+        }
+      } catch (e) {
+        console.warn("Haptic feedback error:", e);
+      }
+    }
+
+    function startGpsTracking() {
+      if (!navigator.geolocation) {
+        console.warn("Geolocation API not supported. Speed safety lock will rely on manual simulation.");
+        return;
+      }
+      if (gpsWatchId) {
+        navigator.geolocation.clearWatch(gpsWatchId);
+      }
+      gpsWatchId = navigator.geolocation.watchPosition(
+        (position) => {
+          if (position.coords && position.coords.speed !== null && position.coords.speed !== undefined) {
+            const speedMs = position.coords.speed >= 0 ? position.coords.speed : 0;
+            const calculatedSpeed = Math.round(speedMs * 3.6);
+            updateCurrentSpeed(calculatedSpeed);
+          }
+        },
+        (error) => {
+          console.warn("Geolocation watchPosition error:", error);
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 4000
+        }
+      );
+    }
+
+    window.updateCurrentSpeed = function(speed) {
+      currentSpeedKmh = speed;
+      const speedDisplay = document.getElementById('currentSpeedDisplay');
+      if (speedDisplay) {
+        speedDisplay.textContent = speed;
+      }
+      checkSpeedSafetyLock();
+    }
+
+    window.updateSimulatedSpeed = function(val) {
+      const speed = parseInt(val, 10);
+      document.getElementById('simSpeedValue').textContent = speed;
+      updateCurrentSpeed(speed);
+    }
+
+    function checkSpeedSafetyLock() {
+      const offersList = document.getElementById('offersListContainer');
+      const warningDiv = document.getElementById('speedLockWarning');
+      
+      if (speedLimitKmh > 0 && currentSpeedKmh > speedLimitKmh) {
+        if (offersList) {
+          offersList.style.setProperty('display', 'none', 'important');
+        }
+        if (warningDiv) {
+          warningDiv.style.display = 'block';
+        }
+      } else {
+        if (offersList) {
+          offersList.style.removeProperty('display');
+        }
+        if (warningDiv) {
+          warningDiv.style.display = 'none';
+        }
+      }
+    }
+
+    function cleanupSubscriptions() {
+      rejectedOrderIds.clear();
+      if (unsubscribeSettings) {
+        unsubscribeSettings();
+        unsubscribeSettings = null;
+      }
+      if (unsubscribeOrders) {
+        unsubscribeOrders();
+        unsubscribeOrders = null;
+      }
+      if (gpsWatchId) {
+        navigator.geolocation.clearWatch(gpsWatchId);
+        gpsWatchId = null;
+      }
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    }
+
+    async function setupRealtimeSubscriptions() {
+      if (!currentDriverId) return;
+
+      cleanupSubscriptions();
+      startGpsTracking();
+
+      // Carregar ofertas rejeitadas do Firestore para consistência entre reloads
+      try {
+        const { rejectedIds } = await getRejectedOrders(currentDriverId);
+        if (rejectedIds) {
+          rejectedIds.forEach(id => rejectedOrderIds.add(id));
+          console.log("[Rejected] Ofertas rejeitadas carregadas do Firestore:", rejectedOrderIds.size);
+          if (currentOrdersList && currentOrdersList.length > 0) {
+            renderOffers(currentOrdersList);
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao sincronizar ofertas rejeitadas:", err);
+      }
+
+       // 1. Escuta preferências de filtros em tempo real
+       unsubscribeSettings = subscribeToDriverSettings(currentDriverId, (settings) => {
+         if (settings) {
+           currentDriverSettings = settings;
+
+           // Sincroniza o Auto-Aceite Inteligente
+           const autoAcceptEnabled = !!settings.autoAcceptEnabled;
+           const autoAcceptToggle = document.getElementById('settingsAutoAcceptToggle');
+           if (autoAcceptToggle) autoAcceptToggle.checked = autoAcceptEnabled;
+           
+           const autoAcceptThresholdInput = document.getElementById('setAutoAcceptThreshold');
+           if (autoAcceptThresholdInput) {
+             autoAcceptThresholdInput.value = settings.autoAcceptThreshold !== undefined ? settings.autoAcceptThreshold : '';
+             autoAcceptThresholdInput.required = autoAcceptEnabled;
+           }
+           
+           const thresholdContainer = document.getElementById('autoAcceptThresholdContainer');
+           if (thresholdContainer) {
+             thresholdContainer.style.display = autoAcceptEnabled ? 'block' : 'none';
+           }
+
+           document.getElementById('setMinFare').value = settings.minFareValue || '';
+          document.getElementById('setMinKm').value = settings.minValuePerKm || '';
+          if (settings.vehicleType) {
+            document.getElementById('setVehicleType').value = settings.vehicleType;
+          }
+          
+          // Sincroniza os checkboxes dos Apps
+          const apps = settings.enabledApps || [];
+          const checkIfood = document.getElementById('appIfood');
+          const checkRappi = document.getElementById('appRappi');
+          const checkUber = document.getElementById('appUber');
+
+          checkIfood.checked = apps.includes('iFood');
+          checkRappi.checked = apps.includes('Rappi');
+          checkUber.checked = apps.includes('Uber Eats');
+
+          toggleCheckboxClass(checkIfood, 'lblIfood');
+          toggleCheckboxClass(checkRappi, 'lblRappi');
+          toggleCheckboxClass(checkUber, 'lblUber');
+          
+          // Sincroniza o Modo Apenas Voz sem loops
+          const isVoiceOnly = !!settings.voiceOnlyMode;
+          const driverPanel = document.getElementById('driverPanel');
+          const toggle1 = document.getElementById('voiceOnlyToggle');
+          const toggle2 = document.getElementById('settingsVoiceOnlyToggle');
+          
+          if (isVoiceOnly) {
+            driverPanel.classList.add('voice-only-active');
+          } else {
+            driverPanel.classList.remove('voice-only-active');
+          }
+          if (toggle1) toggle1.checked = isVoiceOnly;
+          if (toggle2) toggle2.checked = isVoiceOnly;
+          
+          // Sincroniza a trava de velocidade
+          const speedLimitVal = settings.speedLimit !== undefined ? settings.speedLimit : 50;
+          const speedLimitInput = document.getElementById('setSpeedLimit');
+          if (speedLimitInput) speedLimitInput.value = speedLimitVal;
+          speedLimitKmh = speedLimitVal;
+          const warningLimitDisplay = document.getElementById('speedLimitWarningDisplay');
+          if (warningLimitDisplay) warningLimitDisplay.textContent = speedLimitVal;
+          checkSpeedSafetyLock();
+          
+          showToast("Preferências sincronizadas da nuvem!", "info");
+        }
+      }, (err) => {
+        showToast(`Erro ao sincronizar preferências: ${err.message}`, 'error');
+      });
+
+      // 2. Escuta ofertas em tempo real e calcula estatísticas ao vivo
+      unsubscribeOrders = subscribeToDeliveryOrders(currentDriverId, (orders) => {
+        renderOffers(orders);
+      }, (err) => {
+        showToast(`Erro ao sincronizar feed de ofertas: ${err.message}`, 'error');
+      });
+    }
+
+    // Renderiza a lista de ofertas e calcula estatísticas em tempo real
+    function renderOffers(orders) {
+      currentOrdersList = orders;
+      const listContainer = document.getElementById('offersListContainer');
+      const countText = document.getElementById('offersCountText');
+
+      const activeOrPendingOrders = orders.filter(o => o.status !== 'canceled' && !rejectedOrderIds.has(o.id));
+      countText.textContent = activeOrPendingOrders.length;
+
+      // Calcular estatísticas em tempo real (Master Delivery Analytics)
+      let totalEarnings = 0;
+      let totalDistance = 0;
+      let count = activeOrPendingOrders.length;
+
+      // Verifica novas ofertas para disparo de feedback háptico (Vibration API)
+      const isFirstLoad = (knownOrderIds.size === 0);
+      let foundNewHighValue = false;
+      const newOrderIdsThisUpdate = new Set();
+
+      orders.forEach(order => {
+        if (order.status === 'canceled' || rejectedOrderIds.has(order.id)) return;
+        totalEarnings += parseFloat(order.fare_value || 0);
+        totalDistance += parseFloat(order.total_distance_km || 0);
+
+        if (order.id && !knownOrderIds.has(order.id)) {
+          knownOrderIds.add(order.id);
+          if (!isFirstLoad) {
+            newOrderIdsThisUpdate.add(order.id);
+            const fare = parseFloat(order.fare_value || 0);
+            const dist = parseFloat(order.total_distance_km || 0);
+            const kmRate = dist > 0 ? (fare / dist) : 0;
+            // Define oferta de alto valor se: valor da corrida >= R$15 OU taxa por km >= R$3.00/KM
+            if (fare >= 15.0 || kmRate >= 3.0) {
+              foundNewHighValue = true;
+            }
+
+            // Auto-Aceite Inteligente de Ofertas
+            if (currentDriverSettings && currentDriverSettings.autoAcceptEnabled) {
+              const threshold = parseFloat(currentDriverSettings.autoAcceptThreshold || 0);
+              if (fare >= threshold && !activeOrderId) {
+                setTimeout(() => {
+                  if (!activeOrderId) {
+                    showToast(`[Auto-Aceite] Oferta de R$ ${fare.toFixed(2)} aceita automaticamente (Limite de R$ ${threshold.toFixed(2)} superado).`, 'success');
+                    window.acceptOrder(order.id);
+                  }
+                }, 800);
+              }
+            }
+          }
+        }
+      });
+
+      if (foundNewHighValue) {
+        triggerHapticFeedback('high_value');
+      }
+
+      const avgKm = totalDistance > 0 ? (totalEarnings / totalDistance) : 0;
+
+      // Atualizar cards de estatísticas
+      document.getElementById('statsEarnings').textContent = `R$ ${totalEarnings.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      document.getElementById('statsDistance').textContent = `${totalDistance.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} KM`;
+      document.getElementById('statsAvgKm').textContent = `R$ ${avgKm.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/KM`;
+      document.getElementById('statsCount').textContent = count;
+
+      // Calcular e disparar a tendência de ganhos semanais (Recharts)
+      try {
+        const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+        const last7Days = [];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          d.setHours(0, 0, 0, 0);
+          last7Days.push({
+            dateStr: d.toDateString(),
+            dayName: daysOfWeek[d.getDay()],
+            total: 0
+          });
+        }
+
+        orders.forEach(order => {
+          if (order.status === 'canceled' || rejectedOrderIds.has(order.id)) return;
+          const fare = parseFloat(order.fare_value || 0);
+          if (order.timestamp) {
+            const orderDate = new Date(order.timestamp);
+            orderDate.setHours(0, 0, 0, 0);
+            const orderDateStr = orderDate.toDateString();
+            
+            const dayObj = last7Days.find(day => day.dateStr === orderDateStr);
+            if (dayObj) {
+              dayObj.total += fare;
+            }
+          }
+        });
+
+        // Formata os totais para 2 casas decimais
+        last7Days.forEach(day => {
+          day.total = parseFloat(day.total.toFixed(2));
+        });
+
+        const event = new CustomEvent('updateWeeklyEarnings', { detail: last7Days });
+        window.dispatchEvent(event);
+      } catch (err) {
+        console.error("Error computing weekly earnings trend:", err);
+      }
+
+      if (!orders || orders.length === 0) {
+        const mapContainer = document.getElementById('miniMapContainer');
+        if (mapContainer) mapContainer.style.display = 'none';
+        listContainer.innerHTML = `
+          <div class="empty-offers">
+            <span class="material-symbols-rounded">cloud_done</span>
+            <p>Seu histórico do Firestore está limpo.</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Procura a corrida ativa localmente
+      const activeOrder = activeOrderId ? orders.find(o => o.id === activeOrderId) : null;
+
+      // Traça rota no mapa: se houver corrida ativa, desenha ela. Caso contrário, desenha a última recebida.
+      if (activeOrder) {
+        window.drawRouteOnMap(activeOrder);
+      } else if (orders && orders.length > 0) {
+        window.drawRouteOnMap(orders[0]);
+      }
+
+      // Painel superior de Corrida Ativa (semelhante ao Uber/iFood oficial de motoristas)
+      let activeRideHtml = '';
+      if (activeOrder) {
+        const fare = parseFloat(activeOrder.fare_value || 0);
+        const dist = parseFloat(activeOrder.total_distance_km || 0);
+        const kmRate = dist > 0 ? (fare / dist).toFixed(2) : '0.00';
+        
+        // Calcular ETA dinâmico baseado em velocidade média de 30 km/h (minutos = distância * 2)
+        const etaMinutes = Math.max(1, Math.round((dist / 30) * 60));
+        const now = new Date();
+        const arrivalDate = new Date(now.getTime() + etaMinutes * 60 * 1000);
+        const etaClockTime = arrivalDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+        activeRideHtml = `
+          <div class="active-ride-panel">
+            <div class="active-ride-header">
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span class="active-ride-badge">
+                  <span class="material-symbols-rounded" style="font-size: 14px; animation: spin 2s linear infinite;">autorenew</span>
+                  Corrida Em Andamento 🏍️
+                </span>
+                <span class="active-ride-eta-badge" title="ETA calculado com velocidade média de 30 km/h">
+                  <span class="material-symbols-rounded" style="font-size: 14px;">schedule</span>
+                  ETA: ${etaMinutes} min (${etaClockTime})
+                </span>
+              </div>
+              <span class="active-ride-app">${activeOrder.delivery_app || 'iFood'}</span>
+            </div>
+            <div class="active-ride-route">
+              <div class="active-route-step">
+                <span class="material-symbols-rounded active-route-icon" style="color: var(--success);">location_on</span>
+                <div>
+                  <div class="active-route-label">Retirar em (Origem)</div>
+                  <div class="active-route-val">${activeOrder.pickup_address || 'Ponto de Coleta'}</div>
+                </div>
+              </div>
+              <div class="active-route-step" style="margin-top: 4px;">
+                <span class="material-symbols-rounded active-route-icon" style="color: var(--accent-pink);">flag</span>
+                <div>
+                  <div class="active-route-label">Entregar em (Destino)</div>
+                  <div class="active-route-val">${activeOrder.delivery_address || 'Ponto de Entrega'}</div>
+                </div>
+              </div>
+            </div>
+            <div class="active-ride-footer">
+              <div style="display: flex; flex-direction: column;">
+                <div class="active-route-label">Ganhos Estimados</div>
+                <div class="active-ride-value">R$ ${fare.toFixed(2)} <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">(${dist.toFixed(1)} KM • R$ ${kmRate}/KM)</span></div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn-cancel-ride" onclick="event.stopPropagation(); window.cancelOrder()">
+                  <span class="material-symbols-rounded" style="font-size: 16px;">cancel</span>
+                  Cancelar Corrida
+                </button>
+                <button class="btn-complete-ride" onclick="event.stopPropagation(); window.completeOrder()">
+                  <span class="material-symbols-rounded" style="font-size: 16px;">check_circle</span>
+                  Finalizar Corrida
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Filtra as outras ofertas para listar como pendentes/disponíveis, ignorando as canceladas e as rejeitadas
+      const pendingOrders = (activeOrder ? orders.filter(o => o.id !== activeOrderId) : orders)
+        .filter(o => o.status !== 'canceled')
+        .filter(o => !rejectedOrderIds.has(o.id));
+
+      let pendingOrdersHtml = '';
+      if (!pendingOrders || pendingOrders.length === 0) {
+        pendingOrdersHtml = `
+          <div class="empty-offers" style="padding: 20px 10px;">
+            <span class="material-symbols-rounded" style="font-size: 24px; color: var(--text-dim);">check_circle</span>
+            <p style="font-size: 12px; margin: 4px 0 0;">Sem outras ofertas pendentes no momento.</p>
+          </div>
+        `;
+      } else {
+        pendingOrdersHtml = pendingOrders.map(order => {
+          const fare = parseFloat(order.fare_value || 0);
+          const dist = parseFloat(order.total_distance_km || 0);
+          const kmRate = dist > 0 ? (fare / dist).toFixed(2) : '0.00';
+          const formattedDate = new Date(order.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+          const isNew = newOrderIdsThisUpdate.has(order.id);
+          const animationClass = isNew ? 'new-offer-animation' : '';
+          const isExpanded = expandedOrderIds.has(order.id);
+          const expandedClass = isExpanded ? 'expanded' : '';
+
+          // Verifica se essa corrida pendente possui alta compatibilidade com a corrida ativa atual
+          const comp = activeOrder ? window.checkCompatibility(activeOrder, order) : null;
+          const compatibilityClass = comp ? 'compatible-pulse' : '';
+          
+          let compatibilityBadge = '';
+          if (comp) {
+            compatibilityBadge = `
+              <div style="margin-bottom: 6px;">
+                <span class="badge-compatibility" style="background: ${comp.badgeBg}; color: ${comp.color}; border: 1px solid ${comp.borderColor};">
+                  <span class="material-symbols-rounded" style="font-size: 12px;">bolt</span>
+                  ${comp.title}
+                </span>
+              </div>
+            `;
+          }
+
+          // Botão contextual de Aceitar/Iniciar Corrida
+          let acceptButtonHtml = '';
+          if (!activeOrder) {
+            acceptButtonHtml = `
+              <button class="nav-btn" onclick="event.stopPropagation(); window.acceptOrder('${order.id}')" style="flex: 1; background: linear-gradient(135deg, var(--success) 0%, #00bfa6 100%); color: #0d1117; border: none; padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: opacity 0.2s ease;">
+                <span class="material-symbols-rounded" style="font-size: 16px;">play_arrow</span>
+                Aceitar Corrida
+              </button>
+            `;
+          } else if (comp) {
+            // Se já tem corrida ativa, mas essa é compatível (coleta dupla ou encadeada)
+            const btnText = comp.type === 'batched' ? 'Aceitar Coleta Dupla' : (comp.type === 'back-to-back' ? 'Aceitar Encadeada' : 'Aceitar na Rota');
+            acceptButtonHtml = `
+              <button class="nav-btn" onclick="event.stopPropagation(); window.acceptOrder('${order.id}')" style="flex: 1; background: linear-gradient(135deg, var(--accent-blue) 0%, #2575fc 100%); color: white; border: none; padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: opacity 0.2s ease;">
+                <span class="material-symbols-rounded" style="font-size: 16px;">add_road</span>
+                ${btnText}
+              </button>
+            `;
+          } else {
+            // Corrida não compatível e já tem uma ativa
+            acceptButtonHtml = `
+              <button class="nav-btn" disabled style="flex: 1; background: #222; color: #555; border: 1px solid #333; padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: not-allowed; opacity: 0.6;">
+                <span class="material-symbols-rounded" style="font-size: 16px;">lock</span>
+                Bloqueado (Em Corrida)
+              </button>
+            `;
+          }
+
+          return `
+            <div class="offer-item ${animationClass} ${expandedClass} ${compatibilityClass}" onclick="window.toggleOfferExpansion('${order.id}')">
+              ${compatibilityBadge}
+              <div class="offer-summary-row" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%;">
+                <div class="offer-main-info">
+                  <div class="offer-addresses">
+                    <span class="material-symbols-rounded">motorcycle</span>
+                    ${order.pickup_address ? order.pickup_address.split(',')[0] : 'Simulação'} ➔ ${order.delivery_address ? order.delivery_address.split(',')[0] : 'Destino'}
+                  </div>
+                  <div class="offer-sub">
+                    <span class="badge-app">${order.delivery_app || 'iFood'}</span>
+                    <span>${dist.toFixed(1)} KM</span>
+                    <span>${formattedDate}</span>
+                  </div>
+                </div>
+                <div class="offer-financials">
+                  <div class="offer-fare">R$ ${fare.toFixed(2)}</div>
+                  <div class="offer-km-rate">R$ ${kmRate}/KM</div>
+                </div>
+              </div>
+              ${isExpanded ? `
+                <div class="offer-details-row" style="border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 10px; margin-top: 2px; display: flex; flex-direction: column; gap: 10px; width: 100%; cursor: default;" onclick="event.stopPropagation();">
+                  
+                  ${comp ? `
+                    <div style="background: ${comp.badgeBg}; border: 1px solid ${comp.borderColor}; border-radius: 8px; padding: 10px; font-size: 11px; color: var(--text-main); display: flex; align-items: flex-start; gap: 8px; margin-bottom: 2px;">
+                      <span class="material-symbols-rounded" style="color: ${comp.color}; font-size: 18px; margin-top: 1px;">insights</span>
+                      <div>
+                        <strong style="color: ${comp.color};">${comp.title} (Sugerida)</strong>
+                        <div style="color: var(--text-muted); margin-top: 2px; line-height: 1.35;">${comp.desc}</div>
+                      </div>
+                    </div>
+                  ` : ''}
+
+                  <div style="display: flex; flex-direction: column; gap: 8px; font-size: 11px;">
+                    <div style="display: flex; align-items: flex-start; gap: 6px; color: var(--text-muted);">
+                      <span class="material-symbols-rounded" style="font-size: 14px; color: var(--success); margin-top: 2px;">location_on</span>
+                      <div>
+                        <strong style="color: var(--text-main);">Origem Completa:</strong>
+                        <div style="color: var(--text-muted); margin-top: 2px; line-height: 1.3;">${order.pickup_address || 'Ponto de Coleta Próximo'}</div>
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: flex-start; gap: 6px; color: var(--text-muted);">
+                      <span class="material-symbols-rounded" style="font-size: 14px; color: var(--accent-pink); margin-top: 2px;">flag</span>
+                      <div>
+                        <strong style="color: var(--text-main);">Destino Completo:</strong>
+                        <div style="color: var(--text-muted); margin-top: 2px; line-height: 1.3;">${order.delivery_address || 'Ponto de Entrega Próximo'}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="display: flex; gap: 8px; margin-top: 4px;">
+                    ${acceptButtonHtml}
+                    <button class="nav-btn" onclick="event.stopPropagation(); window.rejectOrder('${order.id}')" style="flex: 1; background: rgba(255, 0, 110, 0.12); color: var(--accent-pink); border: 1px solid rgba(255, 0, 110, 0.25); padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: background 0.2s ease, opacity 0.2s ease;">
+                      <span class="material-symbols-rounded" style="font-size: 16px;">close</span>
+                      Rejeitar
+                    </button>
+                    <button class="nav-btn" onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(order.pickup_address || 'Av. Paulista, São Paulo')}', '_blank')" style="flex: 1; background: rgba(255,255,255,0.06); color: white; border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: background 0.2s ease;">
+                      <span class="material-symbols-rounded" style="font-size: 16px;">navigation</span>
+                      Mapa
+                    </button>
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+      }
+
+      listContainer.innerHTML = activeRideHtml + pendingOrdersHtml;
+    }
+
+    // Ouvinte central de Estado do Firebase Auth
+    onDriverAuthStateChanged(async (user) => {
+      const authContainer = document.getElementById('authContainer');
+      const driverPanel = document.getElementById('driverPanel');
+      const serverDot = document.getElementById('serverDot');
+      const serverStatusText = document.getElementById('serverStatusText');
+
+      if (user) {
+        currentDriverId = user.uid;
+        console.log("[Auth] Piloto autenticado:", user.email);
+        
+        // Atualizar perfil visual
+        document.getElementById('driverDisplayName').textContent = user.displayName || user.email.split('@')[0];
+        document.getElementById('driverEmail').textContent = user.email;
+        document.getElementById('avatarLetter').textContent = (user.displayName || user.email)[0].toUpperCase();
+        
+        // Atualiza status do servidor na UI
+        serverDot.classList.remove('offline');
+        serverStatusText.textContent = "Conectado como Piloto";
+
+        // Transição de tela
+        authContainer.style.display = 'none';
+        driverPanel.style.display = 'flex';
+
+        // Inicializa observadores em tempo real
+        setupRealtimeSubscriptions();
+        loadGoogleMapsApi();
+      } else {
+        currentDriverId = null;
+        console.log("[Auth] Piloto desconectado.");
+        serverDot.classList.add('offline');
+        serverStatusText.textContent = "Modo Local";
+        
+        authContainer.style.display = 'flex';
+        driverPanel.style.display = 'none';
+        
+        // Desconecta observadores
+        cleanupSubscriptions();
+      }
+    });
+
+    // Executa o login
+    window.handleLogin = async function(event) {
+      event.preventDefault();
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      const btn = document.getElementById('btnLoginSubmit');
+
+      // Feedback visual de carregamento
+      const origContent = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<div class="spinner"></div> <span>Autenticando...</span>`;
+
+      const { user, error } = await loginDriver(email, password);
+
+      btn.disabled = false;
+      btn.innerHTML = origContent;
+
+      if (error) {
+        showToast(`Erro de login: ${error}`, 'error');
+      } else {
+        showToast(`Bem-vindo de volta!`, 'success');
+      }
+    }
+
+    // Executa o cadastro
+    window.handleRegister = async function(event) {
+      event.preventDefault();
+      const name = document.getElementById('regName').value;
+      const email = document.getElementById('regEmail').value;
+      const password = document.getElementById('regPassword').value;
+      const confirmPassword = document.getElementById('regConfirmPassword').value;
+      const btn = document.getElementById('btnRegisterSubmit');
+
+      if (password !== confirmPassword) {
+        showToast("As senhas inseridas são diferentes!", "error");
+        return;
+      }
+
+      const origContent = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<div class="spinner"></div> <span>Registrando Piloto...</span>`;
+
+      // 1. Cadastra no Auth
+      const { user, error } = await registerDriver(email, password, name);
+
+      if (error) {
+        btn.disabled = false;
+        btn.innerHTML = origContent;
+        showToast(`Erro no registro: ${error}`, 'error');
+        return;
+      }
+
+      // 2. Inicializa o Perfil em Firestore
+      await saveDriverProfile(user.uid, {
+        fullName: name,
+        email: email,
+        createdAt: Date.now()
+      });
+
+      // 3. Inicializa configurações padrão de filtro
+      await saveDriverSettings(user.uid, {
+        minFareValue: 8.0,
+        minValuePerKm: 2.0,
+        vehicleType: 'Motos',
+        enabledApps: ['iFood', 'Rappi', 'Uber Eats'],
+        speedLimit: 50,
+        autoAcceptEnabled: false,
+        autoAcceptThreshold: 15.0
+      });
+
+      btn.disabled = false;
+      btn.innerHTML = origContent;
+      showToast(`Conta de piloto criada com sucesso!`, 'success');
+    }
+
+    // Executa a redefinição de senha
+    window.handlePasswordReset = async function(event) {
+      event.preventDefault();
+      const email = document.getElementById('resetEmail').value;
+      const btn = document.getElementById('btnResetSubmit');
+
+      const origContent = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<div class="spinner"></div> <span>Enviando...</span>`;
+
+      const { success, error } = await resetDriverPassword(email);
+
+      btn.disabled = false;
+      btn.innerHTML = origContent;
+
+      if (success) {
+        showToast("Email de recuperação enviado! Verifique sua caixa de entrada.", "success");
+        closeResetModal();
+      } else {
+        showToast(`Erro: ${error}`, "error");
+      }
+    }
+
+    // Salva configurações do motorista
+    window.handleSaveSettings = async function(event) {
+      event.preventDefault();
+      if (!currentDriverId) return;
+
+      const minFare = parseFloat(document.getElementById('setMinFare').value);
+      const minKm = parseFloat(document.getElementById('setMinKm').value);
+      const vehicle = document.getElementById('setVehicleType').value;
+      const isVoiceOnly = document.getElementById('settingsVoiceOnlyToggle').checked;
+      const speedLimit = parseFloat(document.getElementById('setSpeedLimit').value) || 0;
+      const isAutoAcceptEnabled = document.getElementById('settingsAutoAcceptToggle').checked;
+      const autoAcceptThreshold = parseFloat(document.getElementById('setAutoAcceptThreshold').value) || 0;
+
+      const apps = [];
+      if (document.getElementById('appIfood').checked) apps.push('iFood');
+      if (document.getElementById('appRappi').checked) apps.push('Rappi');
+      if (document.getElementById('appUber').checked) apps.push('Uber Eats');
+
+      const btn = document.getElementById('btnSaveSettings');
+      const origContent = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<div class="spinner"></div> <span>Salvando na Nuvem...</span>`;
+
+      const { success, error } = await saveDriverSettings(currentDriverId, {
+        minFareValue: minFare,
+        minValuePerKm: minKm,
+        vehicleType: vehicle,
+        enabledApps: apps,
+        voiceOnlyMode: isVoiceOnly,
+        speedLimit: speedLimit,
+        autoAcceptEnabled: isAutoAcceptEnabled,
+        autoAcceptThreshold: autoAcceptThreshold
+      });
+
+      btn.disabled = false;
+      btn.innerHTML = origContent;
+
+      if (success) {
+        showToast("Preferências de filtro salvas no Firestore!", "success");
+      } else {
+        showToast(`Erro ao salvar: ${error}`, "error");
+      }
+    }
+
+    // Simula e salva uma nova oferta na subcoleção 'offers'
+    window.handleSimulateOffer = async function(event) {
+      event.preventDefault();
+      if (!currentDriverId) {
+        showToast("Você precisa estar logado para simular e gravar ofertas.", "error");
+        return;
+      }
+
+      const fare = parseFloat(document.getElementById('mockFare').value);
+      const dist = parseFloat(document.getElementById('mockDist').value);
+      const appName = document.getElementById('mockApp').value;
+
+      // Pares de endereços realistas em São Paulo para traçar rota autêntica no mapa
+      const simulatedPairs = [
+        { pickup: "Av. Paulista, 1000 - Bela Vista, São Paulo", delivery: "Rua Augusta, 1300 - Consolação, São Paulo" },
+        { pickup: "Rua Pamplona, 900 - Jardim Paulista, São Paulo", delivery: "Av. Rebouças, 2000 - Pinheiros, São Paulo" },
+        { pickup: "Rua Teodoro Sampaio, 1200 - Pinheiros, São Paulo", delivery: "Av. Brigadeiro Luís Antônio, 1800 - Bela Vista, São Paulo" },
+        { pickup: "Alameda Santos, 1400 - Cerqueira César, São Paulo", delivery: "Rua da Consolação, 2200 - Consolação, São Paulo" },
+        { pickup: "Av. Brigadeiro Faria Lima, 1500 - Itaim Bibi, São Paulo", delivery: "Rua Tabapuã, 800 - Itaim Bibi, São Paulo" },
+        { pickup: "Rua Domingos de Morais, 500 - Vila Mariana, São Paulo", delivery: "Av. Jabaquara, 1200 - Saúde, São Paulo" }
+      ];
+      const randomPair = simulatedPairs[Math.floor(Math.random() * simulatedPairs.length)];
+
+      const orderId = "sim_" + Date.now();
+      const mockOrder = {
+        delivery_app: appName,
+        fare_value: fare,
+        total_distance_km: dist,
+        pickup_address: randomPair.pickup,
+        delivery_address: randomPair.delivery,
+        timestamp: Date.now()
+      };
+
+      const { success, error } = await saveDeliveryOrder(currentDriverId, orderId, mockOrder);
+      if (success) {
+        showToast(`Oferta do ${appName} de R$ ${fare.toFixed(2)} gravada!`, 'success');
+        document.getElementById('mockOfferForm').reset();
+      } else {
+        showToast(`Erro ao gravar oferta: ${error}`, 'error');
+      }
+    }
+
+    // Executa Logout
+    window.handleLogout = async function() {
+      const { error } = await logoutDriver();
+      if (error) {
+        showToast(`Erro ao deslogar: ${error}`, 'error');
+      } else {
+        showToast(`Sessão encerrada com segurança.`, 'info');
+      }
+    }
+
+    // ==========================================
+    // Módulo de Comando de Voz (Web Speech API)
+    // ==========================================
+    
+    window.toggleVoiceOnlyMode = async function(isActive) {
+      const driverPanel = document.getElementById('driverPanel');
+      const toggle1 = document.getElementById('voiceOnlyToggle');
+      const toggle2 = document.getElementById('settingsVoiceOnlyToggle');
+
+      if (isActive) {
+        if (driverPanel) driverPanel.classList.add('voice-only-active');
+      } else {
+        if (driverPanel) driverPanel.classList.remove('voice-only-active');
+      }
+      if (toggle1) toggle1.checked = isActive;
+      if (toggle2) toggle2.checked = isActive;
+
+      if (currentDriverId) {
+        await saveDriverSettings(currentDriverId, {
+          voiceOnlyMode: isActive
+        });
+        showToast(isActive ? "Modo Apenas Voz Ativado! Dirija com segurança." : "Modo Apenas Voz Desativado.", isActive ? "success" : "info");
+        speakText(isActive ? "Agente Hermes ativado. Pode focar na direção, eu cuido do resto." : "Modo apenas voz desativado.");
+      }
+    }
+    
+    function initVoiceRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        showToast("Comando de voz não suportado neste navegador. Use o Google Chrome.", "error");
+        document.getElementById('voiceTranscript').textContent = "Erro: Navegador não suporta Web Speech API.";
+        return null;
+      }
+      
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = true;
+      rec.lang = 'pt-BR';
+      
+      rec.onstart = () => {
+        isListening = true;
+        updateVoiceUIState('listening');
+        triggerHapticFeedback('listening');
+      };
+      
+      rec.onresult = (event) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        
+        const displayTranscript = finalTranscript || interimTranscript;
+        const bubble = document.getElementById('voiceTranscript');
+        bubble.textContent = `"${displayTranscript}"`;
+        bubble.classList.add('has-content');
+        
+        if (finalTranscript) {
+          processVoiceCommand(finalTranscript);
+        }
+      };
+      
+      rec.onerror = (event) => {
+        console.error("Erro no reconhecimento de voz:", event.error);
+        if (event.error !== 'no-speech') {
+          showToast(`Erro de Voz: ${event.error}`, 'error');
+        }
+        isListening = false;
+        updateVoiceUIState('idle');
+      };
+      
+      rec.onend = () => {
+        isListening = false;
+        setTimeout(() => {
+          if (!window.speechSynthesis.speaking) {
+            updateVoiceUIState('idle');
+          }
+        }, 300);
+      };
+      
+      return rec;
+    }
+
+    window.toggleVoiceRecognition = function() {
+      if (!recognition) {
+        recognition = initVoiceRecognition();
+      }
+      
+      if (!recognition) return;
+      
+      if (isListening) {
+        recognition.stop();
+      } else {
+        try {
+          recognition.start();
+        } catch (e) {
+          console.warn("Recognition already active or failed to start:", e);
+        }
+      }
+    }
+
+    function updateVoiceUIState(state) {
+      const micBtn = document.getElementById('voiceMicBtn');
+      const micIcon = document.getElementById('micIcon');
+      const wave = document.getElementById('voiceWave');
+      const dot = document.getElementById('voiceStatusDot');
+      const label = document.getElementById('voiceStatusLabel');
+      
+      if (!micBtn || !micIcon || !wave || !dot || !label) return;
+
+      // Reset classes
+      micBtn.classList.remove('listening');
+      wave.classList.remove('active');
+      dot.classList.remove('listening', 'speaking');
+      
+      if (state === 'listening') {
+        micBtn.classList.add('listening');
+        micIcon.textContent = 'settings_voice';
+        wave.classList.add('active');
+        dot.classList.add('listening');
+        label.textContent = 'Ouvindo Comando...';
+        document.getElementById('voiceTranscript').textContent = "Estou te ouvindo...";
+      } else if (state === 'speaking') {
+        micIcon.textContent = 'volume_up';
+        wave.classList.add('active');
+        dot.classList.add('speaking');
+        label.textContent = 'Agente Hermes: Falando...';
+      } else {
+        micIcon.textContent = 'mic';
+        label.textContent = 'Agente Hermes: Ocioso';
+      }
+    }
+
+    window.simulateVoiceCommand = function(text) {
+      const bubble = document.getElementById('voiceTranscript');
+      bubble.textContent = `"${text}"`;
+      bubble.classList.add('has-content');
+      updateVoiceUIState('speaking');
+      setTimeout(() => {
+        processVoiceCommand(text);
+      }, 500);
+    }
+
+    function speakText(text) {
+      if (!window.speechSynthesis) return;
+      
+      window.speechSynthesis.cancel();
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      const isEnglish = /read|set|minimum|fare|km|enable|disable|help/i.test(text);
+      utterance.lang = isEnglish ? 'en-US' : 'pt-BR';
+      
+      if (window.speechSynthesis.getVoices) {
+        const voices = window.speechSynthesis.getVoices();
+        const matchedVoice = voices.find(v => v.lang.startsWith(isEnglish ? 'en' : 'pt'));
+        if (matchedVoice) {
+          utterance.voice = matchedVoice;
+        }
+      }
+      
+      utterance.pitch = 1.0;
+      utterance.rate = 1.1; // Speedy yet legible speech for drivers
+      
+      utterance.onstart = () => {
+        updateVoiceUIState('speaking');
+      };
+      utterance.onend = () => {
+        updateVoiceUIState('idle');
+      };
+      utterance.onerror = () => {
+        updateVoiceUIState('idle');
+      };
+      
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function parseSpokenNumber(text) {
+      const normalized = text.replace(/reais|real/g, "inteiro").replace(/centavos|centavo/g, "fracao");
+      
+      const numbersMap = {
+        'zero': 0, 'um': 1, 'uma': 1, 'dois': 2, 'tres': 3, 'quatro': 4, 'cinco': 5,
+        'seis': 6, 'sete': 7, 'oito': 8, 'nove': 9, 'dez': 10, 'onze': 11, 'doze': 12,
+        'treze': 13, 'quatorze': 14, 'quinze': 15, 'vinte': 20, 'trinta': 30, 'quarenta': 40, 'cinquenta': 50,
+        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+        'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15, 'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50
+      };
+
+      const digitRegex = /(\d+)(?:[.,](\d+))?/;
+      const digitMatch = text.match(digitRegex);
+      if (digitMatch) {
+        const whole = parseInt(digitMatch[1], 10);
+        const decimal = digitMatch[2] ? parseInt(digitMatch[2], 10) : 0;
+        if (decimal > 0) {
+          return parseFloat(`${whole}.${decimal}`);
+        }
+        return whole;
+      }
+
+      const words = text.split(/\s+/);
+      let wholeVal = null;
+      let fracVal = 0;
+      let isFractionMode = false;
+
+      for (let i = 0; i < words.length; i++) {
+        const word = words[i];
+        
+        if (word === 'e' || word === 'ponto' || word === 'virgula' || word === 'point' || word === 'comma') {
+          isFractionMode = true;
+          continue;
+        }
+
+        if (numbersMap[word] !== undefined) {
+          if (!isFractionMode) {
+            wholeVal = numbersMap[word];
+          } else {
+            fracVal = numbersMap[word];
+            break;
+          }
+        }
+      }
+
+      if (wholeVal !== null) {
+        if (isFractionMode && fracVal > 0) {
+          const divider = fracVal > 9 ? 100 : 10;
+          return wholeVal + (fracVal / divider);
+        }
+        return wholeVal;
+      }
+
+      return null;
+    }
+
+    async function processVoiceCommand(text) {
+      const cleanText = text.toLowerCase().trim()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      
+      console.log("[Voice] Command received:", cleanText);
+
+      // 1. LER ÚLTIMA OFERTA / READ LAST OFFER
+      if (cleanText.includes("ler ultima oferta") || cleanText.includes("ler oferta") || cleanText.includes("read last offer") || cleanText.includes("last offer")) {
+        const isEn = cleanText.includes("read") || cleanText.includes("last");
+        readLastOfferVoice(isEn);
+        return;
+      }
+
+      // 2. DEFINIR CORRIDA MÍNIMA / SET MINIMUM FARE
+      if (cleanText.includes("corrida minima") || cleanText.includes("minimum fare") || cleanText.includes("valor minimo")) {
+        const isEn = cleanText.includes("minimum") || cleanText.includes("fare");
+        const val = parseSpokenNumber(cleanText);
+        if (val !== null) {
+          await updateMinFareVoice(val, isEn);
+        } else {
+          speakText(isEn ? "Could not understand the value. Try saying: set minimum fare to twelve reais." : "Não entendi o valor. Tente dizer: definir corrida mínima para doze reais.");
+        }
+        return;
+      }
+
+      // 3. DEFINIR KM MÍNIMO / SET MINIMUM KM
+      if (cleanText.includes("km") || cleanText.includes("valor por quilometro") || cleanText.includes("valor de quilometro") || cleanText.includes("quilometro minimo") || cleanText.includes("minimum km")) {
+        const isEn = cleanText.includes("minimum") || cleanText.includes("km");
+        const val = parseSpokenNumber(cleanText);
+        if (val !== null) {
+          await updateMinKmVoice(val, isEn);
+        } else {
+          speakText(isEn ? "Could not understand the value. Try saying: set minimum km to two point five." : "Não entendi o valor. Tente dizer: definir valor de K M para dois reais e vinte centavos.");
+        }
+        return;
+      }
+
+      // 4. ATIVAR / DESATIVAR APP (iFood, Rappi, Uber Eats)
+      if (cleanText.includes("ativar") || cleanText.includes("desativar") || cleanText.includes("enable") || cleanText.includes("disable")) {
+        const isEn = cleanText.includes("enable") || cleanText.includes("disable");
+        const action = (cleanText.includes("ativar") || cleanText.includes("enable")) ? 'enable' : 'disable';
+        
+        let appKey = null;
+        let label = "";
+        
+        if (cleanText.includes("ifood")) {
+          appKey = "appIfood";
+          label = "iFood";
+        } else if (cleanText.includes("rappi")) {
+          appKey = "appRappi";
+          label = "Rappi";
+        } else if (cleanText.includes("uber")) {
+          appKey = "appUber";
+          label = "Uber Eats";
+        }
+        
+        if (appKey) {
+          await toggleAppVoice(appKey, label, action === 'enable', isEn);
+        } else {
+          speakText(isEn ? "Application not found. Try saying: enable iFood." : "Aplicativo não reconhecido. Tente dizer: ativar iFood.");
+        }
+        return;
+      }
+
+      // 5. AJUDA / HELP
+      if (cleanText.includes("ajuda") || cleanText.includes("help") || cleanText.includes("comandos") || cleanText.includes("commands")) {
+        const isEn = cleanText.includes("help") || cleanText.includes("commands");
+        speakHelpVoice(isEn);
+        return;
+      }
+
+      speakText("Desculpe, não entendi o comando. Diga ajuda para ouvir as opções.");
+    }
+
+    function readLastOfferVoice(isEn) {
+      if (!currentOrdersList || currentOrdersList.length === 0) {
+        speakText(isEn ? "No recent offers found in history." : "Nenhuma oferta encontrada no histórico recente.");
+        return;
+      }
+      const lastOrder = currentOrdersList[0];
+      const appName = lastOrder.delivery_app || "iFood";
+      const fare = parseFloat(lastOrder.fare_value || 0).toFixed(2);
+      const distance = parseFloat(lastOrder.total_distance_km || 0).toFixed(1);
+      const kmRate = distance > 0 ? (fare / distance).toFixed(2) : '0';
+      
+      let msg = "";
+      if (isEn) {
+        msg = `Last offer from ${appName}. Fare: ${fare} reais. Distance: ${distance} kilometers. Average of ${kmRate} reais per kilometer.`;
+      } else {
+        msg = `Última oferta do ${appName}. Valor total de ${fare.replace('.', ',')} reais. Distância de ${distance.replace('.', ',')} quilômetros. Pagando ${kmRate.replace('.', ',')} reais por quilômetro.`;
+      }
+      triggerHapticFeedback('success');
+      speakText(msg);
+    }
+
+    async function updateMinFareVoice(val, isEn) {
+      if (!currentDriverId) return;
+      document.getElementById('setMinFare').value = val;
+      
+      const minKm = parseFloat(document.getElementById('setMinKm').value) || 0;
+      const vehicle = document.getElementById('setVehicleType').value;
+      const apps = [];
+      if (document.getElementById('appIfood').checked) apps.push('iFood');
+      if (document.getElementById('appRappi').checked) apps.push('Rappi');
+      if (document.getElementById('appUber').checked) apps.push('Uber Eats');
+
+      const { success, error } = await saveDriverSettings(currentDriverId, {
+        minFareValue: val,
+        minValuePerKm: minKm,
+        vehicleType: vehicle,
+        enabledApps: apps
+      });
+
+      if (success) {
+        const valStr = val.toString().replace('.', ',');
+        triggerHapticFeedback('success');
+        speakText(isEn ? `Success. Minimum fare updated to ${val} reais.` : `Sucesso. Corrida mínima atualizada para ${valStr} reais.`);
+        showToast(`Corrida mínima atualizada para R$ ${val.toFixed(2)} via comando de voz!`, 'success');
+      } else {
+        speakText(isEn ? "Error saving configuration." : "Erro ao salvar configuração.");
+      }
+    }
+
+    async function updateMinKmVoice(val, isEn) {
+      if (!currentDriverId) return;
+      document.getElementById('setMinKm').value = val;
+      
+      const minFare = parseFloat(document.getElementById('setMinFare').value) || 0;
+      const vehicle = document.getElementById('setVehicleType').value;
+      const apps = [];
+      if (document.getElementById('appIfood').checked) apps.push('iFood');
+      if (document.getElementById('appRappi').checked) apps.push('Rappi');
+      if (document.getElementById('appUber').checked) apps.push('Uber Eats');
+
+      const { success, error } = await saveDriverSettings(currentDriverId, {
+        minFareValue: minFare,
+        minValuePerKm: val,
+        vehicleType: vehicle,
+        enabledApps: apps
+      });
+
+      if (success) {
+        const valStr = val.toString().replace('.', ',');
+        triggerHapticFeedback('success');
+        speakText(isEn ? `Success. Minimum kilometer rate updated to ${val} reais.` : `Sucesso. Valor de quilômetro atualizado para ${valStr} reais.`);
+        showToast(`KM mínimo atualizado para R$ ${val.toFixed(2)} via comando de voz!`, 'success');
+      } else {
+        speakText(isEn ? "Error saving configuration." : "Erro ao salvar de configuração.");
+      }
+    }
+
+    async function toggleAppVoice(appKey, label, enable, isEn) {
+      if (!currentDriverId) return;
+      
+      const checkbox = document.getElementById(appKey);
+      if (!checkbox) return;
+      
+      checkbox.checked = enable;
+      const labelId = appKey === 'appIfood' ? 'lblIfood' : (appKey === 'appRappi' ? 'lblRappi' : 'lblUber');
+      toggleCheckboxClass(checkbox, labelId);
+      
+      const minFare = parseFloat(document.getElementById('setMinFare').value) || 0;
+      const minKm = parseFloat(document.getElementById('setMinKm').value) || 0;
+      const vehicle = document.getElementById('setVehicleType').value;
+      const apps = [];
+      if (document.getElementById('appIfood').checked) apps.push('iFood');
+      if (document.getElementById('appRappi').checked) apps.push('Rappi');
+      if (document.getElementById('appUber').checked) apps.push('Uber Eats');
+
+      const { success, error } = await saveDriverSettings(currentDriverId, {
+        minFareValue: minFare,
+        minValuePerKm: minKm,
+        vehicleType: vehicle,
+        enabledApps: apps
+      });
+
+      if (success) {
+        const stateStr = enable ? (isEn ? "enabled" : "ativado") : (isEn ? "disabled" : "desativado");
+        triggerHapticFeedback('success');
+        speakText(isEn ? `App ${label} is now ${stateStr}.` : `Aplicativo ${label} foi ${stateStr}.`);
+        showToast(`Filtro do ${label} ${enable ? 'Ativado' : 'Desativado'} via voz!`, 'success');
+      } else {
+        speakText(isEn ? "Error saving app state." : "Erro ao alterar estado do aplicativo.");
+      }
+    }
+
+    function speakHelpVoice(isEn) {
+      let helpMsg = "";
+      if (isEn) {
+        helpMsg = "You can use the following commands: read last offer, set minimum fare to ten reais, set minimum K M to two point five, enable iFood, disable Rappi, or help.";
+      } else {
+        helpMsg = "Você pode usar os seguintes comandos de voz: ler última oferta, definir corrida mínima para dez reais, definir valor de K M para dois reais e cinquenta centavos, ativar iFood, desativar Rappi, ou ajuda.";
+      }
+      triggerHapticFeedback('success');
+      speakText(helpMsg);
+    }
+  </script>
+
+  <!-- Renderizador do Recharts via React e Babel Standalone -->
+  <script type="text/babel">
+    const { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } = window.Recharts;
+    const { useState, useEffect } = window.React;
+
+    const EarningsTrend = () => {
+      const [data, setData] = useState([]);
+
+      useEffect(() => {
+        const handleUpdate = (e) => {
+          setData(e.detail || []);
+        };
+        window.addEventListener('updateWeeklyEarnings', handleUpdate);
+        return () => {
+          window.removeEventListener('updateWeeklyEarnings', handleUpdate);
+        };
+      }, []);
+
+      if (!data || data.length === 0) {
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#8F95B2', fontSize: '12px', fontFamily: 'Outfit' }}>
+            <span className="material-symbols-rounded" style={{ marginBottom: '6px', fontSize: '24px', color: '#5C627D' }}>analytics</span>
+            Aguardando carregamento de dados do Firestore...
+          </div>
+        );
+      }
+
+      // Check if all daily totals are zero
+      const allZero = data.every(d => d.total === 0);
+      if (allZero) {
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#8F95B2', fontSize: '12px', fontFamily: 'Outfit' }}>
+            <span className="material-symbols-rounded" style={{ marginBottom: '6px', fontSize: '24px', color: '#5C627D' }}>monitoring</span>
+            Nenhum ganho registrado nos últimos 7 dias.
+          </div>
+        );
+      }
+
+      return (
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+            <defs>
+              <linearGradient id="colorEarnings" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#00F5D4" stopOpacity={0.45}/>
+                <stop offset="95%" stopColor="#00F5D4" stopOpacity={0.0}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.05)" vertical={false} />
+            <XAxis 
+              dataKey="dayName" 
+              stroke="#8F95B2" 
+              fontSize={11}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis 
+              stroke="#8F95B2" 
+              fontSize={11}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(v) => `R$ ${v}`}
+            />
+            <Tooltip 
+              contentStyle={{ backgroundColor: '#141622', borderColor: '#2B2E4A', borderRadius: '12px', color: '#fff', fontSize: '12px', fontFamily: 'Outfit' }}
+              formatter={(value) => [`R$ ${value.toFixed(2)}`, 'Ganhos']}
+              labelStyle={{ fontWeight: 'bold', color: '#00F5D4', marginBottom: '4px' }}
+            />
+            <Area 
+              type="monotone" 
+              dataKey="total" 
+              stroke="#00F5D4" 
+              strokeWidth={3}
+              fillOpacity={1} 
+              fill="url(#colorEarnings)" 
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('weekly-earnings-chart'));
+    root.render(<EarningsTrend />);
+  </script>
+</body>
+</html>

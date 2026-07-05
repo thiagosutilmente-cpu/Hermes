@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Radar Delivery AI</string>
+    <string name="accessibility_service_description">O Radar Delivery AI lê as informações de corridas recebidas nos aplicativos de entrega suportados (como iFood, Uber, 99) para calcular se o valor se encaixa nas regras de aceite inteligente, agilizando seu trabalho sem riscos de distração.</string>
+</resources>
