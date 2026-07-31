@@ -1,0 +1,11 @@
+                            ${!isLast ? `
+                            <div style="flex: 1; width: 3px; background: linear-gradient(180deg, ${s.color} 0%, var(--accent-green) 50%, ${window.masterSequenceSteps[idx+1].color} 100%); background-size: 100% 200%; animation: neonTransitFlow 1.5s linear infinite; min-height: 45px; margin-top: 4px; position: relative; border-radius: 2px; box-shadow: 0 0 8px rgba(0, 245, 212, 0.4); display: flex; align-items: center; justify-content: center;">
+                                <!-- Laser pulse running down the neon connection line -->
+                                <div style="position: absolute; width: 100%; height: 12px; background: linear-gradient(180deg, transparent, #ffffff, transparent); top: -100%; left: 0; animation: laserSlide 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite; opacity: 0.85; pointer-events: none;"></div>
+                                
+                                <!-- Floating neon capsule highlighting saved path -->
+                                <div style="position: absolute; left: 16px; transform: translateY(-50%); background: linear-gradient(135deg, rgba(0, 245, 212, 0.25) 0%, rgba(58, 134, 255, 0.25) 100%); border: 1px solid rgba(0, 245, 212, 0.8); box-sizing: border-box; box-shadow: 0 0 10px rgba(0, 245, 212, 0.5); border-radius: 12px; padding: 2px 7px; display: flex; align-items: center; gap: 4px; z-index: 5; white-space: nowrap; animation: neonGlowPulse 2.5s infinite ease-in-out; pointer-events: none;">
+                                    <span class="material-symbols-rounded" style="font-size: 9px; color: #00F5D4;">alt_route</span>
+                                    <span style="font-size: 7px; font-weight: 900; color: #ffffff; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.3px;">CAMINHO ECONOMIZADO</span>
+                                </div>
+                            </div>` : ''}

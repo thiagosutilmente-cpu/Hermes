@@ -27,6 +27,7 @@ data class AnalyzeRequest(
     @field:Json(name = "risk_zones_keywords") val riskZonesKeywords: String? = null,
     @field:Json(name = "min_value_per_km") val minValuePerKm: Double? = null,
     @field:Json(name = "min_fare_value") val minFareValue: Double? = null,
+    @field:Json(name = "pattern_string") val patternString: String? = null,
     @field:Json(name = "rider_id") val riderId: String? = null
 )
 
@@ -96,12 +97,99 @@ data class HotZoneItem(
     @field:Json(name = "predominant_app") val predominantApp: String
 )
 
+data class DecisionRequest(
+    val value: Double,
+    val distance: Double,
+    val app: String = "iFood",
+    @field:Json(name = "user_id") val userId: String? = null
+)
+
+data class DecisionResponse(
+    val decision: String,
+    val confidence: Double,
+    val reason: String,
+    @field:Json(name = "gain_per_km") val gainPerKm: Double?,
+    val app: String?
+)
+
+data class StackItem(
+    val id: String,
+    val apps: List<String>,
+    val restaurant: String,
+    val destination: String,
+    @field:Json(name = "total_value") val totalValue: Double,
+    @field:Json(name = "distance_km") val distanceKm: Double,
+    @field:Json(name = "time_min") val timeMin: Double,
+    @field:Json(name = "gain_per_km") val gainPerKm: Double,
+    val status: String
+)
+
+data class StackActionRequest(
+    @field:Json(name = "stack_id") val stackId: String
+)
+
+data class StackActionResponse(
+    val status: String,
+    val message: String
+)
+
+data class EarningsSummaryResponse(
+    val today: Double,
+    val week: Double,
+    val month: Double,
+    val totalKm: Double,
+    val profitPerKm: Double,
+    val deliveredCount: Int
+)
+
+data class HealthPulseResponse(
+    val score: Int,
+    val gpsAccuracyMeters: Double,
+    val latencyMs: Long,
+    val temperatureCelsius: Double,
+    val status: String,
+    val activeAnomalies: List<String>
+)
+
 interface RadarApi {
     @POST("analyze")
     suspend fun analyzeOffer(
         @Header("X-API-Token") token: String,
         @Body request: AnalyzeRequest
     ): AnalyzeResponse
+
+    @POST("api/decision")
+    suspend fun getDecision(
+        @Header("X-API-Token") token: String,
+        @Body request: DecisionRequest
+    ): DecisionResponse
+
+    @GET("api/stacks")
+    suspend fun getPendingStacks(
+        @Header("X-API-Token") token: String
+    ): List<StackItem>
+
+    @POST("api/stacks/accept")
+    suspend fun acceptStack(
+        @Header("X-API-Token") token: String,
+        @Body request: StackActionRequest
+    ): StackActionResponse
+
+    @POST("api/stacks/decline")
+    suspend fun declineStack(
+        @Header("X-API-Token") token: String,
+        @Body request: StackActionRequest
+    ): StackActionResponse
+
+    @GET("api/earnings")
+    suspend fun getEarningsSummary(
+        @Header("X-API-Token") token: String
+    ): EarningsSummaryResponse
+
+    @GET("api/health")
+    suspend fun getHealthPulse(
+        @Header("X-API-Token") token: String
+    ): HealthPulseResponse
 
     @GET("audit_logs/daily_report")
     suspend fun getDailyReport(

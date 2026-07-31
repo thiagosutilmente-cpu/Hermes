@@ -9,6 +9,10 @@ class OfferRepository(private val offerDao: OfferDao) {
         offerDao.insertOffer(offer)
     }
 
+    suspend fun updateLatestUserAction(action: String) {
+        offerDao.updateLatestUserAction(action)
+    }
+
     suspend fun delete(id: Int) {
         offerDao.deleteOffer(id)
     }

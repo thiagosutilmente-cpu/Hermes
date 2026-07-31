@@ -1,0 +1,117 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: Verify if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper: Verify if user owns this driver resource
+    function isOwner(driverId) {
+      return isAuthenticated() && request.auth.uid == driverId;
+    }
+
+    // Root collection for driver data: riders/{driverId}
+    match /riders/{driverId} {
+      // Top-level document access (Profile, settings, offline maps status)
+      allow read, write: if isOwner(driverId);
+
+      // Subcollection: earnings_history - Driver earnings & ride history
+      match /earnings_history/{docId} {
+        allow read, write: if isOwner(driverId);
+      }
+
+      // Subcollection: performance - Driver telemetry & system health scores
+      match /performance/{docId} {
+        allow read, write: if isOwner(driverId);
+      }
+
+      // Subcollection: stats - Aggregated daily/weekly/monthly stats
+      match /stats/{docId} {
+        allow read, write: if isOwner(driverId);
+      }
+
+      // Subcollection: sos - Emergency alerts
+      match /sos/{docId} {
+        allow read, write: if isOwner(driverId);
+      }
+
+      // Catch-all for any other driver subcollections (errors, feedbacks, whatsapp, commands, jarvis)
+      match /{subcollection}/{docId} {
+        allow read, write: if isOwner(driverId);
+      }
+    }
+
+    // Root collection for user data: users/{userId}
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+
+      match /{subcollection}/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Top-Level Collection: earnings_history
+    // Enforces document-level security ensuring drivers can only access data belonging to their own 'uid'
+    match /earnings_history/{docId} {
+      allow get, list: if isAuthenticated() && (
+        docId == request.auth.uid || 
+        resource.data.uid == request.auth.uid || 
+        resource.data.driverId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && (
+        docId == request.auth.uid || 
+        request.resource.data.uid == request.auth.uid || 
+        request.resource.data.driverId == request.auth.uid
+      );
+      allow update, delete: if isAuthenticated() && (
+        docId == request.auth.uid || 
+        resource.data.uid == request.auth.uid || 
+        resource.data.driverId == request.auth.uid
+      );
+    }
+
+    // Top-Level Collection: performance
+    // Enforces document-level security ensuring drivers can only access data belonging to their own 'uid'
+    match /performance/{docId} {
+      allow get, list: if isAuthenticated() && (
+        docId == request.auth.uid || 
+        resource.data.uid == request.auth.uid || 
+        resource.data.driverId == request.auth.uid
+      );
+      allow create: if isAuthenticated() && (
+        docId == request.auth.uid || 
+        request.resource.data.uid == request.auth.uid || 
+        request.resource.data.driverId == request.auth.uid
+      );
+      allow update, delete: if isAuthenticated() && (
+        docId == request.auth.uid || 
+        resource.data.uid == request.auth.uid || 
+        resource.data.driverId == request.auth.uid
+      );
+    }
+
+    // Collection: Available Orders for Delivery Drivers
+    match /pedidos/{pedidoId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Collection: Audit Logs
+    match /audit_logs/{logId} {
+      allow read, create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    // Collection: Shared Neural Learnings (AI Crowdsourced Patterns)
+    match /shared_neural_learnings/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Collection: Software Licenses
+    match /licenses/{licenseKey} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Admin SDK only
+    }
+  }
+}

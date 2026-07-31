@@ -1,0 +1,32 @@
+      <!-- Widget: Bolsa de Corridas (Cross-App Arbitrage) -->
+      <div class="section-card cross-app-arbitrage-module" style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 12px; background: linear-gradient(135deg, rgba(255, 183, 3, 0.1), rgba(0, 0, 0, 0.4)); border: 1px solid rgba(255, 183, 3, 0.3); border-radius: 12px; padding: 16px; position: relative; overflow: hidden; box-shadow: 0 4px 15px rgba(255, 183, 3, 0.1);">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="material-symbols-rounded" style="color: #FFB703; font-size: 24px;">candlestick_chart</span>
+                <span style="font-size: 14px; font-weight: 800; color: white;">Bolsa de Valores Logística</span>
+            </div>
+            <button onclick="window.fetchCrossAppArbitrage()" id="btnCrossAppArbitrage" style="background: rgba(255, 183, 3, 0.2); border: 1px solid #FFB703; color: white; padding: 6px 12px; border-radius: 6px; font-size: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                <span class="material-symbols-rounded" style="font-size: 14px;">radar</span> Escanear Mercado
+            </button>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 8px;">
+            <div style="text-align: center; background: rgba(234, 29, 44, 0.1); border: 1px solid rgba(234, 29, 44, 0.3); padding: 8px; border-radius: 8px; flex: 1; margin-right: 4px;">
+                <div style="font-size: 10px; color: #EA1D2C; font-weight: bold; text-transform: uppercase;">iFood</div>
+                <div id="ifoodIndexValue" style="font-size: 16px; font-weight: bold; color: white; margin-top: 4px;">-- R$/km</div>
+                <div id="ifoodTrend" style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Aguardando...</div>
+            </div>
+            <div style="text-align: center; background: rgba(255, 119, 0, 0.1); border: 1px solid rgba(255, 119, 0, 0.3); padding: 8px; border-radius: 8px; flex: 1; margin-left: 4px; margin-right: 4px;">
+                <div style="font-size: 10px; color: #FF7700; font-weight: bold; text-transform: uppercase;">Rappi</div>
+                <div id="rappiIndexValue" style="font-size: 16px; font-weight: bold; color: white; margin-top: 4px;">-- R$/km</div>
+                <div id="rappiTrend" style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Aguardando...</div>
+            </div>
+             <div style="text-align: center; background: rgba(43, 182, 115, 0.1); border: 1px solid rgba(43, 182, 115, 0.3); padding: 8px; border-radius: 8px; flex: 1; margin-left: 4px;">
+                <div style="font-size: 10px; color: #2BB673; font-weight: bold; text-transform: uppercase;">Lalamove</div>
+                <div id="lalaIndexValue" style="font-size: 16px; font-weight: bold; color: white; margin-top: 4px;">-- R$/km</div>
+                <div id="lalaTrend" style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">Aguardando...</div>
+            </div>
+        </div>
+        <div id="arbitrageInsightOutput" style="font-size: 12px; color: #FFB703; line-height: 1.5; background: rgba(255,183,3,0.1); padding: 12px; border-radius: 8px; min-height: 40px; margin-top: 8px; font-weight: bold; text-align: center;">
+            Toque em "Escanear Mercado" para descobrir qual app está com leilão em alta na sua micro-região.
+        </div>
+      </div>

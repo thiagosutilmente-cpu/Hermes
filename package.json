@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "@babel/core": "^8.0.1",
+    "@babel/preset-react": "^8.0.1",
+    "acorn": "^8.17.0",
+    "esprima": "^4.0.1",
+    "js-tokens": "^10.0.0",
+    "jsdom": "^29.1.1"
+  }
+}

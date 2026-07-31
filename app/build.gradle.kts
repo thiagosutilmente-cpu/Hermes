@@ -21,6 +21,13 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    manifestPlaceholders["MAPS_API_KEY"] = "AIzaSyFallbackGoogleMapsKey2026_Radar_Pro"
+    buildConfigField("String", "FIREBASE_API_KEY", "\"\"")
+    buildConfigField("String", "FIREBASE_PROJECT_ID", "\"\"")
+    buildConfigField("String", "FIREBASE_APPLICATION_ID", "\"\"")
+    buildConfigField("String", "MAPS_API_KEY", "\"\"")
+    buildConfigField("String", "ELEVENLABS_API_KEY", "\"\"")
+    buildConfigField("String", "OPENAI_API_KEY", "\"\"")
   }
 
   signingConfigs {
@@ -44,11 +51,10 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
     }
     debug {
       isMinifyEnabled = false
-      signingConfig = signingConfigs.getByName("debugConfig")
+      
     }
   }
   compileOptions {
@@ -116,6 +122,8 @@ dependencies {
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
   implementation(libs.play.services.location)
+  implementation(libs.play.services.maps)
+  implementation(libs.maps.compose)
   implementation(libs.retrofit)
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)

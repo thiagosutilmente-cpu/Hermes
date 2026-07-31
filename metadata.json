@@ -1,6 +1,6 @@
 {
-  "name": "Radar Delivery AI",
-  "description": "Filtro inteligente de ofertas para entregadores com assistente por voz e trava de segurança por velocidade.",
+  "name": "Radar Coordinator — Jarvis Neural Cockpit v2.4",
+  "description": "Sistema de inteligência de entregas multi-app (iFood, Rappi, Uber, 99) com Ghost Sequence Batching e Constellation Map.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

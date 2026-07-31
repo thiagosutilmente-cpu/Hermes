@@ -17,7 +17,8 @@ data class OfferEntity(
     val suggestion: String, // aceitar, considerar, recusar
     val reason: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val speedKmhAtDecision: Float,
+    val speedKmhAtDecision: Float = 0.0f,
     val isChained: Boolean = false,
-    val activeDeliveryDestination: String? = null
+    val activeDeliveryDestination: String? = null,
+    val userAction: String? = null // "ACEITO", "RECUSADO", ou null se ignorado
 )

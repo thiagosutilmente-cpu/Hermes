@@ -30,13 +30,15 @@ class StateCoordinator {
 
         // 2. Lógica padrão de fluxo de transições (Máquina de Estados Unificada)
         val isValid = when (currentState) {
-            RadarState.OUVINDO -> newState == RadarState.OFERTA_LIDA
+            RadarState.OUVINDO -> newState == RadarState.OFERTA_LIDA || newState == RadarState.ALERTA
             RadarState.OFERTA_LIDA -> newState == RadarState.ANALISANDO || newState == RadarState.OUVINDO
-            RadarState.ANALISANDO -> newState == RadarState.SUGERINDO || newState == RadarState.OUVINDO
-            RadarState.SUGERINDO -> newState == RadarState.AGUARDANDO_ACAO || newState == RadarState.OUVINDO
+            RadarState.ANALISANDO -> newState == RadarState.SUGERINDO || newState == RadarState.OUVINDO || newState == RadarState.SUCESSO || newState == RadarState.ALERTA
+            RadarState.SUGERINDO -> newState == RadarState.AGUARDANDO_ACAO || newState == RadarState.OUVINDO || newState == RadarState.SUCESSO || newState == RadarState.ALERTA
             RadarState.AGUARDANDO_ACAO -> newState == RadarState.ACEITANDO || newState == RadarState.NAVEGANDO || newState == RadarState.OUVINDO
-            RadarState.ACEITANDO -> newState == RadarState.NAVEGANDO || newState == RadarState.OUVINDO
+            RadarState.ACEITANDO -> newState == RadarState.NAVEGANDO || newState == RadarState.OUVINDO || newState == RadarState.SUCESSO
             RadarState.NAVEGANDO -> newState == RadarState.OUVINDO
+            RadarState.SUCESSO -> newState == RadarState.OUVINDO
+            RadarState.ALERTA -> newState == RadarState.OUVINDO
         }
 
         return if (isValid || newState == RadarState.OUVINDO) {

@@ -1,4 +1,9 @@
 <resources>
-    <string name="app_name">Radar Delivery AI</string>
-    <string name="accessibility_service_description">O Radar Delivery AI lê as informações de corridas recebidas nos aplicativos de entrega suportados (como iFood, Uber, 99) para calcular se o valor se encaixa nas regras de aceite inteligente, agilizando seu trabalho sem riscos de distração.</string>
+    <string name="app_name">Radar Coordinator</string>
+    <string name="jarvis_automation_description">IA Jarvis: Automação inteligente de toques e análise de tela para motoristas de elite.</string>
+    <string name="jarvis_automation_label">Jarvis Automation Service</string>
+    <string name="accessibility_service_label">Assistente de Acessibilidade e Feedback de Voz</string>
+    <string name="accessibility_service_description">Suporte do Assistente Auxiliar de Usabilidade de Áudio. Oferece serviços de controle adaptativo, resposta de voz de inteligência contextualizada e feedback interativo para otimizar a experiência operacional e acessibilidade das funções do sistema em modo mãos-livres.</string>
+    <string name="jarvis_location_label">Jarvis Delivery Location Service</string>
+    <string name="jarvis_audio_label">Jarvis Delivery Audio Service</string>
 </resources>

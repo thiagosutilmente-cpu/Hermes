@@ -9,7 +9,9 @@ import {
   signOut, 
   onAuthStateChanged,
   sendPasswordResetEmail,
-  updateProfile
+  updateProfile,
+  GoogleAuthProvider,
+  signInWithPopup
 } from "firebase/auth";
 import { 
   getFirestore,
@@ -18,20 +20,25 @@ import {
   getDoc,
   getDocs,
   collection,
+  collectionGroup,
+  addDoc,
+  deleteDoc,
+  serverTimestamp,
   query,
   orderBy,
   limit,
-  onSnapshot
+  onSnapshot,
+  enableIndexedDbPersistence
 } from "firebase/firestore";
 
 // Firebase configuration using environment variables from .env with fallback values from .env.example
 const firebaseConfig = {
-  apiKey: "AIzaSyDB2k0gU2leh9kHjHwxEuLfCVSoCfhmWH0",
-  authDomain: "radar-delivery-dd7f2.firebaseapp.com",
-  projectId: "radar-delivery-dd7f2",
-  storageBucket: "radar-delivery-dd7f2.firebasestorage.app",
-  messagingSenderId: "755379343634",
-  appId: "1:755379343634:android:5898fb5536bd219f69e3cb"
+  apiKey: (typeof process !== 'undefined' && process.env?.FIREBASE_API_KEY) || "AIzaSyFallbackKeyForRadarDelivery2026",
+  authDomain: ((typeof process !== 'undefined' && process.env?.FIREBASE_PROJECT_ID) || "radar-delivery-2026") + ".firebaseapp.com",
+  projectId: (typeof process !== 'undefined' && process.env?.FIREBASE_PROJECT_ID) || "radar-delivery-2026",
+  storageBucket: ((typeof process !== 'undefined' && process.env?.FIREBASE_PROJECT_ID) || "radar-delivery-2026") + ".appspot.com",
+  messagingSenderId: "1234567890",
+  appId: (typeof process !== 'undefined' && process.env?.FIREBASE_APPLICATION_ID) || "1:1234567890:android:abc123xyz"
 };
 
 // Initialize Firebase
@@ -40,6 +47,15 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase Services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Ativa a persistência offline para lidar com perdas de conexão (bateria acabando, túnel, área sem cobertura)
+enableIndexedDbPersistence(db).catch((err) => {
+  if (err.code == 'failed-precondition') {
+    console.warn("Múltiplas abas abertas, persistência ativada apenas na primeira.");
+  } else if (err.code == 'unimplemented') {
+    console.warn("Navegador atual não suporta persistência offline do Firestore.");
+  }
+});
 
 /**
  * Sign in a delivery driver with email and password
@@ -53,6 +69,23 @@ export const loginDriver = async (email, password) => {
     return { user: userCredential.user, error: null };
   } catch (error) {
     console.error("Error signing in delivery driver:", error);
+    return { user: null, error: error.message };
+  }
+};
+
+/**
+ * Sign in with Google Auth provider
+ * @returns {Promise<{user: import("firebase/auth").User|null, error: string|null}>}
+ */
+export const loginWithGoogle = async () => {
+  try {
+    const provider = new GoogleAuthProvider();
+    // Configure default parameters if needed
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const result = await signInWithPopup(auth, provider);
+    return { user: result.user, error: null };
+  } catch (error) {
+    console.error("Error signing in with Google:", error);
     return { user: null, error: error.message };
   }
 };
@@ -294,6 +327,69 @@ export const subscribeToDriverSettings = (driverId, callback, errorCallback = nu
 };
 
 /**
+ * Subscribe to real-time driver profile changes.
+ * @param {string} driverId
+ * @param {(profile: object|null) => void} callback
+ * @param {(error: Error) => void} [errorCallback]
+ * @returns {import("firebase/firestore").Unsubscribe}
+ */
+export const subscribeToDriverProfile = (driverId, callback, errorCallback = null) => {
+  try {
+    const profileDocRef = doc(db, "riders", driverId, "profile", "details");
+    return onSnapshot(profileDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        callback(docSnap.data());
+      } else {
+        callback(null);
+      }
+    }, (error) => {
+      console.error("Error in real-time profile snapshot:", error);
+      if (errorCallback) errorCallback(error);
+    });
+  } catch (e) {
+    console.error("Failed to establish real-time profile subscription:", e);
+    if (errorCallback) errorCallback(e);
+    return () => {};
+  }
+};
+
+/**
+ * Subscribe to all driver profiles across the platform (Admin usage).
+ * Path: collectionGroup("profile")
+ * @param {(profiles: Array<object>) => void} callback
+ * @param {(error: Error) => void} [errorCallback]
+ * @returns {import("firebase/firestore").Unsubscribe}
+ */
+export const subscribeToAllProfiles = (callback, errorCallback = null) => {
+  try {
+    const profilesQuery = query(collectionGroup(db, "profile"));
+    return onSnapshot(profilesQuery, (querySnapshot) => {
+      const allProfiles = [];
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        // Since details document is inside riders/{driverId}/profile/details,
+        // docSnap.ref.parent.parent.id gives us the driverId/UID
+        const driverId = docSnap.ref.parent?.parent?.id;
+        if (driverId) {
+          allProfiles.push({
+            driverId,
+            ...data
+          });
+        }
+      });
+      callback(allProfiles);
+    }, (error) => {
+      console.error("Error subscribing to all profiles:", error);
+      if (errorCallback) errorCallback(error);
+    });
+  } catch (e) {
+    console.error("Failed to subscribe to all profiles:", e);
+    if (errorCallback) errorCallback(e);
+    return () => {};
+  }
+};
+
+/**
  * Save a rejected delivery order / offer.
  * Path: riders/{driverId}/rejected_offers/{orderId}
  * @param {string} driverId
@@ -337,4 +433,307 @@ export const getRejectedOrders = async (driverId) => {
   }
 };
 
+/**
+ * Subscribe to real-time module health status.
+ * Path: riders/{driverId}/session/module_health
+ */
+export const subscribeToModuleHealth = (driverId, callback) => {
+  try {
+    const docRef = doc(db, "riders", driverId, "session", "module_health");
+    return onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        callback(docSnap.data());
+      } else {
+        callback(null);
+      }
+    });
+  } catch (error) {
+    console.error("Error subscribing to module health:", error);
+    return () => {};
+  }
+};
+
+/**
+ * Subscribe to real-time active session statistics.
+ * Path: riders/{driverId}/session/active_stats
+ */
+export const subscribeToActiveSessionStats = (driverId, callback) => {
+  try {
+    const docRef = doc(db, "riders", driverId, "session", "active_stats");
+    return onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        callback(docSnap.data());
+      } else {
+        callback(null);
+      }
+    });
+  } catch (error) {
+    console.error("Error subscribing to session stats:", error);
+    return () => {};
+  }
+};
+
+/**
+ * Send a remote command to the Android app.
+ * Path: riders/{driverId}/commands/latest
+ */
+export const sendRemoteCommand = async (driverId, action) => {
+  try {
+    const docRef = doc(db, "riders", driverId, "commands", "latest");
+    await setDoc(docRef, {
+      action,
+      timestamp: Date.now(),
+      status: "pending"
+    });
+    return { success: true, error: null };
+  } catch (error) {
+    console.error("Error sending remote command:", error);
+    return { success: false, error: error.message };
+  }
+};
+
 export default app;
+
+export const sendEmergencyAlert = async (driverId, location) => {
+  try {
+    const colRef = collection(db, "emergencies");
+    await addDoc(colRef, {
+      driverId,
+      location,
+      timestamp: serverTimestamp(),
+      resolved: false
+    });
+    return { success: true, error: null };
+  } catch (error) {
+    console.error("Error sending emergency alert:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Save WhatsApp notification details in Firestore.
+ * Path: riders/{driverId}/whatsapp/last_received
+ */
+export const saveWhatsAppNotification = async (driverId, sender, text) => {
+  try {
+    const docRef = doc(db, "riders", driverId, "whatsapp", "last_received");
+    await setDoc(docRef, {
+      sender,
+      text,
+      timestamp: Date.now(),
+      isRead: false
+    });
+    return { success: true, error: null };
+  } catch (error) {
+    console.error("Error saving WhatsApp notification:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Subscribe to real-time WhatsApp notifications in Firestore.
+ */
+export const subscribeToWhatsAppNotification = (driverId, callback) => {
+  try {
+    const docRef = doc(db, "riders", driverId, "whatsapp", "last_received");
+    return onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        callback(docSnap.data());
+      } else {
+        callback(null);
+      }
+    });
+  } catch (error) {
+    console.error("Error subscribing to WhatsApp notifications:", error);
+    return () => {};
+  }
+};
+
+/**
+ * Send WhatsApp reply command to the Android app.
+ * Path: riders/{driverId}/whatsapp/reply_command
+ */
+export const sendWhatsAppReplyCommand = async (driverId, text) => {
+  try {
+    const docRef = doc(db, "riders", driverId, "whatsapp", "reply_command");
+    await setDoc(docRef, {
+      text,
+      timestamp: Date.now(),
+      status: "pending"
+    });
+    return { success: true, error: null };
+  } catch (error) {
+    console.error("Error sending WhatsApp reply command:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Save driver backup to Firestore.
+ * Path: riders/{driverId}/backups/latest and riders/{driverId}/backups_history
+ */
+export const saveDriverBackup = async (driverId, backupData) => {
+  try {
+    const backupLatestRef = doc(db, "riders", driverId, "backups", "latest");
+    const backupHistoryColRef = collection(db, "riders", driverId, "backups_history");
+    
+    // Set in latest
+    await setDoc(backupLatestRef, {
+      ...backupData,
+      updatedAt: serverTimestamp()
+    });
+    
+    // Add to history
+    await addDoc(backupHistoryColRef, {
+      ...backupData,
+      createdAt: serverTimestamp()
+    });
+    
+    return { success: true, error: null };
+  } catch (error) {
+    console.error("Error saving driver backup:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Get driver backups history from Firestore.
+ */
+export const getDriverBackups = async (driverId, limitVal = 10) => {
+  try {
+    const historyColRef = collection(db, "riders", driverId, "backups_history");
+    const q = query(historyColRef, orderBy("timestamp", "desc"), limit(limitVal));
+    const querySnapshot = await getDocs(q);
+    const backups = [];
+    querySnapshot.forEach((doc) => {
+      backups.push({ id: doc.id, ...doc.data() });
+    });
+    return { backups, error: null };
+  } catch (error) {
+    console.error("Error getting driver backups:", error);
+    return { backups: [], error: error.message };
+  }
+};
+
+/**
+ * Subscribe to real-time Jarvis proactive messages in Firestore.
+ * Path: riders/{driverId}/jarvis/proactive_message
+ */
+export const subscribeToProactiveMessages = (driverId, callback) => {
+  try {
+    const docRef = doc(db, "riders", driverId, "jarvis", "proactive_message");
+    return onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        // Check if message is fresh (less than 60 seconds old)
+        if (data.message && (Date.now() - data.timestamp < 60000)) {
+           callback(data.message);
+        } else {
+           callback(null);
+        }
+      } else {
+        callback(null);
+      }
+    });
+  } catch (error) {
+    console.error("Error subscribing to proactive messages:", error);
+    return () => {};
+  }
+};
+
+/**
+ * Save or update a customized voice profile.
+ * Path: riders/{driverId}/voice_profiles/{profileId}
+ */
+export const saveVoiceProfile = async (driverId, profileId, profileData) => {
+  try {
+    const profileDocRef = doc(db, "riders", driverId, "voice_profiles", profileId);
+    await setDoc(profileDocRef, {
+      ...profileData,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    return { success: true, error: null };
+  } catch (error) {
+    console.error("Error saving voice profile:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Delete a custom voice profile.
+ */
+export const deleteVoiceProfile = async (driverId, profileId) => {
+  try {
+    const profileDocRef = doc(db, "riders", driverId, "voice_profiles", profileId);
+    await deleteDoc(profileDocRef);
+    return { success: true, error: null };
+  } catch (error) {
+    console.error("Error deleting voice profile:", error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Subscribe in real-time to the collection of custom voice profiles.
+ */
+export const subscribeToVoiceProfiles = (driverId, callback) => {
+  try {
+    const colRef = collection(db, "riders", driverId, "voice_profiles");
+    // Snapshot query
+    const q = query(colRef);
+    return onSnapshot(q, (snapshot) => {
+      const profiles = [];
+      snapshot.forEach((doc) => {
+        profiles.push({ id: doc.id, ...doc.data() });
+      });
+      callback(profiles);
+    }, (error) => {
+      console.error("Error in voice profiles snapshot listener:", error);
+    });
+  } catch (error) {
+    console.error("Error subscribing to voice profiles:", error);
+    return () => {};
+  }
+};
+
+/**
+ * Send a generic Jarvis query and listen for a response.
+ * Path: jarvis_requests/{requestId}
+ */
+export const sendJarvisGeneralQuery = async (text, driverId = "motoboy_thiago_01") => {
+  try {
+    const colRef = collection(db, "jarvis_requests");
+    const docRef = await addDoc(colRef, {
+      text,
+      status: "pending",
+      driverId,
+      timestamp: Date.now()
+    });
+    return { success: true, requestId: docRef.id, error: null };
+  } catch (error) {
+    console.error("Error sending Jarvis general query:", error);
+    return { success: false, requestId: null, error: error.message };
+  }
+};
+
+/**
+ * Subscribe to response for a specific Jarvis request.
+ */
+export const subscribeToJarvisResponse = (requestId, callback) => {
+  try {
+    const docRef = doc(db, "jarvis_requests", requestId);
+    return onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.status === "completed" || data.status === "error") {
+          callback(data.response || data.error);
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error subscribing to Jarvis response:", error);
+    return () => {};
+  }
+};
+
+

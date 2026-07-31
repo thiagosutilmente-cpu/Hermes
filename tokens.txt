@@ -1,0 +1,2781 @@
+TemplateHead at 69 `[Asaas] Sincronizando status de assinatura para: ${
+TemplateTail at 69 }`
+TemplateHead at 94 `PERÍODO DE TESTE: ${
+TemplateTail at 94 } DIAS RESTANTES`
+TemplateHead at 130 `Excelente (${
+TemplateTail at 130 }ms)`
+TemplateHead at 136 `Estável (${
+TemplateTail at 136 }ms)`
+TemplateHead at 142 `Lenta (${
+TemplateTail at 142 }ms)`
+TemplateHead at 148 `Instável (${
+TemplateTail at 148 }ms)`
+TemplateHead at 155 `Firestore: ${
+TemplateTail at 155 }`
+TemplateHead at 160 `gpsLatencyPulse ${
+TemplateTail at 160 } infinite`
+TemplateHead at 205 `Enviando comando: ${
+TemplateTail at 205 }...`
+TemplateHead at 210 `Erro ao enviar comando: ${
+TemplateTail at 210 }`
+TemplateHead at 322 `[Theme] Trocado automaticamente para ${
+TemplateTail at 322 }h).`
+TemplateHead at 323 `Modo ${
+TemplateTail at 323 } ativado automaticamente.`
+TemplateHead at 370 `Meta semanal atualizada para R$ ${
+TemplateTail at 370 }`
+TemplateHead at 384 `Aviso de meta semanal ${
+TemplateTail at 384 }.`
+TemplateHead at 386 `Aviso do Jarvis ${
+TemplateTail at 386 }!`
+TemplateHead at 422 `R$ ${
+TemplateTail at 422 }`
+TemplateHead at 423 `R$ ${
+TemplateTail at 423 }`
+TemplateHead at 424 `${
+TemplateTail at 424 }%`
+TemplateHead at 425 `${
+TemplateTail at 425 }%`
+TemplateHead at 454 `Atenção, ${
+TemplateTail at 454 } reais para você bater a sua meta semanal. Continue assim!`
+NoSubstitutionTemplate at 458 `Você está a 20% da sua meta semanal!`
+TemplateHead at 486 `${
+TemplateTail at 486 }`
+TemplateHead at 520 `Horário do resumo diário salvo para ${
+TemplateTail at 520 }`
+TemplateHead at 522 `Horário do resumo diário configurado para ${
+TemplateTail at 522 }.`
+TemplateHead at 531 `Resumo diário do Jarvis! Hoje você completou ${
+TemplateTail at 531 }!`
+TemplateHead at 544 `${
+TemplateTail at 544 }`
+TemplateHead at 565 `toast ${
+TemplateTail at 565 }`
+TemplateHead at 575 `
+        <span class="icon material-symbols-rounded">${
+TemplateTail at 583 }</div>
+        <button class="close-toast" aria-label="Fechar notificação">
+          <span class="material-symbols-rounded">close</span>
+        </button>
+        <div class="toast-progress">
+          <div class="toast-progress-bar" style="transform: scaleX(1); transition: none;"></div>
+        </div>
+      `
+TemplateHead at 591 `transform ${
+TemplateTail at 591 }ms linear`
+TemplateHead at 698 `
+          <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div id="learning_text_${
+TemplateTail at 717 })" style="background: transparent; border: none; color: var(--accent-pink); display: flex; align-items: center; gap: 4px; cursor: pointer; padding: 0; font-size: 12px;">
+                <span class="material-symbols-rounded" style="font-size: 14px;">delete</span> Excluir
+              </button>
+            </div>
+          </div>
+        `
+TemplateHead at 723 `learning_text_${
+TemplateTail at 723 }`
+TemplateHead at 724 `learning_actions_${
+TemplateTail at 724 }`
+TemplateHead at 725 `learning_edit_${
+TemplateTail at 725 }`
+TemplateHead at 729 `learning_text_${
+TemplateTail at 729 }`
+TemplateHead at 730 `learning_actions_${
+TemplateTail at 730 }`
+TemplateHead at 731 `learning_edit_${
+TemplateTail at 731 }`
+TemplateHead at 735 `learning_input_${
+TemplateTail at 735 }`
+TemplateHead at 941 `[Dexie.js] Trimmed ${
+TemplateTail at 941 } old rides.`
+TemplateHead at 989 `
+        <div style="font-size: 10.5px; line-height: 1.4; color: var(--text-muted);">
+          <span style="font-weight: bold; color: var(--text-main); display: block; margin-bottom: 4px; text-transform: uppercase; font-size: 9px; letter-spacing: 0.3px;">
+            🧪 Simulador de Viabilidade (Corrida de 10km pagando R$ 25,00)
+          </span>
+          • Custo Operacional Estimado: <span style="color: var(--accent-pink); font-weight: bold;">R$ ${
+NoSubstitutionTemplate at 993 `<span style="background: rgba(0, 245, 212, 0.15); color: var(--success); padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-flex; align-items: center; gap: 2px; margin-top: 2px;"><span class="material-symbols-rounded" style="font-size: 11px;">check_circle</span> ACEITARIA AUTOMATICAMENTE ✅</span>`
+NoSubstitutionTemplate at 994 `<span style="background: rgba(255, 0, 110, 0.15); color: var(--accent-pink); padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-flex; align-items: center; gap: 2px; margin-top: 2px;"><span class="material-symbols-rounded" style="font-size: 11px;">cancel</span> REJEITARIA SILENCIOSAMENTE ❌</span>`
+TemplateTail at 997 }
+        </div>
+      `
+TemplateHead at 1139 `[Jarvis DB] Foram encontradas ${
+TemplateTail at 1139 } corridas anteriores na mesma área geográfica.`
+TemplateHead at 1229 `
+            <div style="font-weight: 800; color: var(--accent-pink); margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+              <span class="material-symbols-rounded" style="font-size: 16px;">warning</span> 
+              GARGALO HISTÓRICO: ${
+TemplateTail at 1233 } minutos</strong>.
+          `
+TemplateHead at 1240 `
+            <div style="font-weight: 800; color: var(--accent-blue); margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+              <span class="material-symbols-rounded" style="font-size: 16px;">traffic</span> 
+              TRÂNSITO EM TEMPO REAL (GOOGLE MAPS)
+            </div>
+            Fluxo muito lento detectado na rota direta. Jarvis sugere realizar um desvio tático por vias secundárias livres para economizar cerca de <strong>${
+TemplateTail at 1241 } minutos</strong> de viagem.
+          `
+TemplateHead at 1251 `
+            <div style="font-size: 11px; color: var(--text-main); line-height: 1.45;">
+              ${
+TemplateTail at 1263 }')" style="background: linear-gradient(135deg, var(--accent-blue), #1e5cff); border: none; color: white; border-radius: 6px; padding: 5px 12px; font-size: 10.5px; font-weight: bold; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px; font-family: var(--font-main); box-shadow: 0 4px 10px rgba(58, 134, 255, 0.25);">
+                <span class="material-symbols-rounded" style="font-size: 14px;">navigation</span>
+                Adotar Desvio Ativo
+              </button>
+            </div>
+          `
+TemplateHead at 1284 `${
+TemplateTail at 1284 } minutos. Toque em Adotar Desvio para traçar.`
+TemplateHead at 1290 `Jarvis: Sugestão de desvio ativa calculada. Gargalo em ${
+TemplateTail at 1290 }m.`
+TemplateHead at 1294 `Sugestão de desvio ativa: Evite tráfego em ${
+TemplateTail at 1294 } min baseada em histórico de corridas anteriores.`
+TemplateHead at 1305 `${
+TemplateTail at 1305 }, você não possui nenhuma corrida ou junção ativa para que eu possa avaliar.`
+TemplateHead at 1326 `${
+TemplateTail at 1326 }, preparei um relatório consolidado da sua junção inteligente de múltiplos aplicativos. `
+TemplateHead at 1327 `Esta rota unifica entregas do ${
+TemplateTail at 1327 }. `
+NoSubstitutionTemplate at 1328 `O algoritmo do Ghost Protocol evitou que você rodasse quilômetros em duplicidade, otimizando seu tempo em mais de trinta por cento. `
+TemplateHead at 1331 `As coletas estão com status de ${
+TemplateTail at 1331 }. `
+TemplateHead at 1332 `Atenção: ${
+TemplateTail at 1332 } `
+NoSubstitutionTemplate at 1334 `O tráfego na rota unificada está estável. Prossiga com atenção às instruções no painel.`
+TemplateHead at 1337 `${
+TemplateTail at 1337 }. `
+TemplateHead at 1340 `ficará pronto em aproximadamente ${
+TemplateTail at 1340 }`
+TemplateHead at 1341 `O status de preparação está marcado como ${
+TemplateTail at 1341 }. `
+TemplateHead at 1342 `A coleta está destinada para o ${
+TemplateTail at 1342 }. `
+TemplateHead at 1343 `Recomendação logística do Jarvis: ${
+TemplateTail at 1343 } `
+TemplateHead at 1345 `Ganhos estimados de R$ ${
+TemplateTail at 1345 }. O fluxo de trânsito está livre para esta rota. Mantenha a velocidade padrão.`
+TemplateHead at 1411 `Coletas super próximas em ${
+TemplateTail at 1411 }. Colete ambos pacotes juntos e otimize seu tempo!`
+TemplateHead at 1428 `Esta coleta começa bem perto de onde você vai entregar a corrida atual (${
+TemplateTail at 1428 }). Menos tempo de espera parado!`
+NoSubstitutionTemplate at 1445 `O destino desta corrida fica ao lado da sua entrega atual. Praticamente nenhum desvio de rota!`
+TemplateHead at 1496 `Aceito. Rota para ${
+TemplateTail at 1496 }.`
+TemplateHead at 1498 `Solicitação confirmada via ${
+TemplateTail at 1498 } estabelecido.`
+TemplateHead at 1500 `Corrida aceita no ${
+TemplateTail at 1500 }!`
+TemplateHead at 1502 `Corrida aceita! Vá até a coleta em: ${
+TemplateTail at 1502 }`
+TemplateHead at 1510 `${
+TemplateTail at 1602 }, dica do Jarvis: caso a entrega seja em apartamento ou condomínio, diga 'Avisa o cliente' e eu preparo uma mensagem para ele já ir descendo.\`,
+                    "Dica do Jarvis: O destino parece ser um condomínio. Assim que chegar, avise que está aguardando, ou se preferir eu posso enviar uma notificação inteligente usando o botão 'Avisa o cliente'.",
+                    "Thiago, lembrete Jarvis: quando o cliente informar o código de confirmação, basta me dizer 'Jarvis, código 1234' e eu preencho automaticamente no aplicativo.",
+                    "Dica de segurança: Se o cliente demorar a responder e a área for esquisita, diga 'Chamada falsa' e eu simulo uma ligação de rastreamento com a central.",
+                    "Dica de ouro: Se for um pedido grande, confirme se as bebidas estão seguras na bag. Qualquer problema recorrente, diga 'Jarvis aprende que...' e eu memorizo.",
+                    "Estratégia Jarvis: Se a rua do cliente for de difícil acesso, sugira pelo chat do app que ele te encontre na esquina ou portaria para maior agilidade."
+                ];
+                // Semente simples para não ser totalmente aleatório e repetir
+                let tipIndex = 0;
+                if (order && order.id) {
+                    let seed = 0;
+                    for (let i = 0; i < order.id.length; i++) seed += order.id.charCodeAt(i);
+                    tipIndex = seed % tips.length;
+                } else {
+                    tipIndex = Math.floor(Math.random() * tips.length);
+                }
+                window.speakText(tips[tipIndex]);
+            }
+        }, 12000);
+      }
+      
+      if (currentOrdersList) {
+        renderOffers(currentOrdersList);
+      }
+    };
+
+    window.mergedActiveOrder = null;
+
+
+    window.lastMergeCheck = 0;
+    
+    window.analyzeAndSuggestMerges = function() {
+        if (!window.currentOrdersList || window.currentOrdersList.length < 2) {
+            document.getElementById('routeMergingDashboard').style.display = 'none';
+            return;
+        }
+        
+        const now = Date.now();
+        if (now - window.lastMergeCheck < 5000) return; // Prevent excessive checking
+        window.lastMergeCheck = now;
+        
+        const pendingOrders = window.currentOrdersList.filter(o => 
+            o.status !== 'canceled' && 
+            o.status !== 'completed' && 
+            o.status !== 'merged_taken' && 
+            o.status !== 'accepted' && 
+            !window.rejectedOrderIds.has(o.id)
+        );
+        
+        if (pendingOrders.length < 2) {
+            document.getElementById('routeMergingDashboard').style.display = 'none';
+            return;
+        }
+        
+        const suggestions = [];
+        const checkedPairs = new Set();
+        
+        for (let i = 0; i < pendingOrders.length; i++) {
+            for (let j = i + 1; j < pendingOrders.length; j++) {
+                const o1 = pendingOrders[i];
+                const o2 = pendingOrders[j];
+                
+                // Prevent duplicate checks
+                const pairKey = [o1.id, o2.id].sort().join('-');
+                if (checkedPairs.has(pairKey)) continue;
+                checkedPairs.add(pairKey);
+                
+                const comp = window.checkCompatibility ? window.checkCompatibility(o1, o2) : null;
+                if (comp && comp.compatibilityPercentage >= 80) { // High threshold for suggestions
+                    suggestions.push({
+                        order1: o1,
+                        order2: o2,
+                        compatibility: comp
+                    });
+                }
+            }
+        }
+        
+        const dash = document.getElementById('routeMergingDashboard');
+        const contentDiv = document.getElementById('routeMergeSuggestionsContent');
+        
+        if (suggestions.length > 0) {
+            dash.style.display = 'block';
+            contentDiv.innerHTML = '';
+            
+            // Sort by compatibility
+            suggestions.sort((a, b) => b.compatibility.compatibilityPercentage - a.compatibility.compatibilityPercentage);
+            
+            // Render up to 2 suggestions
+            suggestions.slice(0, 2).forEach((s, idx) => {
+                const fareTotal = (parseFloat(s.order1.fare_value || 0) + parseFloat(s.order2.fare_value || 0)).toFixed(2);
+                
+                const html = `
+NoSubstitutionTemplate at 1667 `;
+                contentDiv.innerHTML += html;
+            });
+            
+            // Notify if new
+            if (!window.lastMergeSuggestions || window.lastMergeSuggestions !== suggestions[0].order1.id + suggestions[0].order2.id) {
+                window.lastMergeSuggestions = suggestions[0].order1.id + suggestions[0].order2.id;
+                if (window.showToast) window.showToast("⚡ Jarvis detectou oportunidade de mesclagem de rota!", "info");
+            }
+            
+        } else {
+            dash.style.display = 'none';
+        }
+    };
+
+    window.mergeOrders = function(activeId, pendingId) {
+      if (!currentOrdersList) return;
+      const active = currentOrdersList.find(o => o.id === activeId);
+      const pending = currentOrdersList.find(o => o.id === pendingId);
+      if (active && pending) {
+        const detour = 1.2; // Pequeno desvio simulado
+        window.mergedActiveOrder = {
+          id: "merged_" + active.id + "_" + pending.id,
+          isMerged: true,
+          originalActiveId: active.id,
+          originalPendingId: pending.id,
+          delivery_app: active.delivery_app + " + " + pending.delivery_app,
+          fare_value: parseFloat(active.fare_value) + parseFloat(pending.fare_value),
+          total_distance_km: parseFloat(active.total_distance_km) + detour,
+          pickup_address: active.pickup_address,
+          delivery_address: active.delivery_address,
+          pickup_address_2: pending.pickup_address,
+          delivery_address_2: pending.delivery_address,
+          currentRoutingOption: 'opt1',
+          status: 'active'
+        };
+        activeOrderId = window.mergedActiveOrder.id;
+        SecureStorage.setItem('activeOrderId', activeOrderId);
+        SecureStorage.setItem('mergedOrderData', JSON.stringify(window.mergedActiveOrder));
+
+        // Update both in Firebase
+        if (currentDriverId && window.saveDeliveryOrder) {
+            window.saveDeliveryOrder(currentDriverId, active.id, { status: 'accepted' });
+            window.saveDeliveryOrder(currentDriverId, pending.id, { status: 'accepted' });
+        }
+
+        // Remove a oferta pendente mesclada da lista visual marcando-a localmente
+        pending.status = 'merged_taken';
+        if(window.incrementMergeQuest) window.incrementMergeQuest();
+
+        speakText(`
+NoSubstitutionTemplate at 1668 `);
+        showToast(`
+NoSubstitutionTemplate at 1774 `, "success");
+        
+        renderOffers(currentOrdersList);
+        window.drawRouteOnMap(window.mergedActiveOrder);
+      }
+    };
+
+    window.optimizeOfflineRoute = async function() {
+      const offer = window.mergedActiveOrder;
+      if (!offer || !offer.isMerged) {
+        if (window.showToast) window.showToast("Otimização offline: Apenas para rotas combinadas ativas.", "info");
+        return;
+      }
+      
+      try {
+        const getCoord = async (addr) => {
+          if (!addr) return {lat: 0, lng: 0};
+          if (typeof getOfflineLatLng !== 'undefined') {
+            const loc = await getOfflineLatLng(addr);
+            if (loc) return {lat: loc.lat(), lng: loc.lng()};
+          }
+          if (window.offlineMapsDb) {
+            const cached = await window.offlineMapsDb.locations.get(addr);
+            if (cached) return {lat: cached.lat, lng: cached.lng};
+          }
+          // Hash fallback
+          let hash = 0;
+          for (let i = 0; i < addr.length; i++) { hash = addr.charCodeAt(i) + ((hash << 5) - hash); }
+          return { lat: -23.55 + (hash % 100) / 1000, lng: -46.63 + (hash % 100) / 1000 };
+        };
+
+        const p1 = await getCoord(offer.pickup_address);
+        const p2 = await getCoord(offer.pickup_address_2);
+        const d1 = await getCoord(offer.delivery_address);
+        const d2 = await getCoord(offer.delivery_address_2);
+
+        const calcDist = (a, b) => Math.sqrt(Math.pow(a.lat - b.lat, 2) + Math.pow(a.lng - b.lng, 2));
+
+        const seq1 = calcDist(p1, p2) + calcDist(p2, d1) + calcDist(d1, d2);
+        const seq2 = calcDist(p1, d1) + calcDist(d1, p2) + calcDist(p2, d2);
+        const seq3 = calcDist(p2, p1) + calcDist(p1, d2) + calcDist(d2, d1);
+
+        let bestOpt = 'opt1';
+        let min = seq1;
+        if (seq2 < min) { min = seq2; bestOpt = 'opt2'; }
+        if (seq3 < min) { min = seq3; bestOpt = 'opt3'; }
+
+        if (window.switchMergedRoutingOption) {
+          window.switchMergedRoutingOption(bestOpt);
+        }
+        
+        if (window.showToast) {
+          window.showToast("Otimização offline concluída via cache! ⚡ Rota reordenada para menor distância.", "success");
+        }
+        
+        if (window.speakText) {
+          window.speakText("Trajeto otimizado localmente com sucesso.");
+        }
+      } catch (err) {
+        console.error("Erro na otimização offline:", err);
+      }
+    };
+
+
+    window.optimizeMergedRoutes = async function() {
+      const offer = window.mergedActiveOrder;
+      if (!offer || !offer.isMerged) {
+        if (window.showToast) window.showToast("Otimização: Nenhuma corrida múltipla ativa encontrada.", "error");
+        return;
+      }
+      
+      try {
+        if (window.showToast) window.showToast("Jarvis: Analisando matriz de tráfego em tempo real...", "info");
+        if (window.speakText) window.speakText("Iniciando varredura termal de tráfego, aguarde.");
+        
+        // Simulate network/processing delay for realism
+        await new Promise(resolve => setTimeout(resolve, 1800));
+        
+        const distTotal = parseFloat(offer.total_distance_km) || 6.5;
+        const baseFare = parseFloat(offer.fare_value) || 20.0;
+        
+        // We evaluate opt1 (P1-P2-D1-D2), opt2 (P1-D1-P2-D2), opt3 (P2-P1-D2-D1)
+        // using simulated traffic density weights
+        const trafficOpt1 = 1.0 + (Math.random() * 0.4); 
+        const trafficOpt2 = 0.8 + (Math.random() * 0.5);
+        const trafficOpt3 = 0.9 + (Math.random() * 0.3);
+        
+        // Base times in minutes assuming ~3 mins per km in city, modified by traffic
+        const timeOpt1 = (distTotal * 2.8) * trafficOpt1; 
+        const timeOpt2 = (distTotal * 3.1) * trafficOpt2; // opt2 usually longer path but might avoid traffic
+        const timeOpt3 = (distTotal * 2.9) * trafficOpt3;
+        
+        let bestOpt = 'opt1';
+        let minTime = timeOpt1;
+        
+        if (timeOpt2 < minTime) { minTime = timeOpt2; bestOpt = 'opt2'; }
+        if (timeOpt3 < minTime) { minTime = timeOpt3; bestOpt = 'opt3'; }
+        
+        const maxTime = Math.max(timeOpt1, timeOpt2, timeOpt3);
+        const timeSaved = Math.max(1, Math.round(maxTime - minTime));
+        const profitPerKm = (baseFare / distTotal).toFixed(2);
+        
+        if (window.switchMergedRoutingOption) {
+          window.switchMergedRoutingOption(bestOpt);
+        }
+        
+        const msg = `
+Backtick in other token: RegularExpressionLiteral at 1774 / km.`;
+NoSubstitutionTemplate at 1780 `Matriz de tráfego decodificada, Thiago. Rota ajustada com sucesso, evitando congestionamento e garantindo maior ganho por quilômetro rodado.`
+TemplateHead at 1783 `[Jarvis Route Optimizer] Evaluated traffic. Chose ${
+TemplateTail at 1783 } mins.`
+TemplateHead at 1811 `Entendido, ${
+TemplateTail at 1811 }. Rota alterada para a sequência clássica de coleta dupla e entrega casada.`
+TemplateHead at 1860 `
+            <div style="display: flex; align-items: center; gap: 6px; color: var(--text-main); font-size: 11px;">
+              <span class="material-symbols-rounded" style="color: var(--accent-purple); font-size: 16px;">traffic</span>
+              <span>Otimização por Tráfego: <strong style="color: var(--success);">Ativa</strong></span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted);">
+              ${
+TemplateTail at 1862 }
+            </div>
+          `
+NoSubstitutionTemplate at 1870 `
+            <div style="display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 11px;">
+              <span class="material-symbols-rounded" style="color: var(--text-muted); font-size: 16px;">traffic</span>
+              <span>Otimização por Tráfego: Desativada</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); font-weight: bold;">Roteamento Estático</div>
+          `
+TemplateHead at 1891 `
+          <!-- Card Opção 1 -->
+          <div onclick="window.selectRoutingOptionInModal('opt1')" id="modalCardOpt1" style="border: 2px solid ${
+TemplateTail at 1943 }/km</strong></div>
+              <div style="font-size: 11px; color: var(--text-muted);">Trânsito: <strong style="color: var(--accent-blue);">Moderado</strong></div>
+            </div>
+          </div>
+        `
+TemplateHead at 2194 `
+          <button type="button" onclick="window.applyWorkProfile('${
+TemplateTail at 2198 }
+          </button>
+        `
+TemplateHead at 2225 `
+          <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span class="material-symbols-rounded" style="font-size: 14px; color: ${
+TemplateTail at 2250 }', 'Uber Eats', this.checked)"> Uber
+                </label>
+            </div>
+          </div>
+        `
+NoSubstitutionTemplate at 2258 `
+        <div style="display: flex; gap: 6px; margin-top: 4px;">
+          <button type="button" onclick="window.toggleWorkProfilesEditor()" style="flex: 1; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); font-size: 10px; font-weight: bold; padding: 6px; border-radius: 6px; cursor: pointer;">Cancelar</button>
+          <button type="button" onclick="window.saveWorkProfiles(); window.toggleWorkProfilesEditor();" style="flex: 1; background: var(--accent-purple); border: none; color: white; font-size: 10px; font-weight: bold; padding: 6px; border-radius: 6px; cursor: pointer;">Salvar Perfis</button>
+        </div>
+      `
+TemplateHead at 2293 `Perfil "${
+TemplateTail at 2293 }" carregado com sucesso!`
+TemplateHead at 2296 `Perfil ${
+TemplateTail at 2296 }.`
+NoSubstitutionTemplate at 2334 `Thiago, não encontrei registros de ganhos nos últimos 7 dias. Que tal definirmos uma meta inicial de 100 reais para aquecer os motores?`
+TemplateHead at 2341 `Analisando seus dados, ${
+TemplateTail at 2341 }. Vamos acelerar!`
+NoSubstitutionTemplate at 2345 `Erro ao calcular meta:`
+TemplateHead at 2346 `${
+TemplateTail at 2346 }, encontrei um problema ao acessar seu histórico para calcular a meta.`
+TemplateHead at 2354 `${
+TemplateTail at 2354 }, você já está com uma junção inteligente multiapp ativa no momento.`
+TemplateHead at 2358 `${
+TemplateTail at 2358 }, você precisa ter uma corrida ativa no momento para fazer a junção com o Jarvis.`
+TemplateHead at 2366 `${
+TemplateTail at 2366 }, no momento não localizei nenhuma oferta pendente compatível de outro aplicativo para juntar.`
+NoSubstitutionTemplate at 2566 ` & " + window.mergedActiveOrder.pickup_address_2,
+            delivery_address: window.mergedActiveOrder.delivery_address + " & " + window.mergedActiveOrder.delivery_address_2
+          });
+          console.log("[Dexie.js] Corrida combinada persistida no IndexedDB.");
+
+          if (currentDriverId && window.saveDriverSettings) {
+            const currentKms = parseFloat(window.oilChangeKmsDriven) || 0;
+            const newKms = currentKms + rideDist;
+            window.oilChangeKmsDriven = newKms;
+            await window.saveDriverSettings(currentDriverId, {
+              oilChangeKmsDriven: newKms
+            });
+            
+            await window.saveDeliveryOrder(currentDriverId, activeOrderId, {
+                status: 'completed'
+            });
+          }
+          await window.trimOfflineDB();
+          if (window.syncOfflineRidesToFirestore) window.syncOfflineRidesToFirestore();
+          if (window.renderOfflineHistory) {
+            window.renderOfflineHistory();
+          }
+        } catch (dexieErr) {
+          console.error("Erro ao persistir corrida combinada no Dexie:", dexieErr);
+        }
+        window.mergedActiveOrder = null;
+      } else if (typeof currentOrdersList !== 'undefined' && currentOrdersList) {
+        const activeOrder = currentOrdersList.find(o => o.id === activeOrderId);
+        if (activeOrder) {
+          try {
+            const rideDist = parseFloat(activeOrder.total_distance_km || 0);
+            await dbOffline.completedRides.put({
+              id: activeOrder.id,
+              timestamp: activeOrder.timestamp || Date.now(),
+              fare_value: parseFloat(activeOrder.fare_value || 0),
+              total_distance_km: rideDist,
+              delivery_app: activeOrder.delivery_app || 'iFood',
+              pickup_address: activeOrder.pickup_address || 'Ponto de Coleta',
+              delivery_address: activeOrder.delivery_address || 'Ponto de Entrega'
+            });
+            console.log("[Dexie.js] Corrida persistida no IndexedDB.");
+            if (window.updateWeeklyGoalsUI) window.updateWeeklyGoalsUI();
+
+            if (currentDriverId && window.saveDriverSettings) {
+              const currentKms = parseFloat(window.oilChangeKmsDriven) || 0;
+              const newKms = currentKms + rideDist;
+              window.oilChangeKmsDriven = newKms;
+              await window.saveDriverSettings(currentDriverId, {
+                oilChangeKmsDriven: newKms
+              });
+              
+              if (window.mergedActiveOrder && activeOrderId === window.mergedActiveOrder.id) {
+                  await window.saveDeliveryOrder(currentDriverId, window.mergedActiveOrder.originalActiveId, { status: 'completed' });
+                  await window.saveDeliveryOrder(currentDriverId, window.mergedActiveOrder.originalPendingId, { status: 'completed' });
+              } else {
+                  await window.saveDeliveryOrder(currentDriverId, activeOrderId, { status: 'completed' });
+              }
+            }
+            await window.trimOfflineDB();
+          if (window.syncOfflineRidesToFirestore) window.syncOfflineRidesToFirestore();
+            if (window.renderOfflineHistory) {
+              window.renderOfflineHistory();
+            }
+          } catch (dexieErr) {
+            console.error("Erro ao persistir corrida no Dexie:", dexieErr);
+          }
+        }
+      }
+      
+      // Rastrear conquistas do Jarvis ao finalizar corrida real
+      try {
+        // 1. Chuva Extrema
+        if (document.body.classList.contains('rain-extreme')) {
+          let rainCount = parseInt(SecureStorage.getItem('ach_rain_deliveries') || '0') + 1;
+          SecureStorage.setItem('ach_rain_deliveries', rainCount.toString());
+          console.log("[Achievements] Chuva Extrema incrementada:", rainCount);
+        }
+        
+        // 2. Coruja da Noite
+        const currentHour = new Date().getHours();
+        if (currentHour >= 22 || currentHour < 4) {
+          let nightCount = parseInt(SecureStorage.getItem('ach_night_deliveries') || '0') + 1;
+          SecureStorage.setItem('ach_night_deliveries', nightCount.toString());
+          console.log("[Achievements] Coruja da Noite incrementada:", nightCount);
+        }
+      } catch(e) {
+        console.error("Erro ao rastrear conquistas na corrida finalizada:", e);
+      }
+      
+      const tone = currentDriverSettings?.jarvisVoiceTone || 'AMIGÁVEL';
+      if (tone === 'DIRETO') {
+        speakText("Corrida finalizada. Aguardando próximas ofertas.");
+      } else if (tone === 'FORMAL') {
+        speakText("Operação concluída com sucesso. Sistema em prontidão para novas solicitações.");
+      } else {
+        speakText("Corrida concluída com sucesso! Ótimo trabalho. Aguardando novas ofertas inteligentes.");
+      }
+      showToast("Corrida concluída! Estatísticas atualizadas.", "success");
+      
+      activeOrderId = null;
+      SecureStorage.removeItem('activeOrderId');
+      SecureStorage.removeItem('mergedOrderData');
+      
+      if (currentOrdersList) {
+        renderOffers(currentOrdersList);
+      }
+    };
+
+    window.cancelOrder = async function() {
+      if(window.driverCombo >= 3) {
+          if(window.showToast) window.showToast("Combo quebrado! 😢", "error");
+      }
+      window.driverCombo = 0;
+      if (currentDriverId && window.saveDriverProfile) {
+        await window.saveDriverProfile(currentDriverId, { driverCombo: 0 });
+      }
+      if (!activeOrderId) return;
+      const modal = document.getElementById('issueModal');
+      if (modal) modal.style.display = 'flex';
+    };
+
+    window.confirmCancelOrder = async function(reason) {
+      if (!activeOrderId) return;
+      const modal = document.getElementById('issueModal');
+      if (modal) modal.style.display = 'none';
+      
+      const orderIdToCancel = activeOrderId;
+      
+      // Reset local state first for instant UI response
+      activeOrderId = null;
+      SecureStorage.removeItem('activeOrderId');
+      SecureStorage.removeItem('mergedOrderData');
+      
+      speakText("Corrida cancelada: " + reason + ". Retornando ao modo de espera.");
+      showToast("Corrida cancelada: " + reason, "error");
+      
+      // Update status in Firestore to 'canceled' and log reason
+      if (currentDriverId) {
+        if (window.mergedActiveOrder && orderIdToCancel === window.mergedActiveOrder.id) {
+            await saveDeliveryOrder(currentDriverId, window.mergedActiveOrder.originalActiveId, { status: 'canceled', cancel_reason: reason });
+            await saveDeliveryOrder(currentDriverId, window.mergedActiveOrder.originalPendingId, { status: 'canceled', cancel_reason: reason });
+            window.mergedActiveOrder = null;
+        } else {
+            const { success, error } = await saveDeliveryOrder(currentDriverId, orderIdToCancel, { 
+              status: 'canceled',
+              cancel_reason: reason
+            });
+            if (error) console.error("Erro ao atualizar status:", error);
+        }
+      }
+      
+      if (currentOrdersList) {
+        renderOffers(currentOrdersList);
+      }
+      
+      // Limpa a rota do mapa
+      if (window.clearMapRoute) {
+        window.clearMapRoute();
+      }
+    };
+
+    window.rejectOrder = async function(orderId) {
+      if (!orderId) return;
+      
+      const order = currentOrdersList.find(o => o.id === orderId);
+      if (!order) return;
+      
+      // Feedback visual e sonoro imediato
+      rejectedOrderIds.add(orderId);
+      
+      speakText("Oferta recusada.");
+      showToast("Oferta recusada e oculta com sucesso.", "info");
+      
+      if (currentOrdersList) {
+        renderOffers(currentOrdersList);
+      }
+      
+      // Salva a rejeição de forma persistente no Firestore
+      if (currentDriverId) {
+        const { success, error } = await saveRejectedOrder(currentDriverId, orderId, order);
+        if (error) {
+          console.error("Erro ao registrar rejeição no Firestore:`
+Backtick in other token: StringLiteral at 2699 '0`);
+NoSubstitutionTemplate at 2722 `touchstart', 'mousedown', 'scroll', 'keydown'].forEach(evt => {
+      window.addEventListener(evt, () => { 
+        lastUserInteractionTime = Date.now(); 
+        if (antiBanCooldownActive && consecutiveAutoAccepts === 0) {
+           // Pequena chance de resetar cooldown se houver interação humana real
+        }
+      }, { passive: true });
+    });
+
+    let absHesitations = parseInt(SecureStorage.getItem('abs_hesitations') || '0');
+    let absStrategicDrops = parseInt(SecureStorage.getItem('abs_strategic_drops') || '0');
+    let ghostLogs = [];
+    try {
+      ghostLogs = JSON.parse(SecureStorage.getItem('abs_ghost_logs') || '[]');
+    } catch(e) { ghostLogs = []; }
+
+    window.logGhostAction = function(message) {
+      const timestamp = new Date().toLocaleTimeString('pt-BR');
+      ghostLogs.unshift(`
+NoSubstitutionTemplate at 2736 `);
+      if (ghostLogs.length > 50) ghostLogs.pop();
+      try {
+        SecureStorage.setItem('abs_ghost_logs', JSON.stringify(ghostLogs));
+      } catch(e) {}
+      window.renderGhostLogs();
+    };
+
+    window.clearGhostLogs = function() {
+      ghostLogs = [];
+      try {
+        SecureStorage.setItem('abs_ghost_logs', '[]');
+      } catch(e) {}
+      window.renderGhostLogs();
+      window.logGhostAction(`
+Backtick in other token: StringLiteral at 2740 'ghostConsoleLogs`);
+NoSubstitutionTemplate at 2744 `<div style="color: var(--text-muted); font-style: italic;">Nenhuma atividade de proteção registrada hoje.</div>`
+NoSubstitutionTemplate at 2776 `<span style="display: inline-block; width: 6px; height: 6px; background-color: var(--accent-green); border-radius: 50%; box-shadow: 0 0 6px var(--accent-green);"></span> Ativo & Vigilante`
+NoSubstitutionTemplate at 2781 `<span style="display: inline-block; width: 6px; height: 6px; background-color: #ff9f1c; border-radius: 50%; box-shadow: 0 0 6px #ff9f1c;"></span> Em Espera`
+NoSubstitutionTemplate at 2802 `<span style="color: var(--accent-pink); font-size: 11px; font-weight: bold;">HIBERNADO</span>`
+TemplateHead at 2806 `${
+TemplateTail at 2806 }`
+TemplateHead at 2824 `${
+TemplateTail at 2824 }s`
+TemplateHead at 2877 `Autolimpeza ativada: Mapas antigos serão deletados após ${
+TemplateTail at 2877 } dias.`
+TemplateHead at 2891 `Frequência de autolimpeza alterada para ${
+TemplateTail at 2891 } dias.`
+TemplateHead at 2905 `${
+TemplateTail at 2905 } rota(s) salvas`
+TemplateHead at 2918 `${
+TemplateTail at 2918 } reg.)`
+TemplateHead at 2928 `${
+TemplateTail at 2928 } corrida(s) gravadas`
+TemplateHead at 2943 `${
+TemplateTail at 2943 }%`
+TemplateHead at 2948 `${
+TemplateTail at 2948 } MB`
+TemplateHead at 2953 `${
+TemplateTail at 2953 }%`
+TemplateHead at 2958 `${
+TemplateTail at 2958 }%`
+TemplateHead at 2963 `${
+TemplateTail at 2963 }%`
+TemplateHead at 3024 `🧹 Limpeza 1-Clique concluída para: ${
+TemplateTail at 3024 }!`
+TemplateHead at 3122 `[AutoCleanup] Deletando região de mapa expirada após ${
+TemplateTail at 3122 })`
+TemplateHead at 3138 `Autolimpeza: Região '${
+TemplateTail at 3138 } dias.`
+TemplateHead at 3145 `🧹 Autolimpeza: ${
+TemplateTail at 3145 } dias foram apagadas.`
+TemplateHead at 3148 `A autolimpeza de mapas removeu ${
+TemplateTail at 3148 } regiões de mapa antigas.`
+TemplateHead at 3314 `${
+TemplateTail at 3314 }`
+TemplateHead at 3337 `Rota passa por ${
+TemplateTail at 3337 }, mas mapa offline já está no cache.`
+TemplateHead at 3358 `Detectamos que sua rota atual passará pela área de <strong>${
+TemplateTail at 3358 }</strong>, que possui sinal de rede conhecido por ser instável ou inexistente. Sugerimos baixar os dados offline para evitar perda de navegação GPS!`
+TemplateHead at 3363 `Jarvis: Alerta de sinal fraco preditivo detectado para a região de ${
+TemplateTail at 3363 }.`
+Backtick in other token: StringLiteral at 3363 "warning`);
+TemplateHead at 3367 `Atenção ${
+TemplateTail at 3367 }, com sinal instável. Sugiro baixar o mapa offline.`
+NoSubstitutionTemplate at 3393 `<span class=`
+Backtick in other token: StringLiteral at 3393 ">sync_disabled</span> Banco offline indisponível`;
+NoSubstitutionTemplate at 3405 `<span class="material-symbols-rounded" style="font-size: 14px; color: var(--text-muted);">cloud_off</span> Sem regiões salvas`
+NoSubstitutionTemplate at 3425 `<span class="material-symbols-rounded" style="font-size: 14px; color: var(--text-muted);">cloud_done</span> Mapas carregados`
+TemplateHead at 3446 `Sincronizado há ${
+TemplateTail at 3446 }s`
+TemplateHead at 3449 `Sincronizado há ${
+TemplateTail at 3449 }s`
+TemplateHead at 3452 `Sincronizado há ${
+TemplateTail at 3452 }m`
+TemplateHead at 3454 `Sincronizado há ${
+TemplateTail at 3454 }h`
+TemplateHead at 3465 `
+        <span class="material-symbols-rounded" style="font-size: 15px; color: var(--accent-green); animation: pulse 2s infinite;">sync_saved_locally</span>
+        <span style="color: var(--accent-green); font-weight: bold;">${
+TemplateTail at 3466 }</span>
+      `
+TemplateHead at 3467 `Última: ${
+TemplateTail at 3467 }`
+NoSubstitutionTemplate at 3489 `<span class="material-symbols-rounded" style="font-size: 14px; animation: spin 1s linear infinite;">sync</span> Renovando...`
+TemplateHead at 3532 `<span class="material-symbols-rounded" style="font-size: 10px; color: ${
+TemplateTail at 3532 }</span>`
+TemplateHead at 3555 `Encontradas ${
+TemplateTail at 3555 } áreas ativas selecionadas para renovação de vias.`
+TemplateHead at 3563 `[${
+TemplateTail at 3563 }] Iniciando handshake de fluxo viário...`
+TemplateHead at 3566 `${
+TemplateTail at 3566 }%`
+TemplateHead at 3567 `${
+TemplateTail at 3567 }%`
+TemplateHead at 3569 `[${
+TemplateTail at 3569 }] Buscando lentidões e fluxos dinâmicos do Google...`
+TemplateHead at 3572 `${
+TemplateTail at 3572 }%`
+TemplateHead at 3573 `${
+TemplateTail at 3573 }%`
+TemplateHead at 3576 `[${
+TemplateTail at 3576 }% de precisão.`
+TemplateHead at 3579 `${
+TemplateTail at 3579 }%`
+TemplateHead at 3580 `${
+TemplateTail at 3580 }%`
+TemplateHead at 3582 `[${
+TemplateTail at 3582 }] Cache de detours atualizado localmente no Dexie.js!`
+TemplateHead at 3599 `${
+TemplateTail at 3599 }%`
+TemplateHead at 3600 `${
+TemplateTail at 3600 }%`
+TemplateHead at 3620 `${
+TemplateTail at 3620 }, o cache de trânsito foi renovado.`
+NoSubstitutionTemplate at 3630 `<span class="material-symbols-rounded" style="font-size: 14px;">traffic</span> Renovar Tráfego`
+TemplateHead at 3697 `${
+TemplateTail at 3697 } MB`
+TemplateHead at 3709 `<span class="material-symbols-rounded" style="font-size: 14px; animation: pulse 2s infinite;">offline_pin</span> ${
+TemplateTail at 3709 } Offlines`
+NoSubstitutionTemplate at 3714 `<span class="material-symbols-rounded" style="font-size: 14px;">download_for_offline</span> Baixar Região`
+TemplateHead at 3722 `pill_offline_${
+TemplateTail at 3722 }`
+NoSubstitutionTemplate at 3772 `
+              <span class="material-symbols-rounded" style="font-size: 32px; color: rgba(255,255,255,0.1);">map_search</span>
+              <span>Nenhuma região correspondente encontrada.</span>
+            `
+TemplateHead at 3812 `Zonas inclusas: ${
+TemplateTail at 3812 }`
+TemplateHead at 3825 `
+                  <div style="font-weight: bold; margin-bottom: 6px; color: var(--accent-green); display: flex; align-items: center; gap: 4px;">
+                    <span class="material-symbols-rounded" style="font-size: 14px;">explore</span> Bairros & Zonas Inclusas
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 4px;">
+                    ${
+TemplateHead at 3828 `
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <span class="material-symbols-rounded" style="font-size: 10px; color: var(--accent-blue);">location_on</span>
+                        <span style="color: #fff; font-size: 10.5px;">${
+TemplateTail at 3830 }</span>
+                      </div>
+                    `
+TemplateTail at 3832 }
+                  </div>
+                `
+TemplateHead at 3850 `${
+TemplateTail at 3850 }px`
+TemplateHead at 3851 `${
+TemplateTail at 3851 }px`
+TemplateHead at 3923 `${
+TemplateTail at 3923 }`
+TemplateHead at 3925 `<span style="color: var(--accent-green); font-weight: bold; display: flex; align-items: center; gap: 3px; margin-bottom: 2px;"><span class="material-symbols-rounded" style="font-size: 12px;">update</span> Salvo: ${
+TemplateTail at 3925 } nós`
+TemplateHead at 3927 `${
+TemplateTail at 3927 } nós • Cobertura total`
+NoSubstitutionTemplate at 3954 `<span class="material-symbols-rounded" style="font-size: 12px;">refresh</span> Atualizar`
+NoSubstitutionTemplate at 3973 `<span class="material-symbols-rounded" style="font-size: 12px;">delete</span> Remover`
+NoSubstitutionTemplate at 3998 `<span class="material-symbols-rounded" style="font-size: 12px;">download</span> Baixar`
+TemplateHead at 4028 `Raio de ${
+TemplateTail at 4028 }km (Meu Local)`
+TemplateHead at 4039 `custom_${
+TemplateTail at 4039 }km`
+TemplateHead at 4081 `[${
+TemplateTail at 4081 }`
+TemplateHead at 4086 `Preparando download da região: ${
+TemplateTail at 4086 }...`
+NoSubstitutionTemplate at 4087 `Iniciando handshake com servidores de tile e satélite...`
+NoSubstitutionTemplate at 4107 `[ERRO] Falha ao baixar bloco de mapa #1420. Timeout na requisição.`
+TemplateHead at 4108 `[RECONECTAR] Tentando restabelecer conexão (Tentativa 1 de ${
+TemplateTail at 4108 })...`
+NoSubstitutionTemplate at 4113 `[RECONECTAR] Canal TCP restabelecido com CDN Secundária!`
+NoSubstitutionTemplate at 4130 `[ERRO] Conexão recusada pelo servidor de Tiles CDN para o bloco #3092.`
+TemplateHead at 4131 `[RECONECTAR] Tentando restabelecer conexão (Tentativa 1 de ${
+TemplateTail at 4131 })...`
+NoSubstitutionTemplate at 4136 `[RECONECTAR] Conexão SSL reestabelecida via rota de backup DNS!`
+NoSubstitutionTemplate at 4155 `Processamento e gravação física das tabelas concluída com sucesso.`
+TemplateHead at 4156 `Região '${
+TemplateTail at 4156 }' indexada e pronta para uso offline.`
+TemplateHead at 4180 `Proteção de Sinal: Mapa de '${
+TemplateTail at 4180 } MB). Geocodes locais gravados no IndexedDB.`
+TemplateHead at 4184 `Download concluído. O mapa de ${
+TemplateTail at 4184 } está disponível offline.`
+TemplateHead at 4187 `Mapa de '${
+TemplateTail at 4187 }' salvo offline com sucesso!`
+TemplateHead at 4208 `${
+TemplateTail at 4208 }%`
+TemplateHead at 4209 `${
+TemplateTail at 4209 }%`
+NoSubstitutionTemplate at 4213 `Baixando bloco viário secundário... ok`
+TemplateHead at 4216 `Indexando ${
+TemplateTail at 4216 } nós no SQLite interno...`
+TemplateHead at 4219 `Gravando ${
+TemplateTail at 4219 } pontos de interesse de entrega de alta precisão...`
+NoSubstitutionTemplate at 4222 `Integridade do banco de dados validada. Gerando hash MD5.`
+TemplateHead at 4243 `Esvaziamento: Região de mapa '${
+TemplateTail at 4243 }' deletada pelo motoboy. Armazenamento local liberado.`
+TemplateHead at 4246 `Região ${
+TemplateTail at 4246 } removida com sucesso.`
+TemplateHead at 4249 `Região '${
+TemplateTail at 4249 }' removida do armazenamento local.`
+TemplateHead at 4282 `Restaurante Central (${
+TemplateTail at 4282 })`
+TemplateHead at 4283 `Condomínio Entrega (${
+TemplateTail at 4283 })`
+TemplateHead at 4284 `Ponto de Retirada (${
+TemplateTail at 4284 })`
+TemplateHead at 4342 `${
+TemplateTail at 4342 } • Dexie.js Cache`
+TemplateHead at 4458 `Raio de detecção atualizado para ${
+TemplateTail at 4458 }km`
+TemplateHead at 4494 `${
+TemplateTail at 4494 } postos encontrados.`
+TemplateHead at 4628 `rgb(${
+TemplateTail at 4628 })`
+TemplateHead at 4760 `https://maps.googleapis.com/maps/api/js?key=${
+TemplateTail at 4760 }&libraries=places,visualization,drawing,geometry&callback=initGoogleMap`
+TemplateHead at 5007 `
+            <div style="font-size: 11.5px; color: var(--text-main); font-weight: 500;">
+              ${
+TemplateTail at 5018 }
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+              <span class="badge" style="background: rgba(0, 245, 212, 0.12); color: var(--success); font-weight: 700; border: 1px solid rgba(0, 245, 212, 0.25); font-size: 10px; padding: 2px 6px; border-radius: 4px;">
+                ⚡ EVITAR CONGESTIONAMENTO
+              </span>
+              <button onclick="window.adoptAlternativeRoute()" style="background: var(--accent-blue); border: none; color: white; border-radius: 6px; padding: 4px 10px; font-size: 10px; font-weight: bold; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 4px; font-family: var(--font-main);">
+                <span class="material-symbols-rounded" style="font-size: 14px;">navigation</span>
+                Adotar Rota
+              </button>
+            </div>
+          `
+Backtick in other token: StringLiteral at 5042 "6 minutos`;
+TemplateHead at 5043 `${
+TemplateTail at 5043 } de viagem!`
+TemplateHead at 5047 `Trânsito detectado via Google Traffic! Sugiro rota alternativa. Tempo economizado: ~${
+TemplateTail at 5047 }.`
+TemplateHead at 5127 `${
+TemplateTail at 5127 }`
+TemplateHead at 5166 `https://www.google.com/maps/dir/?api=1&origin=${
+TemplateTail at 5166 }`
+TemplateHead at 5168 `&waypoints=${
+TemplateTail at 5168 }`
+TemplateHead at 5171 `https://www.google.com/maps/search/?api=1&query=${
+TemplateTail at 5171 }`
+TemplateHead at 5182 `waze://?q=${
+TemplateTail at 5182 }&navigate=yes`
+TemplateHead at 5184 `https://waze.com/ul?q=${
+TemplateTail at 5184 }&navigate=yes`
+NoSubstitutionTemplate at 5253 `
+        <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 20px; width: 100%; max-width: 360px; padding: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.6); animation: scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="material-symbols-rounded" style="color: var(--accent-blue); font-size: 22px;">explore</span>
+              <span style="font-weight: bold; font-size: 15px; color: var(--text-main);">Navegador Favorito</span>
+            </div>
+            <button onclick="document.getElementById('navAppSelectorModal').style.display = 'none'" style="background: none; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%;">
+              <span class="material-symbols-rounded" style="font-size: 20px;">close</span>
+            </button>
+          </div>
+          
+          <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 16px;">
+            Escolha qual aplicativo usar para navegar pela rota inteligente otimizada pelo Jarvis:
+          </p>
+          
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+            <button onclick="window.selectAndSaveNavApp('googlemaps')" style="display: flex; align-items: center; gap: 12px; background: rgba(234, 67, 53, 0.1); border: 1px solid rgba(234, 67, 53, 0.3); border-radius: 12px; padding: 12px; width: 100%; cursor: pointer; text-align: left; transition: all 0.2s;">
+              <div style="background: #EA4335; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white;">
+                <span class="material-symbols-rounded">pin_drop</span>
+              </div>
+              <div style="flex: 1;">
+                <div style="font-weight: bold; font-size: 13px; color: var(--text-main);">Google Maps</div>
+                <div style="font-size: 10px; color: var(--text-muted);">Suporta rota multi-stop inteira ⚡</div>
+              </div>
+            </button>
+            
+            <button onclick="window.selectAndSaveNavApp('waze')" style="display: flex; align-items: center; gap: 12px; background: rgba(51, 204, 255, 0.1); border: 1px solid rgba(51, 204, 255, 0.3); border-radius: 12px; padding: 12px; width: 100%; cursor: pointer; text-align: left; transition: all 0.2s;">
+              <div style="background: #33ccff; width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: black;">
+                <span class="material-symbols-rounded">near_me</span>
+              </div>
+              <div style="flex: 1;">
+                <div style="font-weight: bold; font-size: 13px; color: var(--text-main);">Waze</div>
+                <div style="font-size: 10px; color: var(--text-muted);">Abre o próximo ponto da sequência 🚗</div>
+              </div>
+            </button>
+          </div>
+          
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 4px;">
+            <input type="checkbox" id="chkSaveNavAppPreference" checked style="accent-color: var(--accent-blue); width: 14px; height: 14px;">
+            <span style="font-size: 11px; color: var(--text-muted); font-weight: 500;">Definir como meu navegador padrão</span>
+          </label>
+        </div>
+      `
+TemplateHead at 5278 `✅ ${
+TemplateTail at 5278 } definido como padrão!`
+TemplateHead at 5306 `
+            <span style="font-size: 11px; font-weight: bold; color: var(--success); text-shadow: 0 1px 3px rgba(0,0,0,0.9); display: block; margin-top: 4px;">
+              Junção Ativa ⚡: Coleta Dupla + Entrega Casada
+            </span>
+            <div style="font-size: 9px; color: var(--text-muted); margin-top: 2px; line-height: 1.3;">
+              Seq: [1] ${
+TemplateTail at 5308 }
+            </div>
+          `
+TemplateHead at 5821 `
+            <span style="font-size: 11px; font-weight: bold; color: var(--text-main); text-shadow: 0 1px 3px rgba(0,0,0,0.9); display: block; margin-top: 4px;">
+              Rota: ${
+TemplateTail at 5826 } KM
+            </div>
+          `
+TemplateHead at 6040 `Local "${
+TemplateTail at 6040 }" cadastrado com sucesso!`
+TemplateHead at 6083 `1px solid ${
+TemplateTail at 6083 }`
+TemplateHead at 6116 `${
+TemplateTail at 6116 }m`
+TemplateHead at 6117 `${
+TemplateTail at 6117 }`
+TemplateHead at 6221 `Atenção ${
+TemplateTail at 6221 }. `
+TemplateHead at 6233 ` Cuidado redobrado ao realizar a entrega em ${
+TemplateTail at 6233 }.`
+TemplateHead at 6235 ` Memorize o endereço de entrega: ${
+TemplateTail at 6235 }, caso o mapa fique offline.`
+TemplateHead at 6241 `Aproximando-se: ${
+TemplateTail at 6241 }`
+TemplateHead at 6257 `Zona de Risco: ${
+TemplateTail at 6257 }`
+TemplateHead at 6261 `Ponto Cego: ${
+TemplateTail at 6261 }`
+TemplateHead at 6324 ` (${
+TemplateTail at 6324 }m)`
+TemplateHead at 6325 `Smart Damping Ativo: Filtrando ruído de GPS${
+TemplateTail at 6325 }`
+TemplateHead at 6406 `${
+TemplateTail at 6406 }, o Jarvis identificou que você está parado ou em trânsito muito lento há mais de 45 segundos na sua rota ativa. Trânsito intenso ou congestionamento severo detectado à frente. Sugiro verificar caminhos alternativos no mapa.`
+TemplateHead at 6439 `Atenção ${
+TemplateTail at 6439 }. Sinal de GPS fraco detectado.`
+TemplateHead at 6444 ` O endereço da entrega ativa é: ${
+TemplateTail at 6444 }. Recomendo que memorize caso o mapa pare de atualizar.`
+TemplateHead at 6451 `<strong>Sinal GPS: ${
+TemplateTail at 6451 }`
+TemplateHead at 6508 `${
+TemplateTail at 6508 } km. Mantenha os olhos na rota.`
+TemplateHead at 6512 `Você ultrapassou a área definida de ${
+TemplateTail at 6512 } km.\nDeseja desativar a Cerca Virtual IA?`
+NoSubstitutionTemplate at 6561 `Geolocation watchPosition error:", error);
+          if (error.code === 1 || error.code === 2 || error.code === 3) {
+            if (window.showToast) window.showToast("Aviso: Sinal de GPS perdido ou negado.", "error");
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 4000
+        }
+      );
+    }
+
+    window.updateGhostSpeedSensitivityUI = function(speed) {
+      const factorSpan = document.getElementById('ghostSpeedFactor');
+      if (!factorSpan) return;
+      
+      let sensitivityText = "100% (Alta)";
+      let color = "var(--accent-green)";
+      
+      if (speed <= 15) {
+        sensitivityText = "100% (Alta)";
+        color = "var(--accent-green)";
+      } else if (speed <= 30) {
+        sensitivityText = "75% (Otimizada)";
+        color = "#00F5D4";
+      } else if (speed <= 50) {
+        sensitivityText = "50% (Moderada)";
+        color = "#ffbc00";
+      } else if (speed <= 70) {
+        sensitivityText = "25% (Sensível)";
+        color = "#FF9800";
+      } else {
+        sensitivityText = "10% (Segurança)";
+        color = "var(--accent-pink)";
+      }
+      
+      factorSpan.innerHTML = `
+Backtick in other token: RegularExpressionLiteral at 6561 /span> ${sensitivityText}`;
+TemplateHead at 6640 `${
+TemplateTail at 6640 }`
+TemplateHead at 6676 `Quanto é ${
+TemplateTail at 6676 }?`
+Backtick in other token: StringLiteral at 6792 "Modo passageiro expirado. Trava de velocidade reativada.`);
+TemplateHead at 6825 `${
+TemplateTail at 6852 } por hora. Por favor, diminua o ritmo por segurança!");
+          }
+          if (window.triggerHapticFeedback) {
+            window.triggerHapticFeedback('error');
+          }
+          window.speedWarningTriggered = true;
+        }
+      } else {
+        if (offersList) {
+          offersList.style.removeProperty('display');
+        }
+        if (warningDiv) {
+          warningDiv.style.display = 'none';
+        }
+        window.speedWarningTriggered = false;
+      }
+    }
+
+    window.setGeofenceCenter = function() {
+      if (window.currentLat && window.currentLng) {
+        window.geofenceCenterLat = window.currentLat;
+        window.geofenceCenterLng = window.currentLng;
+        const statusText = document.getElementById('geofenceStatusText');
+        if (statusText) {
+          statusText.style.display = 'block';
+          setTimeout(() => statusText.style.display = 'none', 3000);
+        }
+        if (window.showToast) window.showToast(`
+NoSubstitutionTemplate at 6853 `, "success");
+        if (window.triggerHapticFeedback) window.triggerHapticFeedback('success`
+NoSubstitutionTemplate at 6997 `
+              <span style="background: rgba(0, 245, 212, 0.15); color: var(--success); font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px;">
+                <span class="material-symbols-rounded" style="font-size: 13px;">workspace_premium</span> Premium Ativo
+              </span>
+              <button onclick="window.checkCurrentSubscriptionStatusOnDemand()" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); font-size: 9px; padding: 2px 6px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.color='var(--text-main)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'; this.style.color='var(--text-muted)'" title="Sincronizar status no Asaas">
+                <span class="material-symbols-rounded" style="font-size: 11px;">sync</span> Asaas
+              </button>
+            `
+NoSubstitutionTemplate at 7010 `
+              <span style="background: rgba(58, 134, 255, 0.15); color: var(--accent-blue); font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px;">
+                <span class="material-symbols-rounded" style="font-size: 13px;">sync</span> Pendente
+              </span>
+              <button onclick="window.checkCurrentSubscriptionStatusOnDemand()" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); font-size: 9px; padding: 2px 6px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.color='var(--text-main)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'; this.style.color='var(--text-muted)'" title="Sincronizar status no Asaas">
+                <span class="material-symbols-rounded" style="font-size: 11px;">sync</span> Asaas
+              </button>
+            `
+TemplateHead at 7028 `
+              <span style="background: rgba(58, 134, 255, 0.15); color: var(--accent-blue); font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px;">
+                <span class="material-symbols-rounded" style="font-size: 13px;">schedule</span> Teste: ${
+TemplateTail at 7033 } dias rest.
+              </span>
+              <button onclick="window.checkCurrentSubscriptionStatusOnDemand()" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); font-size: 9px; padding: 2px 6px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'; this.style.color='var(--text-main)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'; this.style.color='var(--text-muted)'" title="Verificar se já assinou no Asaas">
+                <span class="material-symbols-rounded" style="font-size: 11px;">sync</span> Sincronizar Asaas
+              </button>
+            `
+NoSubstitutionTemplate at 7043 `
+              <span style="background: rgba(255, 0, 110, 0.15); color: var(--accent-pink); font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px;">
+                <span class="material-symbols-rounded" style="font-size: 13px;">lock</span> Teste Expirado
+              </span>
+            `
+TemplateHead at 7249 `MODO: ${
+TemplateTail at 7249 }`
+TemplateHead at 7398 `Thiago, a central administrativa atualizou seus parâmetros de inteligência do Ghost Sequence. Modo ${
+TemplateTail at 7398 } por cento.`
+TemplateHead at 7808 `Erro ao sincronizar preferências: ${
+TemplateTail at 7808 }`
+TemplateHead at 7837 `Erro ao sincronizar feed de ofertas: ${
+TemplateTail at 7837 }`
+TemplateHead at 7856 `0 0 8px ${
+TemplateTail at 7856 }44`
+TemplateHead at 7864 `Neural Integrity: ${
+TemplateTail at 7864 }%`
+TemplateHead at 7871 `${
+TemplateTail at 7871 }%`
+TemplateHead at 7875 `Líder: ${
+TemplateTail at 7875 }`
+TemplateHead at 7881 `Ghost Eye: Learning (${
+TemplateTail at 7881 } patterns)`
+TemplateHead at 7912 `box-shadow: 0 0 10px ${
+TemplateTail at 7912 }80;`
+TemplateHead at 7914 `
+                  <div class="swarm-node" title="${
+TemplateTail at 7918 }; border: 1px solid black;"></div>
+                  </div>
+                `
+TemplateHead at 7941 `"${
+TemplateTail at 7941 }"`
+Backtick in other token: StringLiteral at 7942 "flex`;
+TemplateHead at 7945 `${
+TemplateTail at 7945 } no WhatsApp: `
+Backtick in other token: StringLiteral at 7945 ". Quer responder?`;
+NoSubstitutionTemplate at 7962 `<span class="status-dot" style="width: 6px; height: 6px; background-color: var(--success); box-shadow: 0 0 8px var(--success); animation: pulse 1.5s infinite;"></span> CONECTADO`
+TemplateHead at 7967 `R$ ${
+TemplateTail at 7967 }`
+TemplateHead at 7968 `${
+TemplateTail at 7968 } km`
+TemplateHead at 7979 `<span class="status-dot" style="width: 6px; height: 6px; background-color: var(--text-dim);"></span> OFFLINE (Visto às ${
+TemplateTail at 7979 })`
+TemplateHead at 8012 `0 0 10px ${
+TemplateTail at 8012 }`
+TemplateHead at 8064 `position:fixed;bottom:24px;right:24px;width:300px;background:linear-gradient(135deg,rgba(20,22,34,0.95),rgba(10,11,16,0.98));border:1px solid ${
+TemplateTail at 8064 }44;border-radius:16px;padding:16px;z-index:10000;display:flex;flex-direction:column;gap:10px;transform:translateX(350px);transition:all 0.5s cubic-bezier(0.175,0.885,0.32,1.275);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);`
+TemplateHead at 8069 `
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:24px;height:24px;background:${
+TemplateTail at 8082 };width:0%;" id="jarvis-bubble-progress"></div>
+        </div>
+      `
+TemplateHead at 8137 `
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid rgba(37, 211, 102, 0.2); padding-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 24px; height: 24px; background: #25D366; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg" style="display: block;">
+                <path d="M12.011 2c-5.502 0-9.96c4.458-9.96 9.96 0 1.154 5.136.1 4.748 3.504 8.622 8.01 9.805l-1.155 4.216 4.312-1.133c1.11.31 2.29.474 3.51.474 5.502 0 9.96-4.458 9.96-9.96s-4.458-9.96-9.96-9.96zm6.36 13.918c-.26-.13-1.54-.76-1.78-.85-.24-.09-.41-.13-.58.13-.17.26-.67.85-.82 1.02-.15.17-.3.19-.56.06-.26-.13-1.1-.41-2.1-1.3-.78-.7-1.31-1.56-1.46-1.82-.15-.26-.02-.4.11-.53.12-.11.26-.3.39-.45.13-.15.17-.26.26-.43.09-.17.04-.32-.02-.45-.06-.13-.58-1.39-.79-1.92-.21-.5-.41-.43-.57-.43H9.8c-.17 0-.45.06-.69.32-.24.26-.92.9-1.25.9-.92 1.9-.32 3.73-.06 3.99.26.26.15.54.34.82 1.05 1.05 1.94.52 2.65.2.71-.32 1.07-1.1 1.25-1.54.19-.43.19-.8.13-.94-.06-.13-.24-.21-.5-.34z" fill="white"/>
+              </svg>
+            </div>
+            <span style="font-weight: bold; color: #25D366; font-size: 14px;">WhatsApp Jarvis</span>
+          </div>
+          <button onclick="window.closeWhatsAppAlert()" style="background: none; border: none; color: #888; cursor: pointer; display: flex; align-items: center;">
+            <span class="material-symbols-rounded" style="font-size: 18px;">close</span>
+          </button>
+        </div>
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 12px; color: #888; margin-bottom: 2px;">Mensagem de:</div>
+          <div style="font-size: 15px; font-weight: bold; color: #fff;">${
+TemplateTail at 8184 }"
+          </div>
+        </div>
+        
+        <!-- Opções de Resposta Rápida Ativadas por Voz -->
+        <div id="whatsapp-quick-reply-voice-container" style="margin-bottom: 12px; background: rgba(37, 211, 102, 0.03); padding: 8px 10px; border-radius: 10px; border: 1px dashed rgba(37, 211, 102, 0.2); transition: all 0.2s;">
+          <div style="font-size: 11px; font-weight: bold; color: #25D366; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <span class="material-symbols-rounded" id="whatsapp-voice-indicator-icon" style="font-size: 14px;">mic</span>
+              <span id="whatsapp-voice-status-label" style="font-size: 10px;">Resposta Rápida por Voz</span>
+            </div>
+            <span style="font-size: 8px; padding: 1px 4px; background: rgba(37, 211, 102, 0.15); border-radius: 3px; color: #25D366; font-weight: normal; text-transform: uppercase;">Mãos Livres</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
+            <div id="quick-reply-opt-1" style="padding: 5px 8px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; cursor: pointer; transition: all 0.2s;" onclick="window.selectPredefinedWhatsApp(1)">
+              <strong style="color: #25D366;">"Opção 1":</strong> Estou a caminho, chego em breve!
+            </div>
+            <div id="quick-reply-opt-2" style="padding: 5px 8px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; cursor: pointer; transition: all 0.2s;" onclick="window.selectPredefinedWhatsApp(2)">
+              <strong style="color: #25D366;">"Opção 2":</strong> Chego em 5 minutos.
+            </div>
+            <div id="quick-reply-opt-3" style="padding: 5px 8px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; cursor: pointer; transition: all 0.2s;" onclick="window.selectPredefinedWhatsApp(3)">
+              <strong style="color: #25D366;">"Opção 3":</strong> Estou parado no trânsito.
+            </div>
+            <div id="quick-reply-opt-4" style="padding: 5px 8px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; cursor: pointer; transition: all 0.2s;" onclick="window.selectPredefinedWhatsApp(4)">
+              <strong style="color: #25D366;">"Opção 4":</strong> Cheguei ao local de entrega!
+            </div>
+          </div>
+          <div style="font-size: 9px; color: #888; margin-top: 5px; text-align: center; line-height: 1.3;">
+            Fale <span style="color: #25D366;">"Opção 1"</span>, <span style="color: #25D366;">"2"</span>, <span style="color: #25D366;">"3"</span>, <span style="color: #25D366;">"4"</span> ou diga <span style="color: #25D366;">"Voz"</span> para ditar livremente.
+          </div>
+        </div>
+
+        <!-- Área de Resposta -->
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <textarea id="whatsapp-reply-input" placeholder="Digite uma resposta rápida..." style="width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-size: 12px; padding: 8px; resize: none; height: 50px; outline: none; transition: border-color 0.2s;"></textarea>
+          
+          <div style="display: flex; gap: 6px;">
+            <button onclick="window.sendWhatsAppReplyText()" style="flex: 1; background: #25D366; color: #000; border: none; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
+              <span class="material-symbols-rounded" style="font-size: 14px;">send</span> Enviar Resposta
+            </button>
+            <button onclick="window.startWhatsAppVoiceReply()" style="background: rgba(37, 211, 102, 0.15); color: #25D366; border: 1px solid rgba(37, 211, 102, 0.3); padding: 8px; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;" title="Responder por Voz">
+              <span class="material-symbols-rounded" style="font-size: 14px;">mic</span> Voz
+            </button>
+          </div>
+        </div>
+      `
+TemplateHead at 8210 `Erro ao enviar: ${
+TemplateTail at 8210 }`
+TemplateHead at 8227 `Opção ${
+TemplateTail at 8227 } selecionada!`
+TemplateHead at 8230 `Enviando resposta rápida: ${
+TemplateTail at 8230 }`
+TemplateHead at 8264 `Entendido: "${
+TemplateTail at 8264 }". Enviando resposta.`
+TemplateHead at 8272 `Erro de voz: ${
+TemplateTail at 8272 }`
+TemplateHead at 8328 `quick-reply-opt-${
+TemplateTail at 8328 }`
+TemplateHead at 8350 `Enviando resposta: "${
+TemplateTail at 8350 }"`
+TemplateHead at 8371 `Voz: ${
+TemplateTail at 8371 }`
+TemplateHead at 8387 `${
+TemplateTail at 8387 } no WhatsApp: `
+Backtick in other token: StringLiteral at 8387 ". Diga opção de 1 a 4 para resposta rápida, ou fale Voz para ditar.`;
+TemplateHead at 8403 `Simulando mensagem de ${
+TemplateTail at 8403 }...`
+TemplateHead at 8446 `<span class="material-symbols-rounded" style="font-size: 45px; color: #000;">${
+TemplateTail at 8446 }</span>`
+TemplateHead at 8447 `linear-gradient(135deg, ${
+TemplateTail at 8447 }, rgba(20,20,20,0.9))`
+TemplateHead at 8466 `${
+TemplateTail at 8466 } XP`
+TemplateHead at 8468 `MÁXIMO (${
+TemplateTail at 8468 } XP)`
+TemplateHead at 8470 `${
+TemplateTail at 8470 }%`
+TemplateHead at 8471 `linear-gradient(90deg, ${
+TemplateTail at 8471 }, #FFF)`
+TemplateHead at 8479 `
+                        <li>Prioridade no Auto-Accept Inteligente</li>
+                        <li>Radar de Zonas Quentes (Ativado)</li>
+                        ${
+TemplateTail at 8482 }
+                    `
+NoSubstitutionTemplate at 8484 `<li>Complete missões para desbloquear vantagens.</li>`
+TemplateHead at 8507 `${
+TemplateTail at 8507 }%`
+TemplateHead at 8508 `${
+TemplateTail at 8508 } Mesclas`
+TemplateHead at 8525 `${
+TemplateTail at 8525 }%`
+TemplateHead at 8526 `${
+TemplateTail at 8526 } KM`
+TemplateHead at 8778 `<span class="material-symbols-rounded" style="font-size: 14px;">timer</span> Check-in: ${
+TemplateTail at 8778 }`
+TemplateHead at 8959 `Faltam ${
+TemplateTail at 8959 } km`
+TemplateHead at 8968 `Faltam ${
+TemplateTail at 8968 } km`
+TemplateHead at 8977 `Faltam ${
+TemplateTail at 8977 } km`
+NoSubstitutionTemplate at 9056 `<div></div>`
+NoSubstitutionTemplate at 9065 `<span class="material-symbols-rounded" style="font-size: 14px; color: var(--text-dim); opacity: 0.5;">remove</span>`
+NoSubstitutionTemplate at 9066 `color: var(--text-muted);`
+NoSubstitutionTemplate at 9070 `<span class="material-symbols-rounded" style="font-size: 14px; color: var(--success); filter: drop-shadow(0 0 4px rgba(0,245,212,0.4));">check_circle</span>`
+NoSubstitutionTemplate at 9071 `color: var(--success); font-weight: bold;`
+NoSubstitutionTemplate at 9073 `<span class="material-symbols-rounded" style="font-size: 14px; color: var(--error);">cancel</span>`
+NoSubstitutionTemplate at 9077 `border: 1px solid var(--accent-blue); background: rgba(58,134,255,0.1);`
+NoSubstitutionTemplate at 9077 `border: 1px solid rgba(255,255,255,0.05); background: rgba(20,22,34,0.6);`
+TemplateHead at 9080 `
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px 0; border-radius: 8px; ${
+TemplateTail at 9084 }
+          </div>
+        `
+TemplateHead at 9223 `${
+TemplateTail at 9223 })`
+TemplateHead at 9313 `linear-gradient(135deg, ${
+TemplateTail at 9313 } 0%, rgba(20,20,20,0.9) 100%)`
+TemplateHead at 9314 `0 2px 8px ${
+TemplateTail at 9314 }55`
+TemplateHead at 9317 `LVL ${
+TemplateTail at 9317 }`
+TemplateHead at 9332 `${
+TemplateTail at 9332 } XP`
+TemplateHead at 9334 `MÁXIMO (${
+TemplateTail at 9334 } XP)`
+TemplateHead at 9337 `${
+TemplateTail at 9337 }%`
+TemplateHead at 9338 `linear-gradient(90deg, ${
+TemplateTail at 9338 }, #FFF)`
+TemplateHead at 9339 `0 0 10px ${
+TemplateTail at 9339 }88`
+NoSubstitutionTemplate at 9347 `.`
+TemplateHead at 9364 `R$ ${
+TemplateTail at 9364 }`
+TemplateHead at 9365 `Meta: R$ ${
+TemplateTail at 9365 }`
+TemplateHead at 9369 `Faltam R$ ${
+TemplateTail at 9369 } para atingir a meta!`
+TemplateHead at 9468 `
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="material-symbols-rounded" style="color: ${
+TemplateTail at 9479 }</strong>
+          </div>
+          <div style="color: var(--text-muted); font-size: 12px; display: flex; align-items: center; gap: 4px;">
+            <span class="material-symbols-rounded" style="font-size: 14px;">storefront</span>
+            Concentração de pedidos
+          </div>
+          <div style="margin-top: 8px; font-size: 11px; color: var(--success); font-weight: bold;">
+            <span class="material-symbols-rounded" style="font-size: 12px; vertical-align: middle;">trending_up</span>
+            Demanda Estimada: Alta
+          </div>
+        `
+TemplateHead at 9490 `https://www.google.com/maps/search/?api=1&query=${
+TemplateTail at 9490 }`
+TemplateHead at 9597 `Valor: R$ ${
+TemplateTail at 9597 }`
+TemplateHead at 9658 `Atenção Thiago... Piloto automático de fusão iniciado... Nova oferta do ${
+TemplateTail at 9658 } segundos... Toque na tela se desejar cancelar.`
+TemplateHead at 9660 `Thiago, atenção! Piloto automático de fusão em andamento. Unificando corrida ativa do ${
+TemplateTail at 9660 } segundos.`
+TemplateHead at 9668 `[Piloto Automático] Iniciando fusão autônoma entre ${
+TemplateTail at 9668 }s.`
+TemplateHead at 9694 `Thiago, atenção! Detectei um alinhamento espacial de ${
+TemplateTail at 9694 }. `
+TemplateHead at 9696 `É uma Coleta Dupla em ${
+TemplateTail at 9696 } por cento. `
+NoSubstitutionTemplate at 9698 `É uma Corrida Encadeada. A coleta se inicia bem perto de onde você vai entregar o pedido atual. `
+NoSubstitutionTemplate at 9700 `Ambas entregas têm o mesmo destino final. Nenhum desvio de rota necessário. `
+NoSubstitutionTemplate at 9702 `Toque no botão mesclar no painel para consolidar os ganhos.`
+TemplateHead at 9709 `[Arbitragem Multi-App] Sincronia de rota de ${
+TemplateTail at 9709 }%.`
+TemplateHead at 9719 `Nova oferta pagando ${
+TemplateTail at 9719 } por quilômetro.`
+TemplateHead at 9721 `Nova oferta de ${
+TemplateTail at 9721 } quilômetros.`
+Backtick in other token: SingleLineComment at 9745 // Nós não temos o ETA real em `order` instantaneamente de forma determinística em segundos sem assincronia, 
+TemplateHead at 9760 `⚡ Jarvis: Aceitando por Gatilho de Alta Demanda (${
+TemplateTail at 9760 }`
+TemplateHead at 9807 `Recusa Inteligente: ${
+TemplateTail at 9807 }s.`
+TemplateHead at 9820 `Aceite Forçado: Zona de Atuação Preferencial detectada para a corrida de R$ ${
+TemplateTail at 9820 }.`
+TemplateHead at 9880 `Segurança Velocidade: Velocidade GPS de ${
+TemplateTail at 9880 }s).`
+TemplateHead at 9884 `Decisão: Oferta lucrativa de R$ ${
+TemplateTail at 9884 }s.`
+TemplateHead at 9890 `[Ghost Aceite] Corrida garantida! Lucro limpo: R$ ${
+TemplateTail at 9890 }`
+TemplateHead at 9894 `[Firebase Cloud Messaging] Notificação Push Enviada: Ghost Sequence Aceitou Corrida. Lucro: R$ ${
+TemplateTail at 9894 }`
+TemplateHead at 9897 `Lucro garantido de R$ ${
+TemplateTail at 9897 } no auto-aceite.`
+TemplateHead at 9900 `Notificação enviada: Corrida Aceita (Lucro R$ ${
+TemplateTail at 9900 })`
+TemplateHead at 9911 `Aceite realizado com sucesso: R$ ${
+TemplateTail at 9911 } de lucro real).`
+TemplateHead at 9939 `R$ ${
+TemplateTail at 9939 }`
+TemplateHead at 9941 `${
+TemplateTail at 9941 } KM`
+TemplateHead at 9943 `R$ ${
+TemplateTail at 9943 }/KM`
+TemplateHead at 9955 `R$ ${
+TemplateTail at 9955 }`
+TemplateHead at 9959 `R$ ${
+TemplateTail at 9959 }`
+NoSubstitutionTemplate at 10020 `
+          <div class="empty-offers">
+            <span class="material-symbols-rounded">moped</span>
+            <p>Nenhuma corrida no momento. Radar ativo aguardando chamados...</p>
+          </div>
+        `
+TemplateHead at 10095 `
+          <div class="active-ride-panel">
+            <div class="active-ride-header">
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span class="active-ride-badge" style="${
+TemplateHead at 10119 `Coleta 1 (${
+TemplateTail at 10119 })`
+TemplateHead at 10120 `Entrega 1 (${
+TemplateTail at 10120 })`
+TemplateHead at 10121 `Coleta 2 (${
+TemplateTail at 10121 })`
+TemplateHead at 10122 `Entrega 2 (${
+TemplateTail at 10122 })`
+TemplateHead at 10126 `Coleta 2 (${
+TemplateTail at 10126 })`
+TemplateHead at 10127 `Coleta 1 (${
+TemplateTail at 10127 })`
+TemplateHead at 10128 `Entrega 2 (${
+TemplateTail at 10128 })`
+TemplateHead at 10129 `Entrega 1 (${
+TemplateTail at 10129 })`
+TemplateHead at 10133 `Coleta 1 (${
+TemplateTail at 10133 })`
+TemplateHead at 10134 `Coleta 2 (${
+TemplateTail at 10134 })`
+TemplateHead at 10135 `Entrega 1 (${
+TemplateTail at 10135 })`
+TemplateHead at 10136 `Entrega 2 (${
+TemplateTail at 10136 })`
+TemplateHead at 10141 `
+                  <div class="active-route-step" style="${
+TemplateTail at 10153 }')" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 6px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; margin-left: 6px;">
+                          <span class="material-symbols-rounded" style="font-size: 14px;">content_copy</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                `
+TemplateHead at 10160 `
+                <div class="active-route-step">
+                  <span class="material-symbols-rounded active-route-icon" style="color: var(--success);">location_on</span>
+                  <div>
+                    <div class="active-route-label">Retirar em (Origem)</div>
+                    <div class="active-route-val" style="display: flex; align-items: center; justify-content: space-between;">
+                        <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${
+TemplateTail at 10179 }')" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 6px; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; justify-content: center; margin-left: 6px;">
+                          <span class="material-symbols-rounded" style="font-size: 14px;">content_copy</span>
+                        </button>
+                      </div>
+                  </div>
+                </div>
+              `
+TemplateHead at 10196 `
+              <!-- OTIMIZADOR DE SEQUÊNCIA MULTI-APP -->
+              <div style="margin: 12px 0; background: rgba(131, 56, 236, 0.08); border: 1.5px dashed rgba(131, 56, 236, 0.35); border-radius: 12px; padding: 12px; box-shadow: inset 0 0 10px rgba(0,0,0,0.2);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-size: 11px; font-weight: bold; color: var(--text-main); display: flex; align-items: center; gap: 4px; text-transform: uppercase; letter-spacing: 0.3px;">
+                    <span class="material-symbols-rounded" style="font-size: 14px; color: var(--accent-purple); animation: pulse 2s infinite;">alt_route</span> Otimizador de Sequência Multi-App
+                  </span>
+                  <span style="background: rgba(131, 56, 236, 0.2); color: #cbb8ff; padding: 2px 6px; border-radius: 4px; font-size: 8px; font-weight: bold; text-transform: uppercase;">Jarvis Routing</span>
+                </div>
+
+                <!-- CONTROLE DE OTIMIZAÇÃO POR TRÁFEGO EM TEMPO REAL -->
+                <div style="background: rgba(0, 0, 0, 0.3); border: 1px dashed rgba(131, 56, 236, 0.25); border-radius: 10px; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <span class="material-symbols-rounded" style="font-size: 16px; color: ${
+TemplateHead at 10207 `
+                    <div style="display: flex; gap: 6px; width: 100%;">
+                      <button onclick="event.stopPropagation(); window.setTrafficRouteOptimizationPriority('time')" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; background: ${
+TemplateTail at 10216 }; padding: 5px 2px; border-radius: 6px; font-size: 9px; font-weight: bold; cursor: pointer; transition: all 0.2s;">
+                        <span class="material-symbols-rounded" style="font-size: 11px;">local_gas_station</span>
+                        Economia Combustível (⛽)
+                      </button>
+                    </div>
+                  `
+NoSubstitutionTemplate at 10223 `
+                    <div style="display: flex; gap: 6px; width: 100%; margin-top: 4px;">
+                      <button onclick="event.stopPropagation(); window.optimizeMergedRoutes()" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; background: linear-gradient(135deg, var(--accent-purple) 0%, rgba(131,56,236,0.3) 100%); border: 1px solid var(--accent-purple); color: white; padding: 6px; border-radius: 6px; font-size: 10px; font-weight: bold; cursor: pointer; transition: all 0.2s; box-shadow: 0 0 8px rgba(131,56,236,0.4);">
+                        <span class="material-symbols-rounded" style="font-size: 13px;">radar</span>
+                        Executar Análise de Tráfego
+                      </button>
+                    </div>
+                  `
+TemplateTail at 10296 }
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Botão para abrir o painel comparativo detalhado -->
+                <button onclick="event.stopPropagation(); window.openRoutingComparisonModal()" style="background: rgba(131, 56, 236, 0.15); color: #cbb8ff; border: 1px dashed rgba(131, 56, 236, 0.4); border-radius: 8px; width: 100%; padding: 8px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 8px; transition: all 0.2s; font-family: var(--font-main);">
+                  <span class="material-symbols-rounded" style="font-size: 14px;">bar_chart</span> Comparar Economia de Rotas
+                </button>
+              </div>
+            `
+TemplateTail at 10778 }%)</span>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div class="swipe-btn-container" id="swipeContainer" onclick="event.stopPropagation();" style="margin-top: 5px;">
+                  <div class="swipe-btn-bg" id="swipeBg"></div>
+                  <div class="swipe-btn-text" id="swipeText">Deslize para Finalizar</div>
+                  <div class="swipe-btn-thumb" id="swipeThumb">
+                    <span class="material-symbols-rounded">double_arrow</span>
+                  </div>
+                </div>
+                <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" onload="setTimeout(window.initSwipeButton, 100)" style="display:none;" />
+                <button class="btn-cancel-ride" onclick="event.stopPropagation(); window.cancelOrder()" style="background: transparent; border: 1px solid var(--error); color: var(--error); width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px;">
+                  <span class="material-symbols-rounded" style="font-size: 16px;">cancel</span>
+                  Cancelar Corrida / Relatar Problema
+                </button>
+              </div>
+            </div>
+          </div>
+        `
+NoSubstitutionTemplate at 10795 `
+          <div class="empty-offers" style="padding: 20px 10px;">
+            <span class="material-symbols-rounded" style="font-size: 24px; color: var(--text-dim);">check_circle</span>
+            <p style="font-size: 12px; margin: 4px 0 0;">Sem outras ofertas pendentes no momento.</p>
+          </div>
+        `
+TemplateHead at 10829 `
+              <div style="margin-bottom: 10px; display: flex; flex-direction: column; gap: 6px;">
+                <span class="badge-compatibility" style="background: ${
+TemplateTail at 10840 }</b></div>
+                </div>
+              </div>
+            `
+TemplateHead at 10847 `
+              <button class="nav-btn" onclick="event.stopPropagation(); window.acceptOrder('${
+TemplateTail at 10851 }')" style="flex: 1; background: linear-gradient(135deg, var(--success) 0%, var(--success) 100%); color: var(--text-inverted); border: none; padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: opacity 0.2s ease;">
+                <span class="material-symbols-rounded" style="font-size: 16px;">play_arrow</span>
+                Aceitar Corrida
+              </button>
+            `
+TemplateHead at 10856 `
+              <button class="nav-btn" onclick="event.stopPropagation(); window.mergeOrders(activeOrder.id, '${
+TemplateTail at 10860 }
+              </button>
+            `
+NoSubstitutionTemplate at 10868 `
+              <button class="nav-btn" disabled style="flex: 1; background: var(--btn-disabled-bg); color: var(--btn-disabled-text); border: 1px solid var(--btn-disabled-border); padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: not-allowed; opacity: 0.6;">
+                <span class="material-symbols-rounded" style="font-size: 16px;">lock</span>
+                Bloqueado (Em Corrida)
+              </button>
+            `
+TemplateHead at 10872 `
+            <div class="offer-item ${
+TemplateHead at 10899 `
+                <div class="offer-details-row" style="border-top: 1px solid var(--border-light); padding-top: 10px; margin-top: 2px; display: flex; flex-direction: column; gap: 10px; width: 100%; cursor: default;" onclick="event.stopPropagation();">
+                  
+                  ${
+TemplateHead at 10900 `
+                    <div style="background: ${
+TemplateTail at 10907 }</div>
+                      </div>
+                    </div>
+                  `
+TemplateTail at 10962 }', '_blank')" style="flex: 1; background: var(--btn-map-bg); color: white; border: 1px solid var(--btn-map-border); padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: background 0.2s ease;">
+                      <span class="material-symbols-rounded" style="font-size: 16px;">navigation</span>
+                      Mapa
+                    </button>
+                  </div>
+                </div>
+              `
+TemplateTail at 10964 }
+            </div>
+          `
+Backtick in other token: StringLiteral at 11037 "[Auth] Piloto autenticado:`, user.email);
+NoSubstitutionTemplate at 11085 `Conectado como Piloto";
+
+        // Transição de tela
+        authContainer.style.display = 'none';
+        driverPanel.style.display = 'flex';
+
+        // Verificação de Pagamento / Assinatura (Asaas Integration)
+        window.checkAsaasPaymentStatus(user).then(result => {
+          const subEl = document.getElementById('subscriptionStatusBadge');
+          if (subEl) {
+            subEl.innerText = result.message;
+            subEl.style.color = result.active ? 'var(--success)' : 'var(--accent-pink)';
+            subEl.parentElement.style.borderColor = result.active ? 'var(--success)' : 'var(--accent-pink)';
+          }
+          
+          if (!result.active && user.email !== ADMIN_EMAIL) {
+             showToast("Sua assinatura expirou. Acesse o painel de pagamento.", "error");
+             // Aqui você poderia redirecionar para uma tela de pagamento
+          }
+        });
+
+        // Configuração de Admin
+        if (user.email === ADMIN_EMAIL) {
+           const adminBtn = document.getElementById('adminPanelButtonContainer');
+           if (adminBtn) adminBtn.style.display = 'flex';
+           window.addSecurityLog('ADMIN', `
+NoSubstitutionTemplate at 11153 `);
+           if (window.speakText) window.speakText("Thiago, reconheço sua assinatura de administrador. Todos os sistemas de frota estão sob seu comando.");
+        } else {
+           const adminBtn = document.getElementById('adminPanelButtonContainer');
+           if (adminBtn) adminBtn.style.display = 'none';
+        }
+
+        if (window.renderOfflineHistory) {
+          window.renderOfflineHistory();
+        }
+
+        // Inicializa observadores em tempo real
+        setupRealtimeSubscriptions();
+        loadGoogleMapsApi();
+
+        // Check voice tips modal on first login
+        const hasSeenTips = localStorage.getItem('hasSeenVoiceTips_' + user.uid);
+        if (hasSeenTips !== 'true' && window.openVoiceTipsModal) {
+          setTimeout(() => {
+            window.openVoiceTipsModal();
+          }, 1800);
+        }
+
+        // Inicia monitoramento de latência do Firestore
+        if (window.startFirestoreLatencyMonitor) {
+          window.startFirestoreLatencyMonitor();
+        }
+
+        // Inicializa e agenda backup automático diário
+        setTimeout(() => {
+          if (window.updateBackupUI) {
+            window.updateBackupUI();
+            window.renderBackupHistoryList();
+            window.checkBackupSchedule();
+          }
+        }, 3000);
+      } else {
+        currentDriverId = null;
+        console.log("[Auth] Piloto desconectado.");
+        serverDot.classList.add('offline');
+        serverStatusText.textContent = "Modo Local";
+        
+        // Esconder botão do painel admin
+        const adminBtn = document.getElementById('adminPanelButtonContainer');
+        if (adminBtn) adminBtn.style.display = 'none';
+        window.cleanupAdminSubscription();
+
+        authContainer.style.display = 'flex';
+        driverPanel.style.display = 'none';
+        
+        // Desconecta observadores e para monitor de latência
+        cleanupSubscriptions();
+        if (window.stopFirestoreLatencyMonitor) {
+          window.stopFirestoreLatencyMonitor();
+        }
+      }
+    });
+
+    // Executa o login
+    window.handleLogin = async function(event) {
+      event.preventDefault();
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      const btn = document.getElementById('btnLoginSubmit');
+
+      // Feedback visual de carregamento
+      const origContent = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `
+NoSubstitutionTemplate at 11161 `;
+
+      const { user, error } = await loginDriver(email, password);
+
+      btn.disabled = false;
+      btn.innerHTML = origContent;
+
+      if (error) {
+        showToast(`
+NoSubstitutionTemplate at 11164 `, 'error');
+      } else {
+        const username = user?.displayName || user?.email?.split('@')[0] || 'Piloto';
+        showToast(`
+NoSubstitutionTemplate at 11168 `, 'success');
+        if (window.speakText) {
+            // Removido para evitar redundância com o Jarvis Inteligente do App
+            // setTimeout(() => {
+            //     window.speakText(`
+NoSubstitutionTemplate at 11180 `);
+            // }, 1000);
+        }
+      }
+    }
+
+    // Executa o login com o Google
+    window.handleGoogleLogin = async function() {
+      showToast("Conectando ao Google...", "info");
+      const { user, error } = await loginWithGoogle();
+
+      if (error) {
+        showToast(`
+NoSubstitutionTemplate at 11183 `, 'error');
+      } else {
+        const username = user?.displayName || user?.email?.split('@')[0] || 'Piloto';
+        showToast(`
+NoSubstitutionTemplate at 11187 `, 'success');
+        if (window.speakText) {
+            // Removido para evitar redundância com o Jarvis Inteligente do App
+            // setTimeout(() => {
+            //     window.speakText(`
+NoSubstitutionTemplate at 11209 `);
+            // }, 1000);
+        }
+      }
+    }
+
+    // Executa o cadastro
+    window.handleRegister = async function(event) {
+      event.preventDefault();
+      const name = document.getElementById('regName').value;
+      const email = document.getElementById('regEmail').value;
+      const password = document.getElementById('regPassword').value;
+      const confirmPassword = document.getElementById('regConfirmPassword').value;
+      const btn = document.getElementById('btnRegisterSubmit');
+
+      if (password !== confirmPassword) {
+        showToast("As senhas inseridas são diferentes!", "error");
+        return;
+      }
+
+      const origContent = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `
+NoSubstitutionTemplate at 11217 `;
+
+      // 1. Cadastra no Auth
+      const { user, error } = await registerDriver(email, password, name);
+
+      if (error) {
+        btn.disabled = false;
+        btn.innerHTML = origContent;
+        showToast(`
+NoSubstitutionTemplate at 11247 `, 'error');
+        return;
+      }
+
+      // 2. Inicializa o Perfil em Firestore com 7 dias grátis de avaliação
+      await saveDriverProfile(user.uid, {
+        fullName: name,
+        email: email,
+        createdAt: Date.now(),
+        subscriptionStatus: "trial",
+        trialExpiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 dias em milissegundos
+        subscriptionActive: false
+      });
+
+      // 3. Inicializa configurações padrão de filtro
+      await saveDriverSettings(user.uid, {
+        minFareValue: 8.0,
+        minValuePerKm: 2.0,
+        voiceFilterEnabled: false,
+        voiceFilterMinFare: 0.0,
+        voiceFilterMaxDistance: 999.0,
+        vehicleType: 'Motos',
+        enabledApps: ['iFood', 'Rappi', 'Uber Eats'],
+        speedLimit: 50,
+        autoAcceptEnabled: false,
+        autoAcceptThreshold: 15.0
+      });
+
+      btn.disabled = false;
+      btn.innerHTML = origContent;
+      showToast(`
+NoSubstitutionTemplate at 11258 `, 'success');
+    }
+
+    // Executa a redefinição de senha
+    window.handlePasswordReset = async function(event) {
+      event.preventDefault();
+      const email = document.getElementById('resetEmail').value;
+      const btn = document.getElementById('btnResetSubmit');
+
+      const origContent = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `
+NoSubstitutionTemplate at 11269 `;
+
+      const { success, error } = await resetDriverPassword(email);
+
+      btn.disabled = false;
+      btn.innerHTML = origContent;
+
+      if (success) {
+        showToast("Email de recuperação enviado! Verifique sua caixa de entrada.", "success");
+        closeResetModal();
+      } else {
+        showToast(`
+NoSubstitutionTemplate at 11423 `, "error");
+      }
+    }
+
+    // Salva configurações de atalhos de voz
+    window.handleSaveShortcuts = async function(event) {
+      event.preventDefault();
+      if (!currentDriverId) {
+        if(window.showToast) window.showToast("Erro: Piloto não autenticado.", "error");
+        return;
+      }
+      
+      const scLastOffer = document.getElementById('scLastOffer').value;
+      const scMinFare = document.getElementById('scMinFare').value;
+      const scMinKm = document.getElementById('scMinKm').value;
+      const scRain = document.getElementById('scRain').value;
+      const scSos = document.getElementById('scSos').value;
+      const scVip = document.getElementById('scVip') ? document.getElementById('scVip').value : '';
+      const scSupport = document.getElementById('scSupport') ? document.getElementById('scSupport').value : '';
+      
+      const shortcuts = {
+        lastOffer: scLastOffer,
+        minFare: scMinFare,
+        minKm: scMinKm,
+        rain: scRain,
+        sos: scSos,
+        vip: scVip,
+        support: scSupport
+      };
+      
+      const btn = document.getElementById('btnSaveShortcuts');
+      const origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span>Salvando...</span>';
+      
+      if (window.saveDriverSettings) {
+        const { success, error } = await window.saveDriverSettings(currentDriverId, { voiceShortcuts: shortcuts });
+        if (success) {
+          if (window.showToast) window.showToast("Atalhos salvos com sucesso!", "success");
+          document.getElementById('shortcutsModal').style.display = 'none';
+        } else {
+          if (window.showToast) window.showToast("Erro ao salvar: " + error, "error");
+        }
+      }
+      
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    };
+
+    // Altera o Voice ID e sintoniza parâmetros ideais para o português brasileiro ultra realista
+    window.handleVoicePresetChange = function(val) {
+      if (val === 'custom') return;
+      const input = document.getElementById('settingsElevenLabsVoiceId');
+      if (input) input.value = val;
+      
+      // Configuração ideal (Sweet Spot) para realismo máximo em PT-BR
+      let stability = 0.40;
+      let similarity = 0.75;
+      let style = 0.20;
+      let model = 'eleven_turbo_v2_5'; // Turbo v2.5 é o mais novo e realista para voz humana com baixa latência
+      
+      if (val === 'pNInz6obpg7AN6ZbeS31') { // Adam - mais dramático/grave
+         stability = 0.35;
+         similarity = 0.75;
+         style = 0.25;
+      } else if (val === 'ErXwobaY60C9iAWzCgEh') { // Antoni - mais amigável/conversacional
+         stability = 0.40;
+         similarity = 0.80;
+         style = 0.15;
+      } else if (val === '21m00Tcm4TlvDq8ikWAM') { // Rachel - feminina natural
+         stability = 0.45;
+         similarity = 0.75;
+         style = 0.10;
+         model = 'eleven_multilingual_v2';
+      } else if (val === 'VR6AewrXP67pIn9N9rU2') { // Jarvis original
+         stability = 0.50;
+         similarity = 0.75;
+         style = 0.0;
+         model = 'eleven_multilingual_v2';
+      }
+      
+      const stabInput = document.getElementById('settingsElevenLabsStability');
+      if (stabInput) {
+         stabInput.value = stability;
+         const valEl = document.getElementById('valElevenLabsStability');
+         if (valEl) valEl.innerText = Math.round(stability * 100) + '%';
+      }
+      const simInput = document.getElementById('settingsElevenLabsSimilarityBoost');
+      if (simInput) {
+         simInput.value = similarity;
+         const valEl = document.getElementById('valElevenLabsSimilarityBoost');
+         if (valEl) valEl.innerText = Math.round(similarity * 100) + '%';
+      }
+      const styleInput = document.getElementById('settingsElevenLabsStyle');
+      if (styleInput) {
+         styleInput.value = style;
+         const valEl = document.getElementById('valElevenLabsStyle');
+         if (valEl) valEl.innerText = Math.round(style * 100) + '%';
+      }
+      const modelSelect = document.getElementById('settingsElevenLabsModelId');
+      if (modelSelect) {
+         modelSelect.value = model;
+      }
+      const speakerBoostToggle = document.getElementById('settingsElevenLabsSpeakerBoost');
+      if (speakerBoostToggle) {
+         speakerBoostToggle.checked = true;
+      }
+      
+      if (window.showToast) {
+         window.showToast("Preset sintonizado! Modelo Turbo v2.5 e parâmetros de realismo (estabilidade/fidelidade) calibrados.", "success");
+      }
+    };
+
+    // Salva configurações do motorista
+    window.handleSaveSettings = async function(event) {
+      event.preventDefault();
+      if (!currentDriverId) return;
+
+      const minFare = parseFloat(document.getElementById('setMinFare').value);
+      const minKm = parseFloat(document.getElementById('setMinKm').value);
+      const preferredZones = document.getElementById('setPreferredZones').value;
+      const exclusionZones = document.getElementById('setExclusionZones') ? document.getElementById('setExclusionZones').value : '';
+      const vehicle = document.getElementById('setVehicleType').value;
+      const navApp = document.getElementById('setNavApp') ? document.getElementById('setNavApp').value : '';
+      const isVoiceOnly = document.getElementById('settingsVoiceOnlyToggle').checked;
+      const speedLimit = parseFloat(document.getElementById('setSpeedLimit').value) || 0;
+      const isAutoAcceptEnabled = document.getElementById('settingsAutoAcceptToggle').checked;
+      const autoAcceptThreshold = parseFloat(document.getElementById('setAutoAcceptThreshold').value) || 0;
+      const isAlwaysOnCharger = document.getElementById('settingsAlwaysOnChargerToggle').checked;
+      const isOptimizedMode = document.getElementById('settingsOptimizedModeToggle').checked;
+      const isExtremePowerSave = document.getElementById('settingsExtremePowerSaveToggle').checked;
+      const isTrafficAlertsEnabled = document.getElementById('settingsTrafficAlertsToggle') ? document.getElementById('settingsTrafficAlertsToggle').checked : true;
+      const isAutoVoiceOnRoute = document.getElementById('settingsAutoVoiceOnRouteToggle') ? document.getElementById('settingsAutoVoiceOnRouteToggle').checked : false;
+      const aiActiveTrafficReroute = document.getElementById('settingsAiActiveTrafficReroute') ? document.getElementById('settingsAiActiveTrafficReroute').checked : true;
+      const aiActiveFuelSuggest = document.getElementById('settingsAiActiveFuelSuggest') ? document.getElementById('settingsAiActiveFuelSuggest').checked : true;
+      const aiActiveFatigueDetect = document.getElementById('settingsAiActiveFatigueDetect') ? document.getElementById('settingsAiActiveFatigueDetect').checked : true;
+      const geofenceRadius = parseFloat(document.getElementById('setGeofenceRadius').value) || 0;
+      const emergencyContact = document.getElementById('setEmergencyContact') ? document.getElementById('setEmergencyContact').value : '';
+      const emergencyMessage = document.getElementById('setEmergencyMessage') ? document.getElementById('setEmergencyMessage').value : '';
+      const vehicleCost = parseFloat(document.getElementById('setVehicleCost') ? document.getElementById('setVehicleCost').value : 0.60) || 0.60;
+      const fixedCosts = parseFloat(document.getElementById('setFixedCosts') ? document.getElementById('setFixedCosts').value : 0.00) || 0.00;
+      const oilChangeInterval = parseFloat(document.getElementById('setOilChangeInterval') ? document.getElementById('setOilChangeInterval').value : '1000') || 1000;
+      const filterByTimeEnabled = document.getElementById('setFilterByTime').checked;
+      const filterStartTime = document.getElementById('setFilterStartTime').value || '18:00';
+      const filterEndTime = document.getElementById('setFilterEndTime').value || '22:00';
+
+      const apps = [];
+      if (document.getElementById('appIfood').checked) apps.push('iFood');
+      if (document.getElementById('appRappi').checked) apps.push('Rappi');
+      if (document.getElementById('appUber').checked) apps.push('Uber Eats');
+
+      const btn = document.getElementById('btnSaveSettings');
+      const origContent = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `
+NoSubstitutionTemplate at 11508 `;
+
+      const jarvisVoicePitch = document.getElementById('settingsJarvisVoicePitch') ? parseFloat(document.getElementById('settingsJarvisVoicePitch').value) : 1.0;
+
+      const customVoiceCommands = [];
+      const cmdItems = document.querySelectorAll('.custom-voice-item');
+      cmdItems.forEach(item => {
+        const phrase = item.querySelector('.custom-phrase').value.trim();
+        const action = item.querySelector('.custom-action').value;
+        if (phrase) {
+          customVoiceCommands.push({
+            id: item.getAttribute('data-cmd-id') || ('cmd_' + Date.now() + Math.random()),
+            phrase: phrase,
+            action: action
+          });
+        }
+      });
+
+      const { success, error } = await saveDriverSettings(currentDriverId, {
+        minFareValue: minFare,
+        minValuePerKm: minKm,
+        voiceFilterEnabled: voiceFilterEnabled,
+        voiceFilterMinFare: voiceFilterMinFare,
+        voiceFilterMaxDistance: voiceFilterMaxDistance,
+        filterByTimeEnabled: filterByTimeEnabled,
+        filterStartTime: filterStartTime,
+        filterEndTime: filterEndTime,
+        preferredZones: preferredZones,
+        exclusionZones: exclusionZones,
+        vehicleType: vehicle,
+        navApp: navApp,
+        enabledApps: apps,
+        voiceOnlyMode: isVoiceOnly,
+        speedLimit: speedLimit,
+        autoAcceptEnabled: isAutoAcceptEnabled,
+        autoAcceptThreshold: autoAcceptThreshold,
+        antiBanShieldEnabled: document.getElementById('settingsAntiBanToggle') ? document.getElementById('settingsAntiBanToggle').checked : true,
+        e2eeEnabled: document.getElementById('e2eeEnabled') ? document.getElementById('e2eeEnabled').checked : true,
+        alwaysOnCharger: isAlwaysOnCharger,
+        optimizedMode: isOptimizedMode,
+        extremePowerSave: isExtremePowerSave,
+        trafficAlertsEnabled: isTrafficAlertsEnabled,
+        autoVoiceOnRoute: isAutoVoiceOnRoute,
+        aiActiveTrafficReroute: aiActiveTrafficReroute,
+        aiActiveFuelSuggest: aiActiveFuelSuggest,
+        aiActiveFatigueDetect: aiActiveFatigueDetect,
+        geofenceRadius: geofenceRadius,
+        geofenceCenterLat: window.geofenceCenterLat || null,
+        geofenceCenterLng: window.geofenceCenterLng || null,
+        emergencyContact: emergencyContact,
+        emergencyMessage: emergencyMessage,
+        vehicleCost: vehicleCost,
+        fixedCosts: fixedCosts,
+        oilChangeInterval: oilChangeInterval,
+        voiceCmdAccept: document.getElementById('settingsVoiceCmdAccept') ? document.getElementById('settingsVoiceCmdAccept').value : 'aceitar',
+        voiceCmdReject: document.getElementById('settingsVoiceCmdReject') ? document.getElementById('settingsVoiceCmdReject').value : 'recusar',
+        voiceCmdSupport: document.getElementById('settingsVoiceCmdSupport') ? document.getElementById('settingsVoiceCmdSupport').value : 'chame o suporte',
+        voiceCmdVip: document.getElementById('settingsVoiceCmdVip') ? document.getElementById('settingsVoiceCmdVip').value : 'aceitar corrida VIP',
+        jarvisVoiceEngine: document.getElementById('settingsJarvisVoiceEngine') ? document.getElementById('settingsJarvisVoiceEngine').value : 'NEURAL',
+        elevenLabsApiKey: document.getElementById('settingsElevenLabsApiKey') ? document.getElementById('settingsElevenLabsApiKey').value : '',
+        elevenLabsVoiceId: document.getElementById('settingsElevenLabsVoiceId') ? document.getElementById('settingsElevenLabsVoiceId').value : 'ErXwobaY60C9iAWzCgEh',
+        elevenLabsModelId: document.getElementById('settingsElevenLabsModelId') ? document.getElementById('settingsElevenLabsModelId').value : 'eleven_multilingual_v2',
+        elevenLabsStability: document.getElementById('settingsElevenLabsStability') ? parseFloat(document.getElementById('settingsElevenLabsStability').value) : 0.5,
+        elevenLabsSimilarityBoost: document.getElementById('settingsElevenLabsSimilarityBoost') ? parseFloat(document.getElementById('settingsElevenLabsSimilarityBoost').value) : 0.75,
+        elevenLabsStyle: document.getElementById('settingsElevenLabsStyle') ? parseFloat(document.getElementById('settingsElevenLabsStyle').value) : 0.0,
+        elevenLabsSpeakerBoost: document.getElementById('settingsElevenLabsSpeakerBoost') ? document.getElementById('settingsElevenLabsSpeakerBoost').checked : true,
+        openAiApiKey: document.getElementById('settingsOpenAiApiKey') ? document.getElementById('settingsOpenAiApiKey').value : '',
+        openAiVoice: document.getElementById('settingsOpenAiVoice') ? document.getElementById('settingsOpenAiVoice').value : 'alloy',
+        openAiModel: document.getElementById('settingsOpenAiModel') ? document.getElementById('settingsOpenAiModel').value : 'tts-1',
+        jarvisVoiceStyle: document.getElementById('settingsJarvisVoiceStyle') ? document.getElementById('settingsJarvisVoiceStyle').value : 'PADRAO',
+        jarvisVoiceTone: document.getElementById('settingsJarvisVoiceTone') ? document.getElementById('settingsJarvisVoiceTone').value : 'AMIGÁVEL',
+        jarvisVoiceLanguage: document.getElementById('settingsJarvisVoiceLanguage') ? document.getElementById('settingsJarvisVoiceLanguage').value : 'pt-BR',
+        jarvisSpecificVoice: document.getElementById('settingsJarvisSpecificVoice') ? document.getElementById('settingsJarvisSpecificVoice').value : '',
+        jarvisVoiceRate: document.getElementById('settingsJarvisVoiceRate') ? parseFloat(document.getElementById('settingsJarvisVoiceRate').value) : 1.0,
+        jarvisVoicePitch: jarvisVoicePitch,
+        customVoiceCommands: customVoiceCommands
+      });
+
+      btn.disabled = false;
+      btn.innerHTML = origContent;
+
+      if (success) {
+        showToast("Preferências de filtro salvas no Firestore!", "success");
+        if (currentOrdersList) renderOffers(currentOrdersList);
+      } else {
+        showToast(`
+NoSubstitutionTemplate at 11554 `, "error");
+      }
+    }
+
+    window.exportUserSettings = function() {
+      if (!currentDriverId) {
+        if(window.showToast) window.showToast("Você precisa estar logado para exportar.", "error");
+        return;
+      }
+      
+      const exportData = {
+        settings: currentDriverSettings || {},
+        dailyGoal: window.dailyGoal || 0,
+        completedRidesCount: SecureStorage.getItem('completedRidesCount') || '0',
+        timestamp: new Date().toISOString()
+      };
+      
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", "driver_settings_backup.json");
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+      
+      if(window.showToast) window.showToast("Configurações exportadas com sucesso!", "success");
+    };
+
+    window.importUserSettings = function(event) {
+      if (!currentDriverId) {
+        if(window.showToast) window.showToast("Você precisa estar logado para importar.", "error");
+        return;
+      }
+      
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        try {
+          const importedData = JSON.parse(e.target.result);
+          
+          if (importedData.settings) {
+             const btn = document.getElementById('btnSaveSettings');
+             if (btn) {
+               btn.disabled = true;
+               btn.innerHTML = `
+NoSubstitutionTemplate at 11559 `;
+             }
+             const { success, error } = await saveDriverSettings(currentDriverId, importedData.settings);
+             if (btn) {
+               btn.disabled = false;
+               btn.innerHTML = `
+Backtick in other token: RegularExpressionLiteral at 11559 /span> Salvar Preferências na Nuvem`;
+TemplateHead at 11562 `Erro ao restaurar: ${
+TemplateTail at 11562 }`
+NoSubstitutionTemplate at 11661 `<div class="spinner"></div> <span>Fazendo Backup...</span>`
+TemplateHead at 11721 `Falha ao salvar backup: ${
+TemplateTail at 11721 }`
+NoSubstitutionTemplate at 11732 `<span class="material-symbols-rounded">cloud_upload</span> Fazer Backup Agora`
+NoSubstitutionTemplate at 11756 `<div style="text-align: center; color: var(--text-muted); font-size: 11px; padding: 10px;">Faça login para ver seu histórico.</div>`
+NoSubstitutionTemplate at 11760 `<div style="text-align: center; color: var(--text-muted); font-size: 11px; padding: 10px;"><div class="spinner" style="margin: 0 auto 5px auto;"></div> Carregando histórico...</div>`
+TemplateHead at 11766 `<div style="text-align: center; color: var(--accent-pink); font-size: 11px; padding: 10px;">Erro: ${
+TemplateTail at 11766 }</div>`
+NoSubstitutionTemplate at 11770 `<div style="text-align: center; color: var(--text-muted); font-size: 11px; padding: 10px;">Nenhum backup histórico encontrado na nuvem.</div>`
+TemplateHead at 11794 `
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 11.5px; font-weight: bold; color: var(--text-main);">${
+TemplateTail at 11804 } Regiões</b></span>
+              </div>
+            `
+NoSubstitutionTemplate at 11818 `<div style="text-align: center; color: var(--accent-pink); font-size: 11px; padding: 10px;">Falha ao carregar histórico.</div>`
+TemplateHead at 11824 `Deseja realmente restaurar as configurações e preferências do backup de ${
+TemplateTail at 11824 }?\n(As configurações locais serão substituídas.)`
+TemplateHead at 11834 `Erro ao restaurar configurações: ${
+TemplateTail at 11834 }`
+TemplateHead at 11880 `Oferta do ${
+TemplateTail at 11880 } gravada!`
+TemplateHead at 11883 `Erro ao gravar oferta: ${
+TemplateTail at 11883 }`
+TemplateHead at 11892 `Erro ao deslogar: ${
+TemplateTail at 11892 }`
+NoSubstitutionTemplate at 11894 `Sessão encerrada com segurança.`
+TemplateHead at 11923 `voiceStyleCard_${
+TemplateTail at 11923 }`
+TemplateHead at 12123 `Previewing speed at ${
+TemplateTail at 12123 }.`
+TemplateHead at 12123 `Testando velocidade da voz em ${
+TemplateTail at 12123 }.`
+TemplateHead at 12125 `Previewing pitch tone at ${
+TemplateTail at 12125 }.`
+TemplateHead at 12125 `Ajustando o tom de voz para ${
+TemplateTail at 12125 }.`
+TemplateHead at 12127 `Previewing volume at ${
+TemplateTail at 12127 } percent.`
+TemplateHead at 12127 `Testando volume da voz em ${
+TemplateTail at 12127 } por cento.`
+TemplateHead at 12268 `Hello ${
+TemplateTail at 12268 }! I am your friendly assistant. Let's have a great run!`
+TemplateHead at 12391 `Estilo de voz atualizado para "${
+TemplateTail at 12391 }"! 🎙️`
+TemplateHead at 12398 `voiceToneCard_${
+TemplateTail at 12398 }`
+TemplateHead at 12480 `Persona do Jarvis atualizada para "${
+TemplateTail at 12480 }"! 🎙️`
+Backtick in other token: StringLiteral at 12788 '<option value="`>Jarvis (Padrão Auto-Selecionado)</option>'
+TemplateHead at 12796 `${
+TemplateTail at 12796 })`
+TemplateHead at 12802 `${
+TemplateTail at 12802 })`
+TemplateHead at 12852 `🎉 Perfil "${
+TemplateTail at 12852 }" salvo e sincronizado na nuvem!`
+TemplateHead at 12855 `Perfil de voz ${
+TemplateTail at 12855 } salvo com sucesso na nuvem.`
+TemplateHead at 12858 `Erro ao salvar perfil: ${
+TemplateTail at 12858 }`
+TemplateHead at 12864 `Tem certeza de que deseja excluir o perfil de voz "${
+TemplateTail at 12864 }" da nuvem?`
+TemplateHead at 12869 `Perfil de voz "${
+TemplateTail at 12869 }" excluído!`
+TemplateHead at 12871 `Erro ao excluir perfil: ${
+TemplateTail at 12871 }`
+TemplateHead at 12877 `Aplicando perfil de voz "${
+TemplateTail at 12877 }"... 🎙️`
+TemplateHead at 12910 `🎉 Perfil "${
+TemplateTail at 12910 }" aplicado em todos os dispositivos!`
+TemplateHead at 12912 `Perfil de voz ${
+TemplateTail at 12912 } aplicado com sucesso.`
+NoSubstitutionTemplate at 12936 `
+          <div style="background: rgba(255, 255, 255, 0.01); border: 1px dashed rgba(255,255,255,0.08); border-radius: 8px; padding: 14px; text-align: center;">
+            <span class="material-symbols-rounded" style="color: var(--text-muted); font-size: 24px; margin-bottom: 4px; display: block;">settings_voice</span>
+            <span style="color: var(--text-muted); font-size: 11px; display: block;">Nenhum perfil de voz customizado na nuvem ainda.</span>
+            <span style="color: var(--text-muted); font-size: 9px; display: block; margin-top: 2px;">Ajuste acima e salve para compartilhar entre aparelhos.</span>
+          </div>
+        `
+TemplateHead at 12959 `${
+TemplateTail at 12959 }`
+TemplateHead at 12964 `
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: bold; font-size: 11.5px; color: var(--text-main); display: flex; align-items: center; gap: 4px;">
+              ${
+TemplateTail at 12979 }')" style="background: rgba(255, 0, 110, 0.05); color: var(--accent-pink); border: none; border-radius: 4px; padding: 4px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;" title="Excluir da nuvem">
+              <span class="material-symbols-rounded" style="font-size: 12px;">delete</span>
+            </button>
+          </div>
+        `
+TemplateHead at 13003 `Olá, ${
+TemplateTail at 13003 }! Eu sou o Jarvis, seu copiloto inteligente viva-voz. Desenhei este guia de comandos de voz para que você possa controlar suas rotas, aceitar ou recusar ofertas e garantir sua segurança sem tirar as mãos do guidão ou do volante. Seja muito bem-vindo!`
+NoSubstitutionTemplate at 13101 `Deseja realmente reverter as configurações da Cerca Virtual e Voz do Jarvis para os padrões originais?")) {
+        return;
+      }
+      
+      const defaultSettings = {
+        geofenceRadius: 3.0,
+        jarvisVoiceTone: 'AMIGÁVEL',
+        jarvisVoicePitch: 1.0,
+        jarvisVoiceRate: 1.0,
+        jarvisVoiceVolume: 1.0,
+        jarvisSpecificVoice: '', jarvisVoiceLanguage: 'pt-BR'
+      };
+      
+      // Reset UI Elements
+      
+      // Radius
+      window.updateVisualGeofenceRadius(3.0);
+      
+      // Monitor Switch
+      const monitorToggle = document.getElementById('geofenceMonitorToggle`
+TemplateHead at 13164 `Nova velocidade: ${
+TemplateTail at 13164 }`
+TemplateHead at 13166 `Novo tom de voz: ${
+TemplateTail at 13166 }`
+NoSubstitutionTemplate at 13168 `Volume ajustado.`
+TemplateHead at 13230 `Comprovante anexado! Clique em Enviar para submeter ao ${
+TemplateTail at 13230 }.`
+NoSubstitutionTemplate at 13245 `<span class="material-symbols-rounded" style="font-size: 16px; animation: spin 2s linear infinite;">sync</span> Enviando...`
+TemplateHead at 13263 `Comprovante enviado com sucesso! Aguardando aprovação do ${
+TemplateTail at 13263 } Sutilmente.`
+NoSubstitutionTemplate at 13272 `<span class="material-symbols-rounded">send</span> Enviar`
+NoSubstitutionTemplate at 13286 `<span class="material-symbols-rounded">send</span> Enviar`
+NoSubstitutionTemplate at 13342 `Sua assinatura Asaas está ativa! Acesso Premium confirmado.`
+NoSubstitutionTemplate at 13376 `<span class="material-symbols-rounded" style="animation: spin 1s linear infinite;">sync</span> Verificando...`
+TemplateHead at 13414 `<strong style="display:block; margin-bottom: 4px;">🎉 Sucesso!</strong> ${
+TemplateTail at 13414 }`
+TemplateHead at 13419 `Assinatura verificada com sucesso, ${
+TemplateTail at 13419 }! O Jarvis inteligente foi liberado.`
+TemplateHead at 13432 `<strong style="display:block; margin-bottom: 4px;">⚠️ Não Ativo</strong> ${
+TemplateTail at 13432 }`
+NoSubstitutionTemplate at 13448 `<span class="material-symbols-rounded" style="font-size: 16px;">sync</span> Verificar Status`
+TemplateHead at 13492 `[Admin] Inicializando escuta de todos os perfis para o ${
+TemplateTail at 13492 }...`
+TemplateHead at 13504 `Enviar mensagem para ${
+TemplateTail at 13504 } (aparecerá e será falada pelo Jarvis no app):`
+NoSubstitutionTemplate at 13579 `
+          <div style="text-align: center; color: var(--text-muted); padding: 30px;">
+            <span class="material-symbols-rounded" style="font-size: 28px; display: block; margin-bottom: 8px;">search_off</span>
+            Nenhum piloto encontrado.
+          </div>
+        `
+TemplateHead at 13601 `
+            <span style="background: rgba(0, 245, 212, 0.15); color: var(--success); font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px;">
+              <span class="material-symbols-rounded" style="font-size: 13px;">workspace_premium</span> Premium (${
+TemplateTail at 13603 }d rest.)
+            </span>
+          `
+TemplateHead at 13605 `
+            <button onclick="window.sendAdminMessage('${
+TemplateTail at 13609 }', 'cancel')" style="background: rgba(255, 0, 110, 0.1); border: 1px solid rgba(255, 0, 110, 0.2); color: var(--accent-pink); font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+              Zerar / Bloquear
+            </button>
+          `
+NoSubstitutionTemplate at 13615 `
+            <span style="background: rgba(58, 134, 255, 0.15); color: var(--accent-blue); font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px;">
+              <span class="material-symbols-rounded" style="font-size: 13px;">hourglass_empty</span> Comprovante Enviado
+            </span>
+          `
+TemplateHead at 13618 `
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button onclick="window.viewDriverReceiptByAdmin('${
+TemplateTail at 13628 }', 'reject')" style="background: transparent; border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                Recusar
+              </button>
+            </div>
+          `
+TemplateHead at 13633 `
+            <span style="background: rgba(255, 255, 255, 0.05); color: var(--text-muted); font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px;">
+              <span class="material-symbols-rounded" style="font-size: 13px;">schedule</span> Teste (${
+TemplateTail at 13635 }d rest.)
+            </span>
+          `
+TemplateHead at 13637 `
+            <button onclick="window.updateDriverSubscriptionByAdmin('${
+TemplateTail at 13640 }', 'approve')" style="background: var(--accent-blue); color: white; border: none; font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+              Dar 30 Dias Grátis
+            </button>
+          `
+NoSubstitutionTemplate at 13646 `
+            <span style="background: rgba(255, 0, 110, 0.1); color: var(--accent-pink); font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 4px;">
+              <span class="material-symbols-rounded" style="font-size: 13px;">lock</span> Bloqueado / Expirado
+            </span>
+          `
+TemplateHead at 13648 `
+            <button onclick="window.updateDriverSubscriptionByAdmin('${
+TemplateTail at 13651 }', 'approve')" style="background: var(--success); color: #0a0b10; border: none; font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+              Ativar Assinatura (R$ 100)
+            </button>
+          `
+TemplateHead at 13658 `
+          <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-light); border-radius: 8px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <div style="flex-grow: 1; min-width: 200px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <strong style="color: var(--text-main); font-size: 13px;">${
+TemplateTail at 13669 }
+            </div>
+          </div>
+        `
+TemplateHead at 13726 `Comprovante de ${
+TemplateTail at 13726 }`
+TemplateHead at 13793 `R$ ${
+TemplateTail at 13793 }`
+TemplateHead at 13894 `
+                    <div style="padding: 6px; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="color: var(--success); font-weight: bold; font-size: 10px;">R$ ${
+TemplateTail at 13902 }</div>
+                        </div>
+                    </div>
+                `
+TemplateHead at 13906 `<div style="text-align: center; padding: 10px; color: var(--accent-pink);">Erro: ${
+TemplateTail at 13906 }</div>`
+TemplateHead at 13933 `MAPEADOS ${
+TemplateTail at 13933 } NÓS ATIVOS`
+TemplateHead at 13956 `node_${
+TemplateTail at 13956 }`
+TemplateHead at 13959 `Cooperado #${
+TemplateTail at 13959 }`
+TemplateHead at 13969 `display: flex; justify-content: space-between; padding: 6px 10px; background: rgba(255,255,255,0.02); border-radius: 6px; cursor: pointer; border-left: 2px solid ${
+TemplateTail at 13969 }; margin-bottom: 4px; transition: background 0.2s;`
+TemplateHead at 13971 `
+                        <div style="font-weight: bold; color: #fff;">${
+TemplateTail at 13973 }ms</div>
+                    `
+TemplateHead at 13977 `#p2p-node-${
+TemplateTail at 13977 }`
+TemplateHead at 13989 `
+                                <div style="font-size: 13px; font-weight: 900; color: ${
+TemplateTail at 13992 }</span></div>
+                            `
+TemplateHead at 14059 `p2p-node-${
+TemplateTail at 14059 }`
+TemplateHead at 14090 `
+                        <div style="font-size: 13px; font-weight: 900; color: ${
+TemplateTail at 14093 }</span></div>
+                    `
+TemplateHead at 14117 `${
+TemplateTail at 14117 } ms`
+TemplateHead at 14120 `${
+TemplateTail at 14120 }%`
+NoSubstitutionTemplate at 14179 `<span class="material-symbols-rounded" style="font-size: 16px; animation: pulse 1s infinite;">mic</span> Ouvindo... Fale agora`
+TemplateHead at 14195 `"${
+TemplateTail at 14195 }"`
+NoSubstitutionTemplate at 14231 `<span class="material-symbols-rounded" style="font-size: 16px;">play_arrow</span> Iniciar Teste de Fala`
+TemplateHead at 14272 `"${
+TemplateTail at 14272 }"`
+TemplateHead at 14283 `Erro de Voz: ${
+TemplateTail at 14283 }`
+TemplateHead at 14376 `
+          <span class="material-symbols-rounded" style="font-size: 16px; color: var(--accent-purple);">${
+TemplateTail at 14382 }</span>
+          </div>
+          <span class="material-symbols-rounded" style="font-size: 12px; color: var(--text-muted); opacity: 0.5;">chevron_right</span>
+        `
+TemplateHead at 14454 `"${
+TemplateTail at 14454 }"`
+TemplateHead at 14575 `https://api.elevenlabs.io/v1/text-to-speech/${
+TemplateTail at 14575 }`
+TemplateHead at 14594 `ElevenLabs API erro: ${
+TemplateTail at 14594 }`
+TemplateHead at 14648 `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${
+TemplateTail at 14648 }`
+TemplateHead at 14796 `
+            <div onclick="window.selectVoiceProfile('${
+NoSubstitutionTemplate at 14813 `
+                <div style="display: flex; align-items: center; gap: 4px; color: var(--accent-pink); font-size: 11px; font-weight: bold;">
+                  <span class="material-symbols-rounded" style="font-size: 14px;">mic</span> Testando...
+                </div>
+              `
+TemplateHead at 14814 `
+                <button onclick="event.stopPropagation(); window.playIndividualProfilePreview(${
+TemplateTail at 14817 })" class="btn-submit" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-main); font-size: 10px; padding: 4px 8px; border-radius: 6px; margin: 0; width: auto; cursor: pointer;">
+                  Ouvir
+                </button>
+              `
+TemplateTail at 14819 }
+            </div>
+          `
+NoSubstitutionTemplate at 14834 `
+          <div class="reset-modal" style="max-height: 90vh; overflow-y: auto; text-align: left; width: 420px; border: 1px solid rgba(255, 255, 255, 0.1); background: #12131e; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); padding: 20px; box-sizing: border-box;">
+            <div class="reset-header" style="border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+              <h3 style="display: flex; align-items: center; gap: 10px; margin: 0;">
+                <span class="material-symbols-rounded" style="color: var(--accent-pink); font-size: 26px; text-shadow: 0 0 10px rgba(255,0,110,0.4);">graphic_eq</span> Teste de Perfil de Voz
+              </h3>
+              <button class="close-btn" onclick="document.getElementById('voiceTestModal').style.display='none'; if(window.speechSynthesis) window.speechSynthesis.cancel();" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; display: flex; align-items: center;">
+                <span class="material-symbols-rounded">close</span>
+              </button>
+            </div>
+            
+            <div class="reset-body" style="display: flex; flex-direction: column; gap: 14px;">
+              <p style="font-size: 12px; color: var(--text-muted); margin: 0; line-height: 1.4;`
+TemplateHead at 14839 `color: var(--text-main);">"Jarvis, escolher perfil 1"</strong> (ou 2, 3, 4) por comando de voz!
+              </p>
+              
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                ${
+TemplateTail at 14855 }
+              </div>
+              
+              <div style="background: rgba(255, 255, 255, 0.02); border: 1px dashed rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 12px; text-align: center; margin-top: 8px;">
+                <div style="font-size: 11px; color: var(--text-muted);">
+                  Status do Ciclo de Teste:
+                </div>
+                <div id="voiceTestCycleStatus" style="font-size: 12px; font-weight: bold; color: var(--accent-blue); margin-top: 2px;">
+                  Iniciando ciclo automático de voz...
+                </div>
+              </div>
+              
+              <div style="display: flex; gap: 8px; margin-top: 12px;">
+                <button onclick="window.runAutoTestCycle(0)" class="btn-submit" style="background: rgba(58, 134, 255, 0.15); border: 1px solid var(--accent-blue); color: white; padding: 10px; font-size: 11px; border-radius: 8px; flex: 1; cursor: pointer; margin: 0; outline: none;">
+                  🔄 Tocar Ciclo Completo
+                </button>
+                <button onclick="document.getElementById('voiceTestModal').style.display='none'; if(window.speechSynthesis) window.speechSynthesis.cancel();" class="btn-submit" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); padding: 10px; font-size: 11px; border-radius: 8px; flex: 1; cursor: pointer; margin: 0; outline: none;`
+NoSubstitutionTemplate at 14891 `;
+      };
+      
+      window.playTemporaryProfileVoice = function(profileIndex, text, onEndCallback) {
+        const p = profiles[profileIndex];
+        if (!p) return;
+        
+        const origPitch = window.currentDriverSettings?.jarvisVoicePitch;
+        const origRate = window.currentDriverSettings?.jarvisVoiceRate;
+        const origStyle = window.currentDriverSettings?.jarvisVoiceStyle;
+        
+        if (!window.currentDriverSettings) window.currentDriverSettings = {};
+        window.currentDriverSettings.jarvisVoicePitch = p.pitch;
+        window.currentDriverSettings.jarvisVoiceRate = p.rate;
+        window.currentDriverSettings.jarvisVoiceStyle = p.key;
+        
+        speakText(text, () => {
+          if (window.currentDriverSettings) {
+            window.currentDriverSettings.jarvisVoicePitch = origPitch;
+            window.currentDriverSettings.jarvisVoiceRate = origRate;
+            window.currentDriverSettings.jarvisVoiceStyle = origStyle;
+          }
+          if (onEndCallback) onEndCallback();
+        });
+      };
+      
+      window.playIndividualProfilePreview = function(index) {
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        renderModalContent(index);
+        const statusEl = document.getElementById('voiceTestCycleStatus');
+        if (statusEl) statusEl.innerText = `
+NoSubstitutionTemplate at 14894 `;
+        
+        const p = profiles[index];
+        const textToSpeak = `
+NoSubstitutionTemplate at 14898 `;
+        window.playTemporaryProfileVoice(index, textToSpeak, () => {
+          renderModalContent(-1);
+          const statusEl2 = document.getElementById('voiceTestCycleStatus');
+          if (statusEl2) statusEl2.innerText = `
+NoSubstitutionTemplate at 14908 `;
+        });
+      };
+      
+      window.selectVoiceProfile = async function(styleKey) {
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        await window.saveVoiceStyleSetting(styleKey);
+        renderModalContent(-1);
+        
+        const statusEl = document.getElementById('voiceTestCycleStatus');
+        if (statusEl) statusEl.innerText = `
+TemplateHead at 14908 `${
+TemplateTail at 14908 }" escolhido com sucesso!`
+TemplateHead at 14911 `Perfil de Voz "${
+TemplateTail at 14911 }" selecionado com sucesso!`
+TemplateHead at 14914 `Excelente, ${
+TemplateTail at 14914 }. Prontinho!`
+NoSubstitutionTemplate at 14933 `Apresentação concluída. Escolha uma das opções acima.";
+          speakText("Thiago, estes são os quatro perfis disponíveis. Diga 'Jarvis, escolher perfil um, dois, três ou quatro' ou toque na tela para definir sua voz favorita.");
+          return;
+        }
+        
+        renderModalContent(idx);
+        const statusEl = document.getElementById('voiceTestCycleStatus');
+        if (statusEl) statusEl.innerText = `
+NoSubstitutionTemplate at 14936 `;
+        
+        const p = profiles[idx];
+        const textToSpeak = `
+NoSubstitutionTemplate at 14948 `;
+        window.playTemporaryProfileVoice(idx, textToSpeak, () => {
+          setTimeout(() => {
+            const mCheck = document.getElementById('voiceTestModal');
+            if (mCheck && mCheck.style.display === 'flex') {
+              window.runAutoTestCycle(idx + 1);
+            }
+          }, 1200);
+        });
+      };
+      
+      renderModalContent(-1);
+      speakText(`
+NoSubstitutionTemplate at 14977 `, () => {
+        setTimeout(() => {
+          const mCheck = document.getElementById('voiceTestModal');
+          if (mCheck && mCheck.style.display === 'flex') {
+            window.runAutoTestCycle(0);
+          }
+        }, 800);
+      });
+    };
+
+    // Inteligência Jarvis: Análise de Voz Avançada e Contextual da Oferta
+    window.speakJarvisOfferAnalysis = function(order, fare, dist, kmRate) {
+      if (!window.speakText) return;
+      
+      const appName = order.delivery_app || "iFood";
+      const opCost = parseFloat(currentDriverSettings?.vehicleCost || 0.60);
+      const estimatedCost = dist * opCost;
+      const netProfit = fare - estimatedCost;
+      
+      let analysisText = "";
+      
+      const fareStr = fare.toFixed(1).replace('.', ',');
+      const kmRateStr = kmRate.toFixed(2).replace('.', ',');
+      const profitStr = netProfit.toFixed(1).replace('.', ',');
+      
+      const tone = currentDriverSettings?.jarvisVoiceTone || 'AMIGÁVEL';
+
+      if (tone === 'DIRETO') {
+        if (kmRate >= 3.0) {
+           analysisText = `
+NoSubstitutionTemplate at 14979 `;
+        } else if (kmRate >= 2.0) {
+           analysisText = `
+NoSubstitutionTemplate at 14981 `;
+        } else if (kmRate >= 1.2) {
+           analysisText = `
+NoSubstitutionTemplate at 14983 `;
+        } else {
+           analysisText = `
+NoSubstitutionTemplate at 14987 `;
+        }
+      } else if (tone === 'FORMAL') {
+        if (kmRate >= 3.0) {
+           analysisText = `
+NoSubstitutionTemplate at 14989 `;
+        } else if (kmRate >= 2.0) {
+           analysisText = `
+NoSubstitutionTemplate at 14991 `;
+        } else if (kmRate >= 1.2) {
+           analysisText = `
+NoSubstitutionTemplate at 14993 `;
+        } else {
+           analysisText = `
+NoSubstitutionTemplate at 14998 `;
+        }
+      } else {
+        // AMIGÁVEL
+        if (kmRate >= 3.0) {
+           analysisText = `
+NoSubstitutionTemplate at 15000 `;
+        } else if (kmRate >= 2.0) {
+           analysisText = `
+NoSubstitutionTemplate at 15002 `;
+        } else if (kmRate >= 1.2) {
+           analysisText = `
+NoSubstitutionTemplate at 15004 `;
+        } else {
+           analysisText = `
+NoSubstitutionTemplate at 15011 `;
+        }
+      }
+      
+      const insight = window.getJarvisOrderInsight(order);
+      if (insight) {
+        const readyStr = insight.readyStatus.replace(/🍳|🛍️|📦|🔥/g, "").trim();
+        analysisText += `
+NoSubstitutionTemplate at 15013 `;
+        if (insight.hasDetour) {
+          analysisText += `
+NoSubstitutionTemplate at 15044 `;
+        }
+      }
+      
+      window.speakText(analysisText);
+    };
+
+    window.simulateOfflineStorageFullState = false;
+
+    window.toggleSimulateOfflineStorageFull = function() {
+      window.simulateOfflineStorageFullState = !window.simulateOfflineStorageFullState;
+      const btnText = document.getElementById('simulateStorageBtnText');
+      if (btnText) {
+        btnText.textContent = window.simulateOfflineStorageFullState ? "Desativar Simulação" : "Simular Cheio (90%+)";
+      }
+      const btn = document.getElementById('btnSimulateStorageLimit');
+      if (btn) {
+        if (window.simulateOfflineStorageFullState) {
+          btn.style.background = 'rgba(255, 0, 110, 0.15)';
+          btn.style.borderColor = 'var(--accent-pink)';
+          btn.style.color = 'var(--accent-pink)';
+        } else {
+          window.stopRainAnimation(); btn.style.background = 'rgba(58, 134, 255, 0.1)';
+          btn.style.borderColor = 'rgba(58, 134, 255, 0.2)';
+          btn.style.color = 'var(--accent-blue)';
+        }
+      }
+      
+      showToast(window.simulateOfflineStorageFullState ? "Simulação de Armazenamento Offline Ativada (90%+)" : "Simulação Desativada", window.simulateOfflineStorageFullState ? "warning" : "info");
+      
+      if (window.simulateOfflineStorageFullState && window.speakText) {
+        window.speakText(`
+NoSubstitutionTemplate at 15101 `);
+      }
+      
+      window.renderOfflineHistory();
+    };
+
+    window.renderOfflinePerformanceDashboard = async function() {
+      try {
+        const allRides = await window.dbOffline.completedRides.toArray();
+        const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+        const recentRides = allRides.filter(r => r.timestamp >= sevenDaysAgo);
+        
+        const ridesByDay = {};
+        let totalEarnings = 0;
+        let totalDistance = 0;
+        
+        recentRides.forEach(ride => {
+            const fare = parseFloat(ride.fare_value || 0);
+            const dist = parseFloat(ride.total_distance_km || 0);
+            const dateStr = new Date(ride.timestamp).toDateString();
+            
+            if (!ridesByDay[dateStr]) {
+              ridesByDay[dateStr] = { first: ride.timestamp, last: ride.timestamp };
+            } else {
+              ridesByDay[dateStr].first = Math.min(ridesByDay[dateStr].first, ride.timestamp);
+              ridesByDay[dateStr].last = Math.max(ridesByDay[dateStr].last, ride.timestamp);
+            }
+            
+            totalEarnings += fare;
+            totalDistance += dist;
+        });
+        
+        let totalHours = 0;
+        Object.values(ridesByDay).forEach(day => {
+            let hours = (day.last - day.first) / (1000 * 60 * 60);
+            // Minimum 1 hour accounted per worked day, or add 0.5h buffer for last delivery
+            hours += 0.5;
+            if (hours < 1) hours = 1;
+            totalHours += hours;
+        });
+        
+        const daysCount = Object.keys(ridesByDay).length > 0 ? Object.keys(ridesByDay).length : 1;
+        const avgDailyEarnings = totalEarnings / daysCount;
+        
+        if (totalHours === 0) totalHours = 1;
+        const profitPerHour = totalEarnings / totalHours;
+        
+        const fuelEfficiency = totalDistance > 0 ? (totalEarnings / totalDistance) : 0;
+        
+        const elProfitPerHour = document.getElementById('idxProfitPerHour');
+        const elFuelEfficiency = document.getElementById('idxFuelEfficiency');
+        const elAvgDailyEarnings = document.getElementById('idxAvgDailyEarnings');
+        const elTotalRides7Days = document.getElementById('idxTotalRides7Days');
+        const elMonthlyProjection = document.getElementById('idxMonthlyProjection');
+        
+        const monthlyProj = avgDailyEarnings * 26;
+        
+        if (elProfitPerHour) elProfitPerHour.textContent = `
+Backtick in other token: RegularExpressionLiteral at 15101 /h`;
+TemplateHead at 15102 `${
+TemplateTail at 15102 } R$/KM`
+TemplateHead at 15103 `R$ ${
+TemplateTail at 15103 }`
+TemplateHead at 15105 `R$ ${
+TemplateTail at 15105 }`
+TemplateHead at 15180 `
+                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span class="material-symbols-rounded" style="color: ${
+TemplateTail at 15190 }80; transition: width 0.5s ease;`
+NoSubstitutionTemplate at 15201 `;
+              containerGrid.insertAdjacentHTML('beforeend', barHtml);
+            });
+          }
+
+          // Atualizar sugestão do assistente Jarvis
+          const elSuggestion = document.getElementById('jarvisShiftSuggestionText');
+          if (elSuggestion) {
+            elSuggestion.innerHTML = `
+NoSubstitutionTemplate at 15204 `;
+          }
+        } catch (errShifts) {
+          console.error(`
+Backtick in other token: StringLiteral at 15214 'offlineHistoryList`);
+TemplateHead at 15234 `${
+TemplateTail at 15234 }%)`
+TemplateHead at 15241 `${
+TemplateTail at 15241 }%`
+TemplateHead at 15297 `R$ ${
+TemplateTail at 15297 }`
+TemplateHead at 15299 `${
+TemplateTail at 15299 } KM`
+TemplateHead at 15300 `R$ ${
+TemplateTail at 15300 }/KM`
+TemplateHead at 15334 `
+              <div style="background: ${
+TemplateTail at 15344 }/KM)</span>
+                </div>
+              </div>
+            `
+TemplateHead at 15355 `
+              <div style="border-top: 1px solid var(--border-light); padding-top: 12px; margin-top: 14px; margin-bottom: 8px;">
+                <div style="font-size: 11px; font-weight: bold; color: var(--accent-blue); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                  <span class="material-symbols-rounded" style="font-size: 16px;">query_stats</span>
+                  Análise de Eficiência por Aplicativo (Histórico Local)
+                </div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px;">
+                  ${
+TemplateTail at 15358 }
+                </div>
+              </div>
+            `
+NoSubstitutionTemplate at 15384 `
+            <div style="text-align: center; color: var(--text-muted); padding: 24px; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 6px;">
+              <span class="material-symbols-rounded" style="font-size: 28px; color: var(--text-muted);">filter_list_off</span>
+              Nenhuma corrida corresponde aos filtros selecionados.
+            </div>
+          `
+NoSubstitutionTemplate at 15419 `
+            <div style="background: var(--bg-dark); border: 1px solid var(--border-light); border-radius: 8px; padding: 10px; display: flex; justify-content: space-between; align-items: center; gap: 12px; transition: border-color 0.2s;">
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-size: 12px; font-weight: bold; color: var(--text-main); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; display: flex; align-items: center; gap: 6px;">
+                  <span class="material-symbols-rounded" style="font-size: 14px; color: var(--success);">check_circle</span>
+                  \${ride.pickup_address ? ride.pickup_address.split(',')[0] : 'Origem'} ➔ \${ride.delivery_address ? ride.delivery_address.split(',')[0] : 'Destino'}
+                </div>
+                <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                  <span class="badge-app" style="font-size: 9px; padding: 1px 4px; border-radius: 3px; background: rgba(58,134,255,0.15); color: var(--accent-blue); font-weight: bold;">\${ride.delivery_app || 'iFood'}</span>
+                  <span>\${dist.toFixed(1)} KM</span>
+                  <span>\${formattedDate}</span>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="text-align: right; min-width: 70px;">
+                  <div style="font-size: 13px; font-weight: bold; color: var(--success);">R$ \${fare.toFixed(2)}</div>
+                  <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">R$ \${kmRate}/KM</div>
+                </div>
+                <button onclick="window.deleteOfflineRide('\${ride.id}')" style="background: rgba(255,0,110,0.1); border: none; color: var(--accent-pink); border-radius: 6px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;" title="Excluir corrida">
+                  <span class="material-symbols-rounded" style="font-size: 16px;">delete</span>
+                </button>
+              </div>
+            </div>
+          `
+NoSubstitutionTemplate at 15463 `\${ride.id};\${dateStr};\${timeStr};\${ride.delivery_app || 'iFood'};\${(ride.pickup_address || '').replace(/;/g, ',')};\${(ride.delivery_address || '').replace(/;/g, ',')};\${fare};\${dist};\${rate}\\n`
+NoSubstitutionTemplate at 15470 `RadarDelivery_CorridasOffline_\${new Date().toISOString().slice(0,10)}.csv`
+TemplateHead at 15509 `${
+TemplateTail at 15509 } KM restantes`
+TemplateHead at 15514 `${
+TemplateTail at 15514 }%`
+TemplateHead at 15539 `🚨 TROCA DE ÓLEO ATRASADA! Você ultrapassou o limite em ${
+TemplateTail at 15539 } km. Realize a troca imediatamente!`
+TemplateHead at 15541 `⚠️ ATENÇÃO: Faltam apenas ${
+TemplateTail at 15541 } km para a próxima troca de óleo de sua moto!`
+TemplateHead at 15548 `${
+TemplateTail at 15548 } quilômetros! Troque o óleo imediatamente.`
+TemplateHead at 15549 `${
+TemplateTail at 15549 }, sua moto está a menos de 100 quilômetros da próxima troca de óleo. Lembre-se de realizar a manutenção preventiva!`
+NoSubstitutionTemplate at 15601 `Erro ao salvar quilometragem:", err);
+        }
+      }
+    };
+
+    wi

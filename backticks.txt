@@ -1,0 +1,76 @@
+69 console.log(`[Asaas] Sincronizando status de assinatura para: ${user.email}`);
+94 return { active: true, status: 'TRIAL', message: `PERÍODO DE TESTE: ${daysLeft} DIAS RESTANTES` };
+130 textLabel = `Excelente (${Math.round(latencyMs)}ms)`;
+136 textLabel = `Estável (${Math.round(latencyMs)}ms)`;
+142 textLabel = `Lenta (${Math.round(latencyMs)}ms)`;
+148 textLabel = `Instável (${Math.round(latencyMs)}ms)`;
+155 serverStatusText.textContent = `Firestore: ${textLabel}`;
+160 gpsIndicator.style.animation = `gpsLatencyPulse ${gpsAnimDuration} infinite`;
+205 showToast(`Enviando comando: ${action}...`, "info");
+210 showToast(`Erro ao enviar comando: ${error}`, "error");
+322 console.log(`[Theme] Trocado automaticamente para ${desiredTheme} baseado no horário (${hour}h).`);
+323 if (window.showToast) window.showToast(`Modo ${desiredTheme === 'dark' ? 'Noturno' : 'Claro'} ativado automaticamente.`, 'info');
+370 window.showToast(`Meta semanal atualizada para R$ ${newGoal.toFixed(2).replace('.', ',')}`, "success");
+384 window.speakText(`Aviso de meta semanal ${statusMsg}.`);
+386 window.showToast(`Aviso do Jarvis ${statusMsg}!`, "info");
+422 targetEl.innerText = `R$ ${target.toFixed(2).replace('.', ',')}`;
+423 currentEl.innerText = `R$ ${currentEarnings.toFixed(2).replace('.', ',')}`;
+424 percentEl.innerText = `${pct.toFixed(1)}%`;
+425 barEl.style.width = `${pct}%`;
+454 const msg = `Atenção, ${window.driverFirstName || 'Piloto'}! Faltam apenas ${remaining.toFixed(2).replace('.', ',')} reais para você bater a sua meta semanal. Continue assim!`;
+458 window.showToast(`Você está a 20% da sua meta semanal!`, "success");
+486 el.innerText = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+520 window.showToast(`Horário do resumo diário salvo para ${timeInput.value}`, "success");
+522 window.speakText(`Horário do resumo diário configurado para ${timeInput.value.replace(':', ' e ')}.`);
+531 const msg = `Resumo diário do Jarvis! Hoje você completou ${completedRides} corridas e faturou um total de ${currentEarnings.toFixed(2).replace('.', ',')} reais. Bom descanso, ${window.driverFirstName || 'Piloto'}!`;
+544 const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+565 toast.className = `toast ${type}`;
+574 toast.innerHTML = `
+583 `;
+591 progressBar.style.transition = `transform ${duration}ms linear`;
+696 html += `
+717 `;
+723 document.getElementById(`learning_text_${index}`).style.display = 'none';
+724 document.getElementById(`learning_actions_${index}`).style.display = 'none';
+725 document.getElementById(`learning_edit_${index}`).style.display = 'block';
+729 document.getElementById(`learning_text_${index}`).style.display = 'block';
+730 document.getElementById(`learning_actions_${index}`).style.display = 'flex';
+731 document.getElementById(`learning_edit_${index}`).style.display = 'none';
+735 const input = document.getElementById(`learning_input_${index}`);
+941 console.log(`[Dexie.js] Trimmed ${count - 100} old rides.`);
+984 simContainer.innerHTML = `
+993 ? `<span style="background: rgba(0, 245, 212, 0.15); color: var(--success); padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-flex; align-items: center; gap: 2px; margin-top: 2px;"><span class="material-symbols-rounded" style="font-size: 11px;">check_circle</span> ACEITARIA AUTOMATICAMENTE ✅</span>`
+994 : `<span style="background: rgba(255, 0, 110, 0.15); color: var(--accent-pink); padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; display: inline-flex; align-items: center; gap: 2px; margin-top: 2px;"><span class="material-symbols-rounded" style="font-size: 11px;">cancel</span> REJEITARIA SILENCIOSAMENTE ❌</span>`
+997 `;
+1139 console.log(`[Jarvis DB] Foram encontradas ${similarRidesCount} corridas anteriores na mesma área geográfica.`);
+1226 detourAdviceHtml = `
+1233 `;
+1235 detourAdviceHtml = `
+1241 `;
+1249 routeTipText.innerHTML = `
+1263 `;
+1284 const ttsMessage = `${window.driverFirstName || 'Piloto'}, identifiquei um congestionamento na rota direta. Baseado em ${similarRidesCount || 2} entregas anteriores no seu histórico do IndexedDB e dados do Google Maps Traffic, calculei um desvio ativo para você economizar ${finalDelay} minutos. Toque em Adotar Desvio para traçar.`;
+1290 window.addLog(`Jarvis: Sugestão de desvio ativa calculada. Gargalo em ${detectedBottleneck ? detectedBottleneck.name : "vias diretas"}. Economia: ~${finalDelay}m.`, "warning");
+1294 window.appendJarvisChatMessage('jarvis', `Sugestão de desvio ativa: Evite tráfego em ${detectedBottleneck ? detectedBottleneck.name : "via principal"}. Economia estimada de ~${finalDelay} min baseada em histórico de corridas anteriores.`);
+1305 speakText(`${window.driverFirstName || 'Piloto'}, você não possui nenhuma corrida ou junção ativa para que eu possa avaliar.`);
+1326 textToSpeak = `${window.driverFirstName || 'Piloto'}, preparei um relatório consolidado da sua junção inteligente de múltiplos aplicativos. `;
+1327 textToSpeak += `Esta rota unifica entregas do ${appName}. Ganhos totais consolidados de R$ ${activeOrder.fare_value.toFixed(2)}. `;
+1328 textToSpeak += `O algoritmo do Ghost Protocol evitou que você rodasse quilômetros em duplicidade, otimizando seu tempo em mais de trinta por cento. `;
+1331 textToSpeak += `As coletas estão com status de ${statusStr} no restaurante e preparação em fluxo classificado como ${insight.waitRating}. `;
+1332 if (insight.hasDetour) textToSpeak += `Atenção: ${insight.suggestedDetour} `;
+1334 textToSpeak += `O tráfego na rota unificada está estável. Prossiga com atenção às instruções no painel.`;
+1337 textToSpeak = `${window.driverFirstName || 'Piloto'}, acessei os detalhes do seu pedido ativo no ${appName}. `;
+1340 let remainingStr = insight.preparationTimeRemaining === "Pronto!" ? "já está totalmente pronto para retirada" : `ficará pronto em aproximadamente ${insight.preparationTimeRemaining}`;
+1341 textToSpeak += `O status de preparação está marcado como ${statusStr}, e o pacote ${remainingStr}. `;
+1342 textToSpeak += `A coleta está destinada para o ${insight.counterDesk}. `;
+1343 if (insight.hasDetour) textToSpeak += `Recomendação logística do Jarvis: ${insight.suggestedDetour} `;
+1345 textToSpeak += `Ganhos estimados de R$ ${activeOrder.fare_value.toFixed(2)}. O fluxo de trânsito está livre para esta rota. Mantenha a velocidade padrão.`;
+1411 desc: `Coletas super próximas em ${pendingPNH.toUpperCase()}. Colete ambos pacotes juntos e otimize seu tempo!`,
+1428 desc: `Esta coleta começa bem perto de onde você vai entregar a corrida atual (${activeDNH.toUpperCase()}). Menos tempo de espera parado!`,
+1445 desc: `O destino desta corrida fica ao lado da sua entrega atual. Praticamente nenhum desvio de rota!`,
+1496 speakText(`Aceito. Rota para ${pLoc} iniciada no ${app}.`);
+1498 speakText(`Solicitação confirmada via ${app}. Roteamento para ${pLoc} estabelecido.`);
+1500 speakText(`Corrida aceita no ${app}. Iniciando navegação para ${pLoc}. Dirija com segurança, ${window.driverFirstName || 'Piloto'}!`);
+1502 showToast(`Corrida aceita! Vá até a coleta em: ${pLoc}`, 'success');
+1510 `${window.driverFirstName || 'Piloto'}, dica do Jarvis: caso a entrega seja em apartamento ou condomínio, diga 'Avisa o cliente' e eu preparo uma mensagem para ele já ir descendo.\`,
+1602 const html = `
