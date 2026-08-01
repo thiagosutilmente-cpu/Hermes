@@ -10824,6 +10824,12 @@ def add_cors_headers(response):
 @app.route('/')
 def serve_index():
     """Serves the driver panel web client login & registration interface"""
+    if os.path.exists("index.html"):
+        try:
+            with open("index.html", "r", encoding="utf-8") as f:
+                return f.read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
+        except Exception:
+            pass
     return index_html_content, 200, {'Content-Type': 'text/html; charset=utf-8'}
 
 @app.route('/firebase.js')
@@ -12342,6 +12348,20 @@ def decline_stack_endpoint():
     audit_entry = record_status_change_audit(stack_id, "ORDER_DECLINED", "PENDING", "DECLINED", actor_id, f"Stack {stack_id} recusado com sucesso")
     return jsonify({"status": "declined", "message": f"Stack {stack_id} recusado com sucesso!", "audit": audit_entry}), 200
 
+@app.route('/api/stacks/undo_decline', methods=['POST'])
+def undo_decline_stack_endpoint():
+    """Desfaz a recusa de um stack pelo ID e restaura para PENDING com log de auditoria de segurança"""
+    data = request.get_json() or {}
+    stack_id = data.get("stack_id") or data.get("id") or "unknown_stack"
+    actor_id = data.get("user_id") or data.get("actor_id") or "driver_api"
+    for s in MOCK_STACKS:
+        if s["id"] == stack_id:
+            s["status"] = "PENDING"
+            audit_entry = record_status_change_audit(stack_id, "ORDER_DECLINE_UNDONE", "DECLINED", "PENDING", actor_id, f"Recusa do stack {stack_id} desfeita pelo motorista")
+            return jsonify({"status": "success", "message": f"Recusa do stack {stack_id} desfeita com sucesso!", "stack": s, "audit": audit_entry})
+    audit_entry = record_status_change_audit(stack_id, "ORDER_DECLINE_UNDONE", "DECLINED", "PENDING", actor_id, f"Recusa do stack {stack_id} desfeita com sucesso")
+    return jsonify({"status": "restored", "message": f"Recusa do stack {stack_id} desfeita com sucesso!", "audit": audit_entry}), 200
+
 @app.route('/api/earnings', methods=['GET'])
 def get_earnings_summary():
     """Retorna faturamento do dia, semana, mês e estatísticas acumuladas"""
@@ -12384,6 +12404,8 @@ def process_decision_endpoint():
         min_gain = float(data.get("min_gain_per_km", 5.0))
         min_val = float(data.get("min_value", 8.0))
         max_dist = float(data.get("max_distance", 12.0))
+        kitchen_wait = float(data.get("kitchen_wait", data.get("wait_time", 0.0)))
+        max_kitchen_wait = float(data.get("max_kitchen_wait", 10.0))
         is_blacklisted = bool(data.get("blacklisted", False))
 
         # Time-of-day historical traffic congestion factor (Google Maps traffic patterns)
@@ -12456,6 +12478,22 @@ def process_decision_endpoint():
             "reason": f"Distância ({distance} km) excede o limite máximo configurado ({max_dist} km)",
             "gain_per_km": round(gain_per_km, 2),
             "nominal_gain_per_km": round(nominal_gain_per_km, 2),
+            "traffic_factor": traffic_factor,
+            "traffic_period": traffic_period,
+            "app": app_name,
+            "user_id": user_id
+        })
+
+    # 3.5. Restaurant / Kitchen wait time rule
+    if max_kitchen_wait > 0 and kitchen_wait > max_kitchen_wait:
+        return jsonify({
+            "decision": "decline",
+            "confidence": 0.94,
+            "reason": f"Espera na cozinha/restaurante ({round(kitchen_wait, 1)} min) excede o limite máximo configurado ({round(max_kitchen_wait, 1)} min)",
+            "gain_per_km": round(gain_per_km, 2),
+            "nominal_gain_per_km": round(nominal_gain_per_km, 2),
+            "kitchen_wait": kitchen_wait,
+            "max_kitchen_wait": max_kitchen_wait,
             "traffic_factor": traffic_factor,
             "traffic_period": traffic_period,
             "app": app_name,

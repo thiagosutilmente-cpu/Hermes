@@ -95,6 +95,7 @@ object GhostRouteOptimizer {
         offers: List<OfferEntity>,
         minGainPerKm: Double = 5.0,
         maxProximityKm: Double = 3.5,
+        maxBearingAngle: Double = 60.0,
         trafficFactor: Float = 0.5f,
         aggressiveness: String = "EQUILIBRADO",
         trafficWeight: Double = 0.5,
@@ -171,47 +172,53 @@ object GhostRouteOptimizer {
                 val pickupDistance = calculateDistance(aPLat, aPLng, bPLat, bPLng)
 
                 if (pickupDistance <= maxProximityKm) {
-                    val leg1 = calculateDistance(currentLat, currentLng, aPLat, aPLng)
-                    val leg2 = calculateDistance(aPLat, aPLng, bPLat, bPLng)
-                    val leg3 = calculateDistance(bPLat, bPLng, aDLat, aDLng)
-                    val leg4 = calculateDistance(aDLat, aDLng, bDLat, bDLng)
+                    val bearingA = calculateBearing(aPLat, aPLng, aDLat, aDLng)
+                    val bearingB = calculateBearing(bPLat, bPLng, bDLat, bDLng)
+                    val angleDiff = calculateAngleDifference(bearingA, bearingB)
 
-                    val totalDist = leg1 + leg2 + leg3 + leg4
-                    val totalVal = a.fareValue + b.fareValue
-                    val gainPerKm = if (totalDist > 0) totalVal / totalDist else totalVal
+                    if (angleDiff <= maxBearingAngle) {
+                        val leg1 = calculateDistance(currentLat, currentLng, aPLat, aPLng)
+                        val leg2 = calculateDistance(aPLat, aPLng, bPLat, bPLng)
+                        val leg3 = calculateDistance(bPLat, bPLng, aDLat, aDLng)
+                        val leg4 = calculateDistance(aDLat, aDLng, bDLat, bDLng)
 
-                    if (gainPerKm >= minGainPerKm) {
-                        val routeCost = calculateCost(currentLat, currentLng, aPLat, aPLng, combinedTraffic, aggFactor, trafficWeight, latencyWeight) +
-                                         calculateCost(aPLat, aPLng, bPLat, bPLng, combinedTraffic, aggFactor, trafficWeight, latencyWeight) +
-                                         calculateCost(bPLat, bPLng, aDLat, aDLng, combinedTraffic, aggFactor, trafficWeight, latencyWeight) +
-                                         calculateCost(aDLat, aDLng, bDLat, bDLng, combinedTraffic, aggFactor, trafficWeight, latencyWeight)
+                        val totalDist = leg1 + leg2 + leg3 + leg4
+                        val totalVal = a.fareValue + b.fareValue
+                        val gainPerKm = if (totalDist > 0) totalVal / totalDist else totalVal
 
-                        val appTitle = if (a.appName.equals(b.appName, ignoreCase = true)) {
-                            "${a.appName} (Duplo Stack)"
-                        } else {
-                            "${a.appName} + ${b.appName}"
-                        }
+                        if (gainPerKm >= minGainPerKm) {
+                            val routeCost = calculateCost(currentLat, currentLng, aPLat, aPLng, combinedTraffic, aggFactor, trafficWeight, latencyWeight) +
+                                             calculateCost(aPLat, aPLng, bPLat, bPLng, combinedTraffic, aggFactor, trafficWeight, latencyWeight) +
+                                             calculateCost(bPLat, bPLng, aDLat, aDLng, combinedTraffic, aggFactor, trafficWeight, latencyWeight) +
+                                             calculateCost(aDLat, aDLng, bDLat, bDLng, combinedTraffic, aggFactor, trafficWeight, latencyWeight)
 
-                        candidates.add(
-                            GhostBatchCandidate(
-                                id = "stack_${a.id}_${b.id}",
-                                offers = listOf(a, b),
-                                appNames = appTitle,
-                                totalValue = totalVal,
-                                totalDistanceKm = totalDist,
-                                gainPerKm = gainPerKm,
-                                routeCost = routeCost,
-                                estimatedTimeMin = (totalDist * 3.2).toInt().coerceAtLeast(15),
-                                isMultiApp = !a.appName.equals(b.appName, ignoreCase = true),
-                                proximityKm = pickupDistance,
-                                stops = listOf(
-                                    DeliveryStop(id = "${a.id}_p", address = a.pickupAddress, latitude = aPLat, longitude = aPLng, appName = a.appName, priority = 1),
-                                    DeliveryStop(id = "${b.id}_p", address = b.pickupAddress, latitude = bPLat, longitude = bPLng, appName = b.appName, priority = 2),
-                                    DeliveryStop(id = "${a.id}_d", address = a.deliveryAddress, latitude = aDLat, longitude = aDLng, appName = a.appName, priority = 3),
-                                    DeliveryStop(id = "${b.id}_d", address = b.deliveryAddress, latitude = bDLat, longitude = bDLng, appName = b.appName, priority = 4)
+                            val appTitle = if (a.appName.equals(b.appName, ignoreCase = true)) {
+                                "${a.appName} (Duplo Stack)"
+                            } else {
+                                "${a.appName} + ${b.appName}"
+                            }
+
+                            candidates.add(
+                                GhostBatchCandidate(
+                                    id = "stack_${a.id}_${b.id}",
+                                    offers = listOf(a, b),
+                                    appNames = appTitle,
+                                    totalValue = totalVal,
+                                    totalDistanceKm = totalDist,
+                                    gainPerKm = gainPerKm,
+                                    routeCost = routeCost,
+                                    estimatedTimeMin = (totalDist * 3.2).toInt().coerceAtLeast(15),
+                                    isMultiApp = !a.appName.equals(b.appName, ignoreCase = true),
+                                    proximityKm = pickupDistance,
+                                    stops = listOf(
+                                        DeliveryStop(id = "${a.id}_p", address = a.pickupAddress, latitude = aPLat, longitude = aPLng, appName = a.appName, priority = 1),
+                                        DeliveryStop(id = "${b.id}_p", address = b.pickupAddress, latitude = bPLat, longitude = bPLng, appName = b.appName, priority = 2),
+                                        DeliveryStop(id = "${a.id}_d", address = a.deliveryAddress, latitude = aDLat, longitude = aDLng, appName = a.appName, priority = 3),
+                                        DeliveryStop(id = "${b.id}_d", address = b.deliveryAddress, latitude = bDLat, longitude = bDLng, appName = b.appName, priority = 4)
+                                    )
                                 )
                             )
-                        )
+                        }
                     }
                 }
             }
@@ -267,5 +274,21 @@ object GhostRouteOptimizer {
         val a = sin(dLat / 2).pow(2.0) + cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLng / 2).pow(2.0)
         val c = 2 * atan2(sqrt(a), sqrt(1 - a))
         return r * c
+    }
+
+    private fun calculateBearing(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val phi1 = Math.toRadians(lat1)
+        val phi2 = Math.toRadians(lat2)
+        val deltaLambda = Math.toRadians(lon2 - lon1)
+
+        val y = Math.sin(deltaLambda) * Math.cos(phi2)
+        val x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda)
+        val bearing = Math.toDegrees(Math.atan2(y, x))
+        return (bearing + 360) % 360
+    }
+
+    private fun calculateAngleDifference(bearing1: Double, bearing2: Double): Double {
+        val diff = Math.abs(bearing1 - bearing2) % 360
+        return if (diff > 180) 360 - diff else diff
     }
 }
