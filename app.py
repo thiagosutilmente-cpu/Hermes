@@ -8,7 +8,7 @@ import requests
 from flask import Flask, request, jsonify, send_from_directory
 import google.generativeai as genai
 
-
+# --- EMBEDDED FRONTEND ASSETS ---
 index_html_content = """<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -3513,7 +3513,7 @@ index_html_content = """<!DOCTYPE html>
       }
 
       speak('Modo Piloto Pro ativado com sucesso. Todas as funções inteligentes estão operacionais.');
-      alert('🚀 MODO PILOTO PRO ATIVADO!\n\n✅ Auto-Aceite Inteligente\n✅ Otimizador IA Ghost Sequence\n✅ Demand Heatmap Vivo\n✅ Jarvis Assistente de Voz');
+      alert('🚀 MODO PILOTO PRO ATIVADO!\\n\\n✅ Auto-Aceite Inteligente\\n✅ Otimizador IA Ghost Sequence\\n✅ Demand Heatmap Vivo\\n✅ Jarvis Assistente de Voz');
     }
 
     // 📲 Compartilhar Aplicativo / Link de Assinatura com outros Motoboys
@@ -3527,10 +3527,10 @@ index_html_content = """<!DOCTYPE html>
       if (navigator.share) {
         navigator.share(shareData).catch(err => console.log('Share error:', err));
       } else {
-        navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`).then(() => {
+        navigator.clipboard.writeText(`${shareData.text}\\n${shareData.url}`).then(() => {
           alert('📋 Link de convite e download copiado com sucesso! Envie no WhatsApp para os seus amigos motoboys.');
         }).catch(() => {
-          alert(`📲 Compartilhe este link:\n${window.location.href}`);
+          alert(`📲 Compartilhe este link:\\n${window.location.href}`);
         });
       }
     }
@@ -4384,7 +4384,7 @@ index_html_content = """<!DOCTYPE html>
       console.log('Voice Command Received:', cmd);
       
       // Normalize string (remove accents)
-      const norm = cmd.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const norm = cmd.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
 
       // 1. ACEITAR STACK / PEDIDO
       if (norm.includes('aceitar') || norm.includes('aceita') || norm.includes('aceite') || 
@@ -6012,8 +6012,8 @@ index_html_content = """<!DOCTYPE html>
         card.setAttribute('data-time', trafficInfo.trafficTimeMin);
         card.setAttribute('data-effective-gain', trafficInfo.effectiveGainPerKmNum);
 
-        const pickupAddr = (item.origem || item.pickupAddress || 'Burger King, SP').replace(/'/g, "\\'");
-        const deliveryAddr = (item.destino || item.deliveryAddress || 'Av. Paulista, SP').replace(/'/g, "\\'");
+        const pickupAddr = (item.origem || item.pickupAddress || 'Burger King, SP').replace(/'/g, "\\\\'");
+        const deliveryAddr = (item.destino || item.deliveryAddress || 'Av. Paulista, SP').replace(/'/g, "\\\\'");
 
         card.innerHTML = `
           ${bannerHtml}
@@ -7965,7 +7965,7 @@ index_html_content = """<!DOCTYPE html>
       if (check.decline) {
         logAutoDeclinedOrder(mockLowOrder, check.reason);
         speak(`Teste de recusa automática concluído! Oferta simulada do iFood de R$ 7,00 por 4,8 km foi recusada pelo motivo: ${check.reason}`);
-        alert(`🚫 TESTE DE RECUSA AUTOMÁTICA:\n\n• Oferta Simulada: iFood — R$ 7,00 (4,8 km)\n• Rendimento Calculado: R$ 1,46/km\n• Resultado: RECUSADO AUTOMATICAMENTE!\n• Motivo: ${check.reason}`);
+        alert(`🚫 TESTE DE RECUSA AUTOMÁTICA:\\n\\n• Oferta Simulada: iFood — R$ 7,00 (4,8 km)\\n• Rendimento Calculado: R$ 1,46/km\\n• Resultado: RECUSADO AUTOMATICAMENTE!\\n• Motivo: ${check.reason}`);
       } else {
         alert(`✅ A oferta simulada de R$ 7,00 (4,8 km) PASSOU pelos seus critérios atuais.`);
       }
@@ -9124,8 +9124,8 @@ index_html_content = """<!DOCTYPE html>
             <div style="margin-bottom: 6px;"><strong>Versão App:</strong> ${log.appVersion || 'N/A'}</div>
             <div style="margin-bottom: 6px;"><strong>URL:</strong> ${log.url || 'N/A'}</div>
             <div style="margin-bottom: 6px;"><strong>User Agent:</strong> ${log.userAgent || 'N/A'}</div>
-            ${log.stack ? `<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); color: #ffaaaa; font-size: 10px; white-space: pre-wrap;"><strong>Stack Trace:</strong>\n${log.stack}</div>` : ''}
-            ${log.extraDetails ? `<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); color: #00f0ff; font-size: 10px;"><strong>Extra Details:</strong>\n${JSON.stringify(log.extraDetails, null, 2)}</div>` : ''}
+            ${log.stack ? `<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); color: #ffaaaa; font-size: 10px; white-space: pre-wrap;"><strong>Stack Trace:</strong>\\n${log.stack}</div>` : ''}
+            ${log.extraDetails ? `<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); color: #00f0ff; font-size: 10px;"><strong>Extra Details:</strong>\\n${JSON.stringify(log.extraDetails, null, 2)}</div>` : ''}
           </div>
         `;
 
@@ -10805,6 +10805,7 @@ export const subscribeToJarvisResponse = (requestId, callback) => {
 
 
 """
+
 app = Flask(__name__)
 
 @app.after_request
@@ -10823,12 +10824,12 @@ def add_cors_headers(response):
 @app.route('/')
 def serve_index():
     """Serves the driver panel web client login & registration interface"""
-    return index_html_content
+    return index_html_content, 200, {'Content-Type': 'text/html; charset=utf-8'}
 
 @app.route('/firebase.js')
 def serve_firebase_js():
     """Serves the Firebase configuration and auth service file"""
-    return firebase_js_content, 200, {'Content-Type': 'application/javascript'}
+    return firebase_js_content, 200, {'Content-Type': 'application/javascript; charset=utf-8'}
 
 @app.route('/firebase-service.js')
 def serve_firebase_service_js():
