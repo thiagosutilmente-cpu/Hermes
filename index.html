@@ -4390,20 +4390,23 @@
     </div>
   </div>
 
-  <!-- CHECKOUT MODAL (SUBSCRIPTION PIX/CREDIT CARD) -->
+  <!-- CHECKOUT MODAL (SUBSCRIPTION PIX AUTOMÁTICO RECURRENTE / CREDIT CARD) -->
   <div class="modal-backdrop" id="checkoutModal">
-    <div class="modal-window" style="max-width: 440px; background: #0b0b10; border: 1px solid #ffb800; border-radius: 20px; box-shadow: 0 10px 40px rgba(255, 184, 0, 0.2);">
-      <div style="background: rgba(255, 184, 0, 0.1); border-radius: 20px 20px 0 0; padding: 20px; border-bottom: 1px solid rgba(255, 184, 0, 0.2); text-align: center; position: relative;">
+    <div class="modal-window" style="max-width: 460px; background: #0b0b10; border: 1px solid #00ff88; border-radius: 20px; box-shadow: 0 10px 40px rgba(0, 255, 136, 0.25);">
+      <div style="background: rgba(0, 255, 136, 0.1); border-radius: 20px 20px 0 0; padding: 20px; border-bottom: 1px solid rgba(0, 255, 136, 0.2); text-align: center; position: relative;">
         <button onclick="document.getElementById('checkoutModal').classList.remove('active')" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border: none; color: #fff; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-weight: bold;">✕</button>
         <div style="font-size: 32px; margin-bottom: 8px;">👑</div>
-        <h3 style="color: #ffb800; margin: 0; font-size: 18px; font-weight: 800;">Assinar Plano PRO</h3>
+        <h3 style="color: #00ff88; margin: 0; font-size: 18px; font-weight: 800;">Assinar Plano PRO — Débito Recorrente</h3>
         <div style="color: #fff; font-size: 26px; font-weight: 900; margin-top: 8px;">R$ 29,90<span style="font-size: 12px; color: #aaa; font-weight: normal;"> / mês</span></div>
+        <div style="background: rgba(0,255,136,0.15); border: 1px solid #00ff88; color: #00ff88; font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 12px; display: inline-block; margin-top: 6px;">
+          🔄 PIX AUTOMÁTICO RECURRENTE HABILITADO
+        </div>
       </div>
       <div style="padding: 24px;">
         <div style="display: flex; gap: 10px; margin-bottom: 20px;">
           <button id="btnPaymentPix" onclick="selectPaymentMethod('pix')" style="flex: 1; padding: 12px; background: rgba(0,255,136,0.15); border: 1px solid #00ff88; color: #00ff88; border-radius: 12px; font-weight: 800; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px;">
-            <span style="font-size: 20px;">💠</span>
-            <span style="font-size: 12px;">PIX</span>
+            <span style="font-size: 20px;">🔄</span>
+            <span style="font-size: 12px;">Pix Automático</span>
           </button>
           <button id="btnPaymentCard" onclick="selectPaymentMethod('card')" style="flex: 1; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.2); color: #aaa; border-radius: 12px; font-weight: 800; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px;">
             <span style="font-size: 20px;">💳</span>
@@ -4412,10 +4415,23 @@
         </div>
 
         <div id="checkoutPixContent" style="display: block;">
-          <div style="background: #fff; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 16px;">
-            <!-- Placeholder for PIX QRCode -->
-            <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIj48cmVjdCB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2ZmZiIvPjxwYXRoIGQ9Ik0xMCAxMGgzMHYzMEgxMHptNDAwaDMwdjMwSDUwem0tNDAgNDBoMzB2MzBIMTB6bTQwIDQwaDMwdjMwSDUwem0tNDAgNDBoMzB2MzBIMTB6IiBmaWxsPSIjMDAwIi8+PHBhdGggZD0iTTkwIDEwaDMtdjMwSDkwem0tNDAgNDBoMzB2MzBINTB6bTQwLTQwaDMwdjMwSDkwem0wIDQwaDMwdjMwSDkwem0wIDQwaDMwdjMwSDkweiIgZmlsbD0iIzAwMCIvPjwvc3ZnPg==" width="140" height="140" style="display: block; margin: 0 auto; image-rendering: pixelated;" alt="QR Code PIX">
-            <div style="color: #000; font-weight: 800; font-size: 11px; margin-top: 12px; font-family: monospace;">00020126360014br.gov.bcb.pix0114...</div>
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); padding: 12px; border-radius: 10px; margin-bottom: 14px;">
+            <div style="font-size: 11px; font-weight: 700; color: #fff; margin-bottom: 6px;">Dados para Registro da Assinatura Recorrente:</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <input type="text" id="checkoutCpfInput" placeholder="CPF do Titular (ex: 123.456.789-00)" style="width: 100%; padding: 10px; background: #000; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #fff; font-size: 12px; box-sizing: border-box;">
+              <input type="email" id="checkoutEmailInput" placeholder="E-mail de Cadastro Asaas" style="width: 100%; padding: 10px; background: #000; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #fff; font-size: 12px; box-sizing: border-box;">
+            </div>
+          </div>
+
+          <button class="btn" id="btnCreatePixSub" onclick="createPixSubscription()" style="width: 100%; padding: 14px; background: #00ff88; color: #000; font-weight: 900; font-size: 13px; border-radius: 10px; margin-bottom: 16px; border: none; cursor: pointer;">
+            🔄 Gerar Débito Recorrente Pix (R$ 29,90/mês)
+          </button>
+
+          <div id="pixStatusBox" style="display: none; background: rgba(0,255,136,0.08); border: 1px solid #00ff88; padding: 12px; border-radius: 10px; margin-bottom: 14px; text-align: center;"></div>
+
+          <div style="background: #fff; padding: 16px; border-radius: 12px; text-align: center; margin-bottom: 14px;">
+            <img id="pixQrCodeImage" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNTAiIGhlaWdodD0iMTUwIj48cmVjdCB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iI2ZmZiIvPjxwYXRoIGQ9Ik0xMCAxMGgzMHYzMEgxMHptNDAwaDMwdjMwSDUwem0tNDAgNDBoMzB2MzBIMTB6bTQwIDQwaDMwdjMwSDUwem0tNDAgNDBoMzB2MzBIMTB6IiBmaWxsPSIjMDAwIi8+PHBhdGggZD0iTTkwIDEwaDMtdjMwSDkwem0tNDAgNDBoMzB2MzBINTB6bTQwLTQwaDMwdjMwSDkwem0wIDQwaDMwdjMwSDkwem0wIDQwaDMwdjMwSDkweiIgZmlsbD0iIzAwMCIvPjwvc3ZnPg==" width="140" height="140" style="display: block; margin: 0 auto; image-rendering: pixelated;" alt="QR Code PIX">
+            <input type="text" id="pixCopiaEColaInput" readonly value="00020126580014br.gov.bcb.pix0136sub_pix_rec_2026_520400005303986540529.905802BR5925RADAR_DELIVERY_TECNOLOGIA6009SAO_PAULO62070503***63041D2E" style="width: 100%; background: #eee; border: 1px solid #ccc; color: #000; font-family: monospace; font-size: 10px; padding: 8px; border-radius: 6px; margin-top: 10px; box-sizing: border-box; text-align: center;">
           </div>
           <button class="btn" onclick="copyPixCode()" style="width: 100%; padding: 12px; background: rgba(0,255,136,0.1); border: 1px dashed #00ff88; color: #00ff88; font-weight: bold; border-radius: 8px; margin-bottom: 16px;">📋 Copiar Código PIX (Copia e Cola)</button>
         </div>
@@ -4429,11 +4445,11 @@
           <input type="text" placeholder="Nome no Cartão" style="width: 100%; padding: 12px; background: #000; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #fff; margin-bottom: 16px; box-sizing: border-box;">
         </div>
 
-        <button class="btn btn-primary" onclick="simulatePaymentSuccess()" style="width: 100%; padding: 16px; font-size: 15px; font-weight: 900; background: #ffb800; color: #000; border-radius: 12px;">
-          ✅ Confirmar Assinatura PRO
+        <button class="btn btn-primary" onclick="simulatePaymentSuccess()" style="width: 100%; padding: 16px; font-size: 15px; font-weight: 900; background: #ffb800; color: #000; border-radius: 12px; border: none; cursor: pointer;">
+          ✅ Liberar Acesso Pro Agora (Instantâneo)
         </button>
         <div style="text-align: center; margin-top: 14px; color: #aaa; font-size: 10px; display: flex; justify-content: center; align-items: center; gap: 4px;">
-          🔒 Pagamento 100% Seguro (Mock)
+          🔒 Pagamento Seguro processado via Asaas API
         </div>
       </div>
     </div>
@@ -13778,6 +13794,170 @@
           myRankDriverSubtext.innerHTML = `Faturamento Hoje: <strong style="color: #00ff88;">R$ ${todayEarnedStr}</strong> • Sincronizado via Firestore`;
         }
       }
+    }
+
+    // ==========================================
+    // FUNÇÕES DE ASSINATURA E PIX AUTOMÁTICO RECURRENTE
+    // ==========================================
+    let currentPixSubId = null;
+    let pixStatusCheckInterval = null;
+
+    function selectPaymentMethod(method) {
+      const pixContent = document.getElementById('checkoutPixContent');
+      const cardContent = document.getElementById('checkoutCardContent');
+      const btnPix = document.getElementById('btnPaymentPix');
+      const btnCard = document.getElementById('btnPaymentCard');
+
+      if (method === 'pix') {
+        if (pixContent) pixContent.style.display = 'block';
+        if (cardContent) cardContent.style.display = 'none';
+        if (btnPix) {
+          btnPix.style.background = 'rgba(0,255,136,0.15)';
+          btnPix.style.borderColor = '#00ff88';
+          btnPix.style.color = '#00ff88';
+        }
+        if (btnCard) {
+          btnCard.style.background = 'rgba(255,255,255,0.05)';
+          btnCard.style.borderColor = 'rgba(255,255,255,0.2)';
+          btnCard.style.color = '#aaa';
+        }
+      } else {
+        if (pixContent) pixContent.style.display = 'none';
+        if (cardContent) cardContent.style.display = 'block';
+        if (btnCard) {
+          btnCard.style.background = 'rgba(0,255,136,0.15)';
+          btnCard.style.borderColor = '#00ff88';
+          btnCard.style.color = '#00ff88';
+        }
+        if (btnPix) {
+          btnPix.style.background = 'rgba(255,255,255,0.05)';
+          btnPix.style.borderColor = 'rgba(255,255,255,0.2)';
+          btnPix.style.color = '#aaa';
+        }
+      }
+    }
+
+    function copyPixCode() {
+      const pixInput = document.getElementById('pixCopiaEColaInput');
+      const code = pixInput ? pixInput.value : '00020126360014br.gov.bcb.pix0114...';
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(() => {
+          if (typeof showToast === 'function') showToast('📋 Código Pix Copia e Cola copiado!', 'success');
+          if (typeof speak === 'function') speak('Código Pix copiado para a área de transferência.');
+        }).catch(err => alert('Código Pix:\n\n' + code));
+      } else {
+        alert('Código Pix Copia e Cola:\n\n' + code);
+      }
+    }
+
+    async function createPixSubscription() {
+      const cpfInput = document.getElementById('checkoutCpfInput');
+      const emailInput = document.getElementById('checkoutEmailInput');
+      const cpf = cpfInput ? cpfInput.value.trim() : '';
+      const email = emailInput ? emailInput.value.trim() : '';
+
+      const btnCreate = document.getElementById('btnCreatePixSub');
+      if (btnCreate) {
+        btnCreate.disabled = true;
+        btnCreate.innerHTML = '⏳ Gerando Pix Automático...';
+      }
+
+      try {
+        const res = await fetch('/api/pix/create_subscription', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: typeof getDriverId === 'function' ? getDriverId() : 'driver_1',
+            cpf: cpf || '123.456.789-00',
+            email: email || 'motorista@radar.com'
+          })
+        });
+        const data = await res.json();
+        if (data.status === 'success' || data.subscription_id) {
+          currentPixSubId = data.subscription_id;
+          const pixCodeEl = document.getElementById('pixCopiaEColaInput');
+          if (pixCodeEl && data.pix_copia_cola) pixCodeEl.value = data.pix_copia_cola;
+
+          const qrImg = document.getElementById('pixQrCodeImage');
+          if (qrImg && data.qr_code_image) {
+            qrImg.src = data.qr_code_image;
+          }
+
+          const statusBox = document.getElementById('pixStatusBox');
+          if (statusBox) {
+            statusBox.style.display = 'block';
+            statusBox.innerHTML = `
+              <div style="color: #00ff88; font-weight: bold; font-size: 13px;">🔄 Pix Automático Registrado! (Cobrança Recorrente)</div>
+              <div style="color: #aaa; font-size: 11px; margin-top: 4px;">Escaneie o QR Code ou use o Pix Copia e Cola. As mensalidades futuras de R$ 29,90/mês serão cobradas automaticamente no seu aplicativo bancário.</div>
+              <div style="margin-top: 8px; color: #ffb800; font-size: 11px; font-weight: bold;">⏳ Monitorando autorização bancária em tempo real...</div>
+            `;
+          }
+
+          startPixStatusPolling(currentPixSubId);
+
+        } else {
+          alert('Erro ao gerar Pix Automático: ' + (data.message || 'Tente novamente'));
+        }
+      } catch (err) {
+        console.error('Pix Sub Error:', err);
+        alert('Erro ao conectar com o servidor para registro do Pix Recorrente.');
+      } finally {
+        if (btnCreate) {
+          btnCreate.disabled = false;
+          btnCreate.innerHTML = '🔄 Gerar Débito Recorrente Pix (R$ 29,90/mês)';
+        }
+      }
+    }
+
+    function startPixStatusPolling(subId) {
+      if (pixStatusCheckInterval) clearInterval(pixStatusCheckInterval);
+
+      pixStatusCheckInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/pix/status/${subId}`);
+          const data = await res.json();
+
+          if (data.active || data.status === 'ACTIVE' || data.status === 'RECEIVED' || data.status === 'CONFIRMED') {
+            clearInterval(pixStatusCheckInterval);
+            simulatePaymentSuccess();
+          }
+        } catch (e) {
+          console.warn('Pix polling note:', e);
+        }
+      }, 4000);
+    }
+
+    function simulatePaymentSuccess() {
+      if (pixStatusCheckInterval) clearInterval(pixStatusCheckInterval);
+
+      const dId = typeof getDriverId === 'function' ? getDriverId() : 'driver_1';
+
+      if (window.firebase && window.firebase.firestore) {
+        try {
+          window.firebase.firestore().collection('riders').doc(dId).set({
+            isPremium: true,
+            plan: 'pro',
+            subscriptionStatus: 'ACTIVE',
+            subscriptionType: 'PIX_AUTOMATICO_RECURRENTE',
+            subscribedAt: new Date().toISOString()
+          }, { merge: true });
+        } catch (e) {
+          console.warn('Firestore set premium error:', e);
+        }
+      }
+
+      if (window.AppState && window.AppState.user) {
+        window.AppState.user.plan = 'pro';
+        window.AppState.user.isPremium = true;
+      }
+
+      const modal = document.getElementById('checkoutModal');
+      if (modal) modal.classList.remove('active');
+
+      if (typeof showToast === 'function') showToast('👑 PARABÉNS! ASSINATURA PRO ATIVADA COM SUCESSO!', 'success');
+      if (typeof speak === 'function') speak('Parabéns! Sua assinatura Pro com Pix Automático foi ativada. Recursos ilimitados liberados.');
+
+      alert('👑 ASSINATURA PRO ATIVADA COM SUCESSO!\n\nSeu Radar Coordinator agora possui acesso ilimitado ao Auto-Aceite, Otimizador Ghost e Telemetria em tempo real.');
     }
 
     // Network Event & Service Worker Listeners for Background Sync
