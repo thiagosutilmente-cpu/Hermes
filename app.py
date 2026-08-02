@@ -10822,6 +10822,7 @@ def add_cors_headers(response):
 # Rotas do Frontend Web (Portal do Motoboy)
 # ==========================================
 @app.route('/')
+@app.route('/index.html')
 def serve_index():
     """Serves the driver panel web client login & registration interface"""
     if os.path.exists("index.html"):
