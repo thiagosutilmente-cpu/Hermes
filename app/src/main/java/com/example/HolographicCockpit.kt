@@ -34,6 +34,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.coordinator.RadarCoordinator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import com.example.ui.components.NeuralSurgeRadarWidget
+import com.example.ui.components.ChainedDetourWidget
+import com.example.ui.components.CourierAppRealitiesWidget
+import com.example.ui.components.CourierNetProfitWidget
+import com.example.util.NeuralSurgePredictor
+import com.example.util.MultiAppOrderManager
 
 // Color Palette for Jarvis Neural Cockpit v2.4 (Cockpit namespace to avoid collisions)
 val CockpitDarkBg = Color(0xFF0A0A0F)
@@ -146,6 +152,36 @@ fun HolographicCockpit(
                                     viewModel.updateJarvisResponse(msg)
                                 }
                             )
+                        }
+
+                        // FEATURE NEURAL SURGE RADAR (PONTOS CHAVE E DENSIDADE DE PICOS)
+                        item {
+                            NeuralSurgeRadarWidget(
+                                onNavigateToHotspot = { spot ->
+                                    com.example.util.ToastUtils.showToast(context, "🎯 NAVEGANDO PARA CLUSTER: ${spot.name}", Toast.LENGTH_LONG)
+                                    viewModel.updateJarvisResponse("Navegando para o ponto estratégico de pico (${spot.name}). Projeção: R$ ${spot.estimatedFarePerKm}/km.")
+                                }
+                            )
+                        }
+
+                        // FEATURE OTIMIZADOR DE DESVIOS (ENTREGA B E ENCADEADAS)
+                        item {
+                            ChainedDetourWidget(
+                                onAttachDetourOrder = { result ->
+                                    com.example.util.ToastUtils.showToast(context, "✅ DESVIO B ANEXADO (+R$ ${result.secondaryValue} | +${result.extraDetourKm}km)", Toast.LENGTH_LONG)
+                                    viewModel.updateJarvisResponse("Desvio da entrega B (${result.secondaryOffer.appName}) anexado com sucesso. Ganho no desvio: R$ ${result.detourYieldPerKm}/km.")
+                                }
+                            )
+                        }
+
+                        // FEATURE REALIDADE PRÁTICA DOS APPS NO BRASIL (iFood Score, Rappi Auto-Aceite, 99 Bônus)
+                        item {
+                            CourierAppRealitiesWidget()
+                        }
+
+                        // FEATURE CALCULO DE LUCRO LÍQUIDO REAL & CUSTO MOTO + ALERTA DE VOZ BLUETOOTH
+                        item {
+                            CourierNetProfitWidget()
                         }
 
                         // FEATURE 3: STACK PANEL (BENTO GRID)
@@ -395,6 +431,20 @@ fun StatusPillItem(dotColor: Color, alpha: Float, text: String) {
     }
 }
 
+private data class DynamicCityZone(
+    val id: String,
+    val name: String,
+    val relX: Float,
+    val relY: Float,
+    val baseOrdersPerHour: Int,
+    val surgeMultiplier: Double,
+    val dominantApps: String,
+    val primaryColor: Color,
+    val secondaryColor: Color,
+    val emoji: String,
+    val tag: String
+)
+
 // -----------------------------------------------------------------------------
 // FEATURE 1 & 2: CONSTELLATION MAP CARD & GHOST OVERLAY
 // -----------------------------------------------------------------------------
@@ -402,7 +452,15 @@ fun StatusPillItem(dotColor: Color, alpha: Float, text: String) {
 fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
     val context = LocalContext.current
     val settings by RadarCoordinator.settings.collectAsStateWithLifecycle()
+    val currentLocation by RadarCoordinator.currentLocation.collectAsStateWithLifecycle()
+    val pendingOffers by MultiAppOrderManager.pendingOffers.collectAsStateWithLifecycle()
+
     val showTraffic = settings.showTrafficDensity || settings.showTrafficOverlay
+    var showDemandHeatmap by remember { mutableStateOf(true) }
+    var selectedFilter by remember { mutableStateOf("TODAS") }
+    var activeZoneTelemetry by remember { mutableStateOf<DynamicCityZone?>(null) }
+
+    val rainMultiplier = settings.rainModeMultiplier
 
     val infiniteTransition = rememberInfiniteTransition(label = "routeFlow")
     val dashOffset by infiniteTransition.animateFloat(
@@ -417,6 +475,83 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
         animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
         label = "trafficPulseAlpha"
     )
+    val heatmapPulseRadius by infiniteTransition.animateFloat(
+        initialValue = 70f,
+        targetValue = 115f,
+        animationSpec = infiniteRepeatable(animation = tween(1800, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
+        label = "heatmapPulseRadius"
+    )
+
+    // Dynamic City Zones calculations shifting based on real-time order density
+    val cityZones = remember(pendingOffers, rainMultiplier, settings.showTrafficDensity, selectedFilter) {
+        val iFoodCount = pendingOffers.count { it.appName.equals("iFood", ignoreCase = true) }
+        val rappiCount = pendingOffers.count { it.appName.equals("Rappi", ignoreCase = true) }
+        val uberCount = pendingOffers.count { it.appName.contains("Uber", ignoreCase = true) }
+
+        val all = listOf(
+            DynamicCityZone(
+                id = "z_paulista",
+                name = "Paulista / Bela Cintra",
+                relX = 0.38f,
+                relY = 0.32f,
+                baseOrdersPerHour = 48 + (iFoodCount * 8),
+                surgeMultiplier = Math.round((1.45 * (if (rainMultiplier > 1.0) 1.25 else 1.0)) * 100.0) / 100.0,
+                dominantApps = "iFood 65% + Rappi 25%",
+                primaryColor = Color(0xFFFF0055),
+                secondaryColor = Color(0xFFFF3300),
+                emoji = "🔥",
+                tag = "CLUSTER CRÍTICO"
+            ),
+            DynamicCityZone(
+                id = "z_pinheiros",
+                name = "Pinheiros / Faria Lima",
+                relX = 0.65f,
+                relY = 0.28f,
+                baseOrdersPerHour = 36 + (rappiCount * 6 + uberCount * 4),
+                surgeMultiplier = Math.round((1.30 * (if (rainMultiplier > 1.0) 1.15 else 1.0)) * 100.0) / 100.0,
+                dominantApps = "Rappi 45% + Uber 35%",
+                primaryColor = Color(0xFFFF8800),
+                secondaryColor = Color(0xFFFFAA00),
+                emoji = "⚡",
+                tag = "ALTA DEMANDA"
+            ),
+            DynamicCityZone(
+                id = "z_moema",
+                name = "Moema / Ibirapuera",
+                relX = 0.80f,
+                relY = 0.60f,
+                baseOrdersPerHour = 28,
+                surgeMultiplier = 1.18,
+                dominantApps = "99Moto 40% + iFood 35%",
+                primaryColor = Color(0xFF00E5FF),
+                secondaryColor = Color(0xFF0088FF),
+                emoji = "🟡",
+                tag = "DENSIDADE MÉDIA"
+            ),
+            DynamicCityZone(
+                id = "z_consolacao",
+                name = "Consolação / Jardins",
+                relX = 0.22f,
+                relY = 0.72f,
+                baseOrdersPerHour = 19,
+                surgeMultiplier = 1.05,
+                dominantApps = "Lalamove 50% + Loggi 30%",
+                primaryColor = Color(0xFF00FF88),
+                secondaryColor = Color(0xFF00BFA5),
+                emoji = "🟢",
+                tag = "ESTÁVEL"
+            )
+        )
+
+        all.filter { zone ->
+            when (selectedFilter) {
+                "🔥 SURGE" -> zone.surgeMultiplier >= 1.25
+                "🍔 iFOOD" -> zone.dominantApps.contains("iFood", ignoreCase = true)
+                "🌧️ CHUVA" -> rainMultiplier > 1.0 || zone.surgeMultiplier >= 1.30
+                else -> true
+            }
+        }
+    }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = CockpitDarkBg),
@@ -427,7 +562,7 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
             .height(340.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Tactical Canvas Background Grid + Traffic Density Overlay + Animated Flowing Route
+            // Tactical Canvas Background Grid + Traffic Density Overlay + Global Demand Heatmap + Animated Flowing Route
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val w = size.width
                 val h = size.height
@@ -457,40 +592,54 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
                 drawLine(Color.White.copy(alpha = 0.08f), start = p3, end = p4, strokeWidth = 3f)
                 drawLine(Color.White.copy(alpha = 0.08f), start = p4, end = p5, strokeWidth = 3f)
 
+                // --- GLOBAL DYNAMIC DEMAND HEATMAP OVERLAYS ---
+                if (showDemandHeatmap) {
+                    cityZones.forEach { zone ->
+                        val center = Offset(w * zone.relX, h * zone.relY)
+                        val scaleFactor = (zone.baseOrdersPerHour / 35.0f).coerceIn(0.7f, 1.4f)
+                        val zoneRadius = heatmapPulseRadius * scaleFactor
+
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    zone.primaryColor.copy(alpha = 0.58f),
+                                    zone.secondaryColor.copy(alpha = 0.32f),
+                                    zone.primaryColor.copy(alpha = 0.10f),
+                                    Color.Transparent
+                                ),
+                                center = center,
+                                radius = zoneRadius
+                            ),
+                            center = center,
+                            radius = zoneRadius
+                        )
+
+                        // Dynamic contour ring for surge clusters
+                        if (zone.surgeMultiplier >= 1.25) {
+                            drawCircle(
+                                color = zone.primaryColor.copy(alpha = 0.45f),
+                                radius = zoneRadius * 1.15f,
+                                center = center,
+                                style = Stroke(
+                                    width = 2.5f,
+                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f), dashOffset)
+                                )
+                            )
+                        }
+                    }
+                }
+
                 // --- REAL-TIME TRAFFIC DENSITY OVERLAY ---
                 if (showTraffic) {
                     // Localized GPS Congestion Heat Rings around current location p1
                     drawCircle(color = CockpitDangerRed.copy(alpha = trafficPulseAlpha * 0.35f), radius = 65f, center = p1)
                     drawCircle(color = CockpitWarningAmber.copy(alpha = trafficPulseAlpha * 0.25f), radius = 100f, center = p1)
 
-                    // Congestion Corridor Corridors
-                    // Segment p1 -> p2: Heavy Traffic (Red)
-                    drawLine(
-                        color = CockpitDangerRed.copy(alpha = 0.65f),
-                        start = p1,
-                        end = p2,
-                        strokeWidth = 14f
-                    )
-                    // Segment p2 -> p3: Moderate Traffic (Yellow/Amber)
-                    drawLine(
-                        color = CockpitWarningAmber.copy(alpha = 0.55f),
-                        start = p2,
-                        end = p3,
-                        strokeWidth = 10f
-                    )
-                    // Segment p3 -> p4 -> p5: Free Flow (Green)
-                    drawLine(
-                        color = CockpitGreen.copy(alpha = 0.45f),
-                        start = p3,
-                        end = p4,
-                        strokeWidth = 8f
-                    )
-                    drawLine(
-                        color = CockpitGreen.copy(alpha = 0.45f),
-                        start = p4,
-                        end = p5,
-                        strokeWidth = 8f
-                    )
+                    // Congestion Corridors
+                    drawLine(color = CockpitDangerRed.copy(alpha = 0.65f), start = p1, end = p2, strokeWidth = 14f)
+                    drawLine(color = CockpitWarningAmber.copy(alpha = 0.55f), start = p2, end = p3, strokeWidth = 10f)
+                    drawLine(color = CockpitGreen.copy(alpha = 0.45f), start = p3, end = p4, strokeWidth = 8f)
+                    drawLine(color = CockpitGreen.copy(alpha = 0.45f), start = p4, end = p5, strokeWidth = 8f)
                 }
 
                 // Active Animated Flow Route
@@ -510,6 +659,37 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f), dashOffset)
                     )
                 )
+            }
+
+            // FILTER CHIPS OVERLAY (Top-Start)
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(top = 8.dp, start = 8.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(CockpitDarkBg.copy(alpha = 0.88f))
+                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                listOf("TODAS", "🔥 SURGE", "🍔 iFOOD", "🌧️ CHUVA").forEach { filterTag ->
+                    val isSel = selectedFilter == filterTag
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isSel) Color(0xFFFF0055).copy(alpha = 0.25f) else Color.Transparent)
+                            .border(0.5.dp, if (isSel) Color(0xFFFF0055) else Color.Transparent, RoundedCornerShape(6.dp))
+                            .clickable { selectedFilter = filterTag }
+                            .padding(horizontal = 6.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = filterTag,
+                            color = if (isSel) Color.White else CockpitTextSecondary,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
 
             // STAR NODES OVER MAP
@@ -532,7 +712,11 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
                 value = "R$ 15,00",
                 iconBg = Brush.linearGradient(listOf(CockpitIFood, CockpitIFood)),
                 valueColor = CockpitGreen,
-                onClick = { onNodeClick("Restaurante Burger King: Coleta iFood R$ 15,00 pronta em 2 min.") }
+                onClick = {
+                    val zone = cityZones.firstOrNull { it.id == "z_paulista" }
+                    activeZoneTelemetry = zone
+                    onNodeClick("Restaurante Burger King: Coleta iFood R$ 15,00 pronta em 2 min. 🔥 Cluster de Alta Demanda (${zone?.baseOrdersPerHour ?: 48} ped/h).")
+                }
             )
 
             // Node 3: Rappi Pizza Hut 🍕
@@ -543,7 +727,11 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
                 value = "R$ 18,00",
                 iconBg = Brush.linearGradient(listOf(CockpitRappi, CockpitRappi)),
                 valueColor = CockpitGreen,
-                onClick = { onNodeClick("Restaurante Pizza Hut: Coleta Rappi R$ 18,00 pronta em 3 min.") }
+                onClick = {
+                    val zone = cityZones.firstOrNull { it.id == "z_pinheiros" }
+                    activeZoneTelemetry = zone
+                    onNodeClick("Restaurante Pizza Hut: Coleta Rappi R$ 18,00 pronta em 3 min. ⚡ Cluster de Média Demanda (${zone?.baseOrdersPerHour ?: 36} ped/h).")
+                }
             )
 
             // Node 4: Delivery A 🏠
@@ -579,7 +767,80 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
                 onClick = { onNodeClick("Corrida Uber Solo descartada em prol do Stack Multi-App.") }
             )
 
-            // TRAFFIC DENSITY OVERLAY LEGEND & MAP TOGGLE
+            // HEATMAP TELEMETRY ACTIVE BANNER
+            activeZoneTelemetry?.let { zone ->
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(start = 10.dp, end = 10.dp, bottom = 44.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(CockpitDarkBg.copy(alpha = 0.95f))
+                        .border(1.dp, zone.primaryColor, RoundedCornerShape(10.dp))
+                        .padding(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(zone.emoji, fontSize = 12.sp)
+                                Text(
+                                    text = "${zone.name} [${zone.tag}]",
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                            Text(
+                                text = "${zone.baseOrdersPerHour} ped/h • Surge ${zone.surgeMultiplier}x • ${zone.dominantApps}",
+                                color = zone.primaryColor,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { activeZoneTelemetry = null },
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            Icon(Icons.Default.Close, contentDescription = "Fechar", tint = Color.Gray, modifier = Modifier.size(14.dp))
+                        }
+                    }
+                }
+            } ?: run {
+                // DEFAULT HEATMAP DEMAND BADGE OVERLAY
+                if (showDemandHeatmap) {
+                    val topZone = cityZones.firstOrNull()
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 12.dp, bottom = 44.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(CockpitDarkBg.copy(alpha = 0.85f))
+                            .border(1.dp, Color(0xFFFF0055).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .clickable { activeZoneTelemetry = topZone }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(topZone?.emoji ?: "🔥", fontSize = 11.sp)
+                            Text(
+                                text = "DENSIDADE REAL: ${topZone?.name ?: "Paulista"}: ${topZone?.baseOrdersPerHour ?: 48} ped/h (${topZone?.dominantApps ?: "iFood+Rappi"})",
+                                color = topZone?.primaryColor ?: Color(0xFFFF5588),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            // TRAFFIC DENSITY & GLOBAL HEATMAP CONTROL TOGGLES
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -591,8 +852,33 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
             ) {
                 Column(
                     horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
+                    // Heatmap Global Toggle
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.clickable {
+                            showDemandHeatmap = !showDemandHeatmap
+                            com.example.util.ToastUtils.showToast(context, if (showDemandHeatmap) "🔥 Heatmap Global de Demanda: ATIVADO" else "🔥 Heatmap Global: DESATIVADO", Toast.LENGTH_SHORT)
+                        }
+                    ) {
+                        Text(
+                            text = "🔥 HEATMAP GLOBAL",
+                            color = if (showDemandHeatmap) Color(0xFFFF0055) else CockpitTextSecondary,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.5.sp
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(if (showDemandHeatmap) Color(0xFFFF0055) else CockpitTextSecondary)
+                        )
+                    }
+
+                    // Traffic GPS Toggle
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -606,7 +892,7 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
                             imageVector = Icons.Default.Route,
                             contentDescription = "Tráfego",
                             tint = if (showTraffic) CockpitDangerRed else CockpitTextSecondary,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(12.dp)
                         )
                         Text(
                             text = "TRÁFEGO GPS",
@@ -623,23 +909,27 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
                         )
                     }
 
-                    AnimatedVisibility(visible = showTraffic) {
+                    AnimatedVisibility(visible = showDemandHeatmap || showTraffic) {
                         Column(
                             horizontalAlignment = Alignment.Start,
                             verticalArrangement = Arrangement.spacedBy(2.dp),
                             modifier = Modifier.padding(top = 2.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(CockpitDangerRed))
-                                Text("Pesado (>15m)", color = CockpitTextSecondary, fontSize = 8.sp)
+                            if (showDemandHeatmap) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFFF0055)))
+                                    Text("Alta Demanda (>40/h)", color = CockpitTextSecondary, fontSize = 8.sp)
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFFF8800)))
+                                    Text("Média Demanda (20-40/h)", color = CockpitTextSecondary, fontSize = 8.sp)
+                                }
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(CockpitWarningAmber))
-                                Text("Moderado", color = CockpitTextSecondary, fontSize = 8.sp)
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(CockpitGreen))
-                                Text("Livre", color = CockpitTextSecondary, fontSize = 8.sp)
+                            if (showTraffic) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(CockpitDangerRed))
+                                    Text("Trânsito Pesado", color = CockpitTextSecondary, fontSize = 8.sp)
+                                }
                             }
                         }
                     }
@@ -765,6 +1055,11 @@ fun StarNodeComposable(
 @Composable
 fun StackPanelBentoGrid(onAccept: (String) -> Unit, onDecline: (String) -> Unit) {
     val pendingOffers by com.example.util.MultiAppOrderManager.pendingOffers.collectAsStateWithLifecycle()
+    var showTunerModal by remember { mutableStateOf(false) }
+
+    if (showTunerModal) {
+        com.example.ui.GhostSequenceTunerModal(onDismissRequest = { showTunerModal = false })
+    }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = CockpitPanelBg),
@@ -794,17 +1089,29 @@ fun StackPanelBentoGrid(onAccept: (String) -> Unit, onDecline: (String) -> Unit)
                     Text(text = "Sincronização em tempo real via Coleção 'pedidos'", color = CockpitTextSecondary, fontSize = 9.sp)
                 }
                 
-                Button(
-                    onClick = {
-                        com.example.data.FirestoreManager.seedPedidosIfEmpty()
-                        com.example.util.MultiAppOrderManager.startFirestoreSync()
-                        onAccept("Sincronização Firestore")
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.06f)),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(text = "🔄 Sincronizar", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Button(
+                        onClick = { showTunerModal = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = CockpitGreen.copy(alpha = 0.15f)),
+                        border = BorderStroke(1.dp, CockpitGreen.copy(alpha = 0.5f)),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(text = "🎛️ TUNER GHOST", color = CockpitGreen, fontSize = 9.sp, fontWeight = FontWeight.Black)
+                    }
+
+                    Button(
+                        onClick = {
+                            com.example.data.FirestoreManager.seedPedidosIfEmpty()
+                            com.example.util.MultiAppOrderManager.startFirestoreSync()
+                            onAccept("Sincronização Firestore")
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.06f)),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(text = "🔄 Sincronizar", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
 

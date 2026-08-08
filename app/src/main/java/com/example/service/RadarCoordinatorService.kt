@@ -104,6 +104,8 @@ open class RadarCoordinatorService : Service() {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var locationCallback: LocationCallback? = null
+    private var systemLocationManager: android.location.LocationManager? = null
+    private var systemLocationListener: android.location.LocationListener? = null
 
     private var voiceManager: VoiceManager? = null
 
@@ -299,9 +301,13 @@ open class RadarCoordinatorService : Service() {
         try {
             val locationContext = applicationContext
             fusedLocationClient = LocationServices.getFusedLocationProviderClient(locationContext)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(TAG, "Failed to create attribution context or location client: ${e.message}")
-            fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
+            try {
+                fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
+            } catch (ex: Throwable) {
+                Log.e(TAG, "FusedLocationProviderClient unavailable: ${ex.message}")
+            }
         }
         setupOverlay()
 
@@ -334,6 +340,8 @@ open class RadarCoordinatorService : Service() {
         }
 
         // Start observing Coordinator changes to update Notification
+        com.example.service.GhostSequenceOptimizationService.startScanning(scope)
+
         scope.launch {
             RadarCoordinator.currentState.collectLatest { state ->
                 updateNotification()
@@ -786,6 +794,7 @@ open class RadarCoordinatorService : Service() {
         } catch (e: Exception) {}
         remoteCommandListener?.remove()
         patchListener?.remove()
+        com.example.service.GhostSequenceOptimizationService.stopScanning()
         job.cancel()
         stopLocationUpdates()
         removeOverlay()
@@ -946,25 +955,72 @@ open class RadarCoordinatorService : Service() {
                 }
             }
 
-            // Check permissions
-            fusedLocationClient.requestLocationUpdates(
-                locationRequest,
-                locationCallback!!,
-                Looper.getMainLooper()
-            )
+            // Request updates from FusedLocationClient if initialized, or fall back to system LocationManager
+            if (::fusedLocationClient.isInitialized) {
+                fusedLocationClient.requestLocationUpdates(
+                    locationRequest,
+                    locationCallback!!,
+                    Looper.getMainLooper()
+                )
+            } else {
+                startFallbackSystemLocation()
+            }
         } catch (e: SecurityException) {
-            Log.e(TAG, "Permission error requesting location updates: ${e.message}")
+            Log.e(TAG, "Permission/Security error requesting location updates: ${e.message}")
             com.example.data.FirestoreManager.logErrorToFirebase("PERMISSION_ERROR", "Permissão negada ao iniciar atualizações de geolocalização: ${e.message}")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error starting location updates: ${e.message}")
-            com.example.data.FirestoreManager.logErrorToFirebase("GEOLOCATION_ERROR", "Falha ao iniciar atualizações de geolocalização: ${e.message}")
+            startFallbackSystemLocation()
+        } catch (e: Throwable) {
+            Log.e(TAG, "Error starting location updates, falling back to system LocationManager: ${e.message}")
+            com.example.data.FirestoreManager.logErrorToFirebase("GEOLOCATION_ERROR", "Falha no FusedLocation, iniciando fallback: ${e.message}")
+            startFallbackSystemLocation()
+        }
+    }
+
+    private fun startFallbackSystemLocation() {
+        try {
+            val lm = getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager ?: return
+            systemLocationManager = lm
+            val listener = object : android.location.LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    RadarCoordinator.updateLocation(location)
+                }
+                @Deprecated("Deprecated in Java")
+                override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {}
+                override fun onProviderEnabled(provider: String) {}
+                override fun onProviderDisabled(provider: String) {}
+            }
+            systemLocationListener = listener
+            if (lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)) {
+                lm.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 3000L, 5f, listener, Looper.getMainLooper())
+            } else if (lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)) {
+                lm.requestLocationUpdates(android.location.LocationManager.NETWORK_PROVIDER, 3000L, 5f, listener, Looper.getMainLooper())
+            }
+            Log.i(TAG, "Fallback LocationManager actively listening for location updates.")
+        } catch (e: SecurityException) {
+            Log.e(TAG, "LocationManager security exception: ${e.message}")
+        } catch (e: Throwable) {
+            Log.e(TAG, "LocationManager fallback error: ${e.message}")
         }
     }
 
     private fun stopLocationUpdates() {
-        locationCallback?.let {
-            fusedLocationClient.removeLocationUpdates(it)
-            locationCallback = null
+        try {
+            locationCallback?.let {
+                if (::fusedLocationClient.isInitialized) {
+                    fusedLocationClient.removeLocationUpdates(it)
+                }
+                locationCallback = null
+            }
+        } catch (e: Throwable) {
+            Log.w(TAG, "Error removing fused location updates: ${e.message}")
+        }
+        try {
+            systemLocationListener?.let { listener ->
+                systemLocationManager?.removeUpdates(listener)
+                systemLocationListener = null
+            }
+        } catch (e: Throwable) {
+            Log.w(TAG, "Error removing system location updates: ${e.message}")
         }
     }
 
@@ -1988,45 +2044,63 @@ open class RadarCoordinatorService : Service() {
     }
 
     fun abrirRotaNavegacao() {
-        val active = RadarCoordinator.activeOffer.value ?: return
+        val active = RadarCoordinator.activeOffer.value
+        val stops = RadarCoordinator.pendingStops.value
+
+        if (active == null && stops.isEmpty()) return
         
         RadarCoordinator.updateState(RadarState.NAVEGANDO)
 
-        // Construct a Multi-stop Google Maps URL to go first to Coleta, then Entrega
-        val pickup = active.pickupAddress
-        val delivery = active.deliveryAddress
+        val destination: String
+        val waypoints: String
+        val firstStop: String
+
+        if (stops.size >= 2) {
+            destination = stops.last().address
+            waypoints = stops.dropLast(1).joinToString("|") { it.address }
+            firstStop = stops.first().address
+        } else {
+            val pickup = active?.pickupAddress ?: if (stops.isNotEmpty()) stops.first().address else "Coleta"
+            val delivery = active?.deliveryAddress ?: if (stops.isNotEmpty()) stops.last().address else "Entrega"
+            destination = delivery
+            waypoints = pickup
+            firstStop = pickup
+        }
 
         // AUTOMATICALLY activate active delivery when navigating!
         val currentSettings = RadarCoordinator.settings.value
         val updatedSettings = currentSettings.copy(
             isActiveDeliveryEnabled = true,
-            activeDeliveryDestination = delivery
+            activeDeliveryDestination = destination
         )
         RadarCoordinator.saveSettings(this, updatedSettings)
-        Log.d(TAG, "AUTOMATIC: Enabled Active Delivery to: $delivery")
+        Log.d(TAG, "AUTOMATIC: Enabled Active Delivery to: $destination with waypoints: $waypoints")
 
         // Start active delivery telemetry tracking in real time!
-        RadarCoordinator.startActiveDeliveryTracking(
-            appName = active.appName,
-            fare = active.fareValue,
-            estDistance = active.totalDistance,
-            estTime = active.totalTime
-        )
+        if (active != null) {
+            RadarCoordinator.startActiveDeliveryTracking(
+                appName = active.appName,
+                fare = active.fareValue,
+                estDistance = active.totalDistance,
+                estTime = active.totalTime
+            )
+        }
 
         val isWaze = updatedSettings.defaultNavigationApp.lowercase() == "waze"
         
         val intent = if (isWaze) {
-            // Waze intent (if there are waypoints it's harder in Waze, but we'll navigate to pickup)
-            val wazeUri = Uri.parse("waze://?q=${Uri.encode(pickup)}&navigate=yes")
+            // Waze opens directly to the first stop (Coleta / Parada A)
+            val wazeUri = Uri.parse("waze://?q=${Uri.encode(firstStop)}&navigate=yes")
             Intent(Intent.ACTION_VIEW, wazeUri).apply {
                 setPackage("com.waze")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
         } else {
+            // Google Maps supports multi-stop waypoints: Coleta -> Parada A -> Parada B -> Entrega Final
             val mapUri = Uri.parse(
                 "https://www.google.com/maps/dir/?api=1" +
-                "&destination=${Uri.encode(delivery)}" +
-                "&waypoints=${Uri.encode(pickup)}"
+                "&destination=${Uri.encode(destination)}" +
+                "&waypoints=${Uri.encode(waypoints)}"
             )
             Intent(Intent.ACTION_VIEW, mapUri).apply {
                 setPackage("com.google.android.apps.maps")
@@ -2041,8 +2115,8 @@ open class RadarCoordinatorService : Service() {
             // Fallback to any map viewer
             val mapUri = Uri.parse(
                 "https://www.google.com/maps/dir/?api=1" +
-                "&destination=${Uri.encode(delivery)}" +
-                "&waypoints=${Uri.encode(pickup)}"
+                "&destination=${Uri.encode(destination)}" +
+                "&waypoints=${Uri.encode(waypoints)}"
             )
             val fallbackIntent = Intent(Intent.ACTION_VIEW, mapUri).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK

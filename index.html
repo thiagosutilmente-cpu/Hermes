@@ -3529,10 +3529,10 @@
 
       <!-- TAB: OTIMIZAÇÃO GHOST SEQUENCE (AI BATCHING THRESHOLDS & DEMAND ZONES) -->
       <div id="settingsTabGhostOpt" style="display: none; flex-direction: column; gap: 20px;">
-        <!-- Header Card -->
+        <!-- Header Card with Modal Launch Button -->
         <div style="background: rgba(0, 255, 136, 0.05); border: 1px solid rgba(0, 255, 136, 0.3); padding: 18px; border-radius: 14px;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
-            <div style="flex: 1;">
+            <div style="flex: 1; min-width: 220px;">
               <div style="color: #fff; font-size: 14px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
                 <span>👻 Otimização Ghost Sequence (AI Batching Engine)</span>
                 <span id="ghostOptStatusBadge" style="font-size: 10px; background: rgba(0,255,136,0.18); color: #00ff88; border: 1px solid #00ff88; padding: 2px 8px; border-radius: 10px; font-weight: bold;">IA PREVENTIVA ONLINE</span>
@@ -3541,6 +3541,45 @@
                 Configuração avançada dos limiares de agrupamento preditivo de entregas (AI batching thresholds), ponderação entre valor financeiro e distância, e calibração de zonas principais de demanda para o mapa de calor.
               </div>
             </div>
+            <button type="button" onclick="openGhostGroupingModeModal()" style="background: rgba(0,255,136,0.2); color: #00ff88; border: 1px solid #00ff88; padding: 10px 16px; border-radius: 10px; font-weight: 900; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(0,255,136,0.25);">
+              <span>🚀 Abrir Modal Dedicado (Gráficos D3.js)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- D3.JS EMBEDDED BATCH DENSITY PREDICTION CHART CARD -->
+        <div style="background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(0, 255, 136, 0.3); border-radius: 14px; padding: 16px; position: relative;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 18px;">📊</span>
+              <div>
+                <h4 style="margin: 0; color: #00ff88; font-size: 13px; font-weight: 800;">PREDIÇÃO DE DENSIDADE DE LOTEAMENTO (D3.JS)</h4>
+                <span style="font-size: 10px; color: #aaa;">Projeção em tempo real de densidade de agrupamento por janela de tempo</span>
+              </div>
+            </div>
+            <span style="font-size: 9px; background: rgba(0,255,136,0.15); color: #00ff88; border: 1px solid rgba(0,255,136,0.3); padding: 2px 8px; border-radius: 8px; font-weight: bold;">D3 REAL-TIME PREDICTOR</span>
+          </div>
+
+          <!-- PREDICTION STATS BADGES -->
+          <div style="display: flex; gap: 8px; margin-bottom: 10px; font-size: 11px; flex-wrap: wrap;">
+            <div style="flex:1; min-width: 110px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 8px; border-radius: 8px; text-align: center;">
+              <div style="color: #aaa; font-size: 10px;">Lotes Previstos</div>
+              <div style="color: #00ff88; font-weight: 900; font-size: 14px;" id="ghostSettingsD3PredictedStacks">3.8 /h</div>
+            </div>
+            <div style="flex:1; min-width: 110px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 8px; border-radius: 8px; text-align: center;">
+              <div style="color: #aaa; font-size: 10px;">Eficiência Esperada</div>
+              <div style="color: #00f0ff; font-weight: 900; font-size: 14px;" id="ghostSettingsD3Efficiency">92%</div>
+            </div>
+            <div style="flex:1; min-width: 110px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 8px; border-radius: 8px; text-align: center;">
+              <div style="color: #aaa; font-size: 10px;">R$/km Estimado</div>
+              <div style="color: #ffb800; font-weight: 900; font-size: 14px;" id="ghostSettingsD3GainPerKm">R$ 6,80</div>
+            </div>
+          </div>
+
+          <!-- SVG D3 CONTAINER -->
+          <div style="position: relative; width: 100%; height: 150px; background: rgba(10, 10, 15, 0.85); border-radius: 10px; overflow: hidden; padding: 4px;">
+            <svg id="d3GhostBatchDensitySettingsChart" style="width: 100%; height: 100%; display: block;"></svg>
+            <div id="d3GhostBatchSettingsTooltip" style="position: absolute; opacity: 0; pointer-events: none; background: rgba(17,17,24,0.95); border: 1px solid #00ff88; padding: 6px 10px; border-radius: 6px; font-size: 10px; color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.8); z-index: 10; transition: opacity 0.15s ease;"></div>
           </div>
         </div>
 
@@ -3895,45 +3934,86 @@
           </div>
         </div>
 
-        <!-- 6. SUB-PAINEL: REGULAGEM DE MESCLAGEM MULTI-APP PREDITIVA (iFood, Uber, Rappi, 99) -->
-        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(0, 240, 255, 0.25); padding: 18px; border-radius: 14px;">
+        <!-- 6. SUB-PAINEL: CONFIGURADOR DE GEOMETRIA E VETORES DE ROTA (TRAVA ANGULAR & RAIO DE DETOUR) -->
+        <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(0, 240, 255, 0.3); padding: 18px; border-radius: 14px; position: relative;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 14px;">
             <div>
-              <div style="color: #fff; font-size: 13px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
-                <span>🔀 Regulagem Fina de Mesclagem Multi-App (iFood, Uber, Rappi, 99)</span>
-                <span style="font-size: 10px; background: rgba(0,240,255,0.15); color: #00f0ff; border: 1px solid #00f0ff; padding: 2px 8px; border-radius: 10px; font-weight: bold;">GEOFENCE & VETOR GUARD</span>
+              <div style="color: #fff; font-size: 14px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                <span>📐 CONFIGURADOR DE GEOMETRIA & VETORES DE ROTA</span>
+                <span style="font-size: 10px; background: rgba(0,240,255,0.15); color: #00f0ff; border: 1px solid #00f0ff; padding: 2px 8px; border-radius: 10px; font-weight: bold;">GEOFENCE & VECTOR GUARD</span>
               </div>
               <div style="color: #aaa; font-size: 11px; margin-top: 4px; line-height: 1.4;">
-                Ajuste os parâmetros geométricos de agrupamento de trajetos para iFood, 99, Uber e Rappi. Evite rotas em sentido oposto e proteja sua conta contra penalidades por atraso de geofence.
+                Defina a Trava Angular Máxima do vetor de entrega e o Raio Máximo de Detour entre cozinhas para impedir trajetos em sentido oposto e economizar combustível evitando desvios desnecessários entre plataformas (iFood, 99, Uber, Rappi).
               </div>
+            </div>
+            <!-- PRESET PROFILES -->
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button type="button" onclick="applyGeometryPreset(30, 1.5)" style="background: rgba(0,240,255,0.12); color: #00f0ff; border: 1px solid rgba(0,240,255,0.3); border-radius: 8px; padding: 6px 10px; font-size: 10px; font-weight: bold; cursor: pointer;">
+                🎯 Corredor (30°, 1.5km)
+              </button>
+              <button type="button" onclick="applyGeometryPreset(60, 2.5)" style="background: rgba(0,255,136,0.12); color: #00ff88; border: 1px solid rgba(0,255,136,0.3); border-radius: 8px; padding: 6px 10px; font-size: 10px; font-weight: bold; cursor: pointer;">
+                ⚖️ Equilibrado (60°, 2.5km)
+              </button>
+              <button type="button" onclick="applyGeometryPreset(85, 3.5)" style="background: rgba(255,184,0,0.12); color: #ffb800; border: 1px solid rgba(255,184,0,0.3); border-radius: 8px; padding: 6px 10px; font-size: 10px; font-weight: bold; cursor: pointer;">
+                🌐 Amplo (85°, 3.5km)
+              </button>
             </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 16px;">
+          <!-- SLIDERS GRID -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-bottom: 16px;">
             <!-- SLIDER: Ângulo Máximo de Vetor Angular -->
-            <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); padding: 12px; border-radius: 10px;">
-              <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 6px;">
-                <span style="color: #fff; font-weight: bold;">📐 Trava Angular Máxima (Vetor de Entrega):</span>
-                <strong id="valBearingAngleText" style="color: #00f0ff;">60° (Mesmo Quadrante)</strong>
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(0,240,255,0.25); padding: 14px; border-radius: 12px;">
+              <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 8px;">
+                <span style="color: #fff; font-weight: bold; display: flex; align-items: center; gap: 6px;">
+                  <span>📐 Trava Angular Máxima:</span>
+                </span>
+                <strong id="valBearingAngleText" style="color: #00f0ff; font-size: 12px;">60° (Mesmo Quadrante)</strong>
               </div>
               <input type="range" id="sliderBearingAngle" min="30" max="90" step="5" value="60" style="width: 100%; accent-color: #00f0ff; cursor: pointer;" oninput="updateMultiAppMergeFromSliders()" onchange="updateGhostOptSettingsFromForm()">
-              <div style="color: #888; font-size: 10px; margin-top: 6px; line-height: 1.3;">
+              <div style="display: flex; justify-content: space-between; font-size: 9px; color: #888; margin-top: 4px;">
+                <span>30° (Rígido)</span>
+                <span>60° (Standard)</span>
+                <span>90° (Máx Perpendicular)</span>
+              </div>
+              <div style="color: #aaa; font-size: 10px; margin-top: 8px; line-height: 1.3;">
                 Rejeita automaticamente o 2º pedido se a entrega for em sentido oposto ao 1º pedido. Evita perdas por ziguezague.
               </div>
             </div>
 
             <!-- SLIDER: Raio Máximo entre Cozinhas -->
-            <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); padding: 12px; border-radius: 10px;">
-              <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 6px;">
-                <span style="color: #fff; font-weight: bold;">📍 Raio Máximo entre Cozinhas de Coleta:</span>
-                <strong id="valPickupDetourText" style="color: #00ff88;">2.5 km</strong>
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(0,255,136,0.25); padding: 14px; border-radius: 12px;">
+              <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 8px;">
+                <span style="color: #fff; font-weight: bold; display: flex; align-items: center; gap: 6px;">
+                  <span>📍 Raio Máximo de Detour (Cozinhas):</span>
+                </span>
+                <strong id="valPickupDetourText" style="color: #00ff88; font-size: 12px;">2.5 km</strong>
               </div>
               <input type="range" id="sliderPickupDetour" min="1.0" max="4.0" step="0.5" value="2.5" style="width: 100%; accent-color: #00ff88; cursor: pointer;" oninput="updateMultiAppMergeFromSliders()" onchange="updateGhostOptSettingsFromForm()">
-              <div style="color: #888; font-size: 10px; margin-top: 6px; line-height: 1.3;">
-                Distância máxima entre o Restaurante A e B. Previne que você atravesse o bairro só para retirar o segundo pacote.
+              <div style="display: flex; justify-content: space-between; font-size: 9px; color: #888; margin-top: 4px;">
+                <span>1.0 km (Vizinho)</span>
+                <span>2.5 km (Standard)</span>
+                <span>4.0 km (Extenso)</span>
+              </div>
+              <div style="color: #aaa; font-size: 10px; margin-top: 8px; line-height: 1.3;">
+                Distância máxima entre a Cozinha A e B. Previne atravessar o bairro só para retirar o segundo pacote.
               </div>
             </div>
           </div>
+
+          <!-- DYNAMIC GEOMETRY PREVIEW DIAGRAM (SVG VECTOR CANVAS) -->
+          <div style="background: rgba(10, 10, 15, 0.9); border: 1px solid rgba(0,255,136,0.25); border-radius: 12px; padding: 12px; margin-bottom: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 11px; font-weight: 800; color: #00ff88;">🗺️ VISUALIZADOR VETORIAL EM TEMPO REAL:</span>
+              <span id="geometryDiagramMetrics" style="font-size: 10px; color: #00f0ff; font-weight: bold;">Cone de Aceitação: ±60° | Raio Geofence: 2.5 km</span>
+            </div>
+            <div style="width: 100%; height: 180px; position: relative; background: #08080f; border-radius: 8px; overflow: hidden;">
+              <svg id="svgGhostVectorPreview" style="width: 100%; height: 100%; display: block;"></svg>
+            </div>
+          </div>
+
+          <!-- ROUTE CONFLICT & BACKTRACKING VALIDATION WARNING BANNER -->
+          <div id="ghostGeometryConflictWarning" style="margin-bottom: 16px; border-radius: 12px; padding: 12px 16px; font-size: 11px; transition: all 0.25s ease;"></div>
 
           <!-- TOGGLES DE ANTI-PENALIDADE POR PLATAFORMA -->
           <div style="background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08); padding: 12px; border-radius: 10px; margin-bottom: 16px;">
@@ -4437,104 +4517,162 @@
         <span style="background: rgba(255,184,0,0.2); color: #ffb800; font-size: 11px; padding: 4px 10px; border-radius: 12px; font-weight: bold;">ADMIN MASTER</span>
       </div>
 
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px;">
-        <div style="background: #000; border: 1px solid rgba(255,255,255,0.1); padding: 16px; border-radius: 12px;">
-          <div style="color: #aaa; font-size: 11px;">Total de Usuários</div>
-          <div style="color: #fff; font-size: 24px; font-weight: 800; margin-top: 4px;">1.247</div>
-        </div>
-        <div style="background: #000; border: 1px solid rgba(255,255,255,0.1); padding: 16px; border-radius: 12px;">
-          <div style="color: #aaa; font-size: 11px;">Ativos Hoje</div>
-          <div style="color: #00ff88; font-size: 24px; font-weight: 800; margin-top: 4px;">342</div>
-        </div>
-        <div style="background: #000; border: 1px solid rgba(255,255,255,0.1); padding: 16px; border-radius: 12px;">
-          <div style="color: #aaa; font-size: 11px;">Conversão Pro</div>
-          <div style="color: #00f0ff; font-size: 24px; font-weight: 800; margin-top: 4px;">8,5%</div>
-        </div>
-        <div style="background: #000; border: 1px solid rgba(255,255,255,0.1); padding: 16px; border-radius: 12px;">
-          <div style="color: #aaa; font-size: 11px;">Receita Recorrente (MRR)</div>
-          <div style="color: #ffb800; font-size: 24px; font-weight: 800; margin-top: 4px;">R$ 18.700</div>
+      <!-- ADMIN SUB-TABS NAVIGATION BAR -->
+      <div style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; flex-wrap: wrap;">
+        <button id="btnAdminTabSyncQueue" class="btn" onclick="switchAdminSubTab('syncQueue')" style="background: rgba(0, 255, 136, 0.18); border: 1px solid #00ff88; color: #00ff88; font-weight: 800; font-size: 12px; padding: 10px 18px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+          <span>🔄 Fila de Sync Offline (D3.js)</span>
+        </button>
+        <button id="btnAdminTabOverview" class="btn" onclick="switchAdminSubTab('overview')" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #888; font-weight: 800; font-size: 12px; padding: 10px 18px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+          <span>📊 Visão Geral & Frota</span>
+        </button>
+        <button id="btnAdminTabErrorLogs" class="btn" onclick="switchAdminSubTab('errorLogs')" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #888; font-weight: 800; font-size: 12px; padding: 10px 18px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+          <span>🚨 Logs de Erros Firestore</span>
+        </button>
+      </div>
+
+      <!-- SUB-TAB 1: DEDICATED OFFLINE SYNC QUEUE (D3.JS) MONITOR -->
+      <div id="adminSubTabSyncQueue" style="display: block;">
+        <div style="background: #0b0b10; border: 1px solid rgba(0, 255, 136, 0.35); border-radius: 14px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 24px;">🔄</span>
+              <div>
+                <h3 style="color: #00ff88; margin: 0; font-size: 16px; font-weight: 800; letter-spacing: 0.5px;">Monitor de Fila de Sincronização & Buffer Offline Firestore (D3.js)</h3>
+                <span style="color: #aaa; font-size: 11px;">Acompanhe em tempo real os pacotes de escrita pendentes e force o flush manual para a nuvem.</span>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button class="btn" onclick="performManualFirestoreSync()" style="background: rgba(0,255,136,0.2); color: #00ff88; border: 1px solid #00ff88; border-radius: 8px; padding: 8px 16px; font-size: 12px; font-weight: 900; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 0 12px rgba(0,255,136,0.3);">
+                <span>⚡ FORÇAR FLUSH MANUAL DE FIRESTORE</span>
+              </button>
+              <button class="btn" onclick="addMockOfflineQueueItem()" style="background: rgba(255,184,0,0.15); color: #ffb800; border: 1px solid #ffb800; border-radius: 8px; padding: 8px 12px; font-size: 11px; font-weight: bold; cursor: pointer;">
+                🧪 + Item Teste
+              </button>
+              <button class="btn" onclick="clearOfflineQueue()" style="background: rgba(255,255,255,0.08); color: #aaa; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 8px 12px; font-size: 11px; font-weight: bold; cursor: pointer;">
+                🗑️ Limpar Buffer
+              </button>
+            </div>
+          </div>
+
+          <!-- D3.JS REAL-TIME BAR CHART FOR OFFLINE SYNC QUEUE -->
+          <div style="background: rgba(0,0,0,0.5); border: 1px solid rgba(0, 255, 136, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 16px; position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <div style="color: #00ff88; font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                <span>📊 Gráfico D3.js — Cargas Pendentes Por Categoria</span>
+                <span style="font-size: 9px; background: rgba(0,255,136,0.15); color: #00ff88; border: 1px solid rgba(0,255,136,0.3); padding: 2px 8px; border-radius: 10px; font-weight: bold;">LIVE D3 SYNC ENGINE</span>
+              </div>
+              <div style="color: #00f0ff; font-size: 11px; font-weight: bold;" id="adminD3QueueChartTotalItems">0 itens em buffer</div>
+            </div>
+            <div style="position: relative; width: 100%; height: 160px; background: rgba(10, 10, 15, 0.85); border-radius: 8px; overflow: hidden; padding: 6px;">
+              <svg id="adminTabD3QueueChart" style="width: 100%; height: 100%; display: block;"></svg>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- 🏍️ GESTÃO DE FROTA & CONFIGURAÇÃO DE VEÍCULOS DOS MOTORISTAS -->
-      <div style="background: #0b0b10; border: 1px solid rgba(0, 240, 255, 0.35); border-radius: 14px; padding: 18px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <span style="font-size: 26px;">🏍️</span>
-            <div>
-              <h3 style="color: #00f0ff; margin: 0; font-size: 15px; font-weight: 800; letter-spacing: 0.5px;">Parâmetros da Frota & Perfil de Veículos</h3>
-              <span style="color: #aaa; font-size: 11px;">Ajuste o modelo, cilindrada/motor e consumo em km/L do motorista para refinar o cálculo de Lucro Líquido nos relatórios.</span>
-            </div>
+      <!-- SUB-TAB 2: VISÃO GERAL & FROTA -->
+      <div id="adminSubTabOverview" style="display: none;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px;">
+          <div style="background: #000; border: 1px solid rgba(255,255,255,0.1); padding: 16px; border-radius: 12px;">
+            <div style="color: #aaa; font-size: 11px;">Total de Usuários</div>
+            <div style="color: #fff; font-size: 24px; font-weight: 800; margin-top: 4px;">1.247</div>
           </div>
-          <button class="btn" onclick="openVehicleConfigModal()" style="background: rgba(0, 240, 255, 0.15); border: 1px solid #00f0ff; color: #00f0ff; font-weight: bold; font-size: 12px; padding: 8px 16px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-            <span>⚙️ Gerenciar Parâmetros do Veículo</span>
-          </button>
+          <div style="background: #000; border: 1px solid rgba(255,255,255,0.1); padding: 16px; border-radius: 12px;">
+            <div style="color: #aaa; font-size: 11px;">Ativos Hoje</div>
+            <div style="color: #00ff88; font-size: 24px; font-weight: 800; margin-top: 4px;">342</div>
+          </div>
+          <div style="background: #000; border: 1px solid rgba(255,255,255,0.1); padding: 16px; border-radius: 12px;">
+            <div style="color: #aaa; font-size: 11px;">Conversão Pro</div>
+            <div style="color: #00f0ff; font-size: 24px; font-weight: 800; margin-top: 4px;">8,5%</div>
+          </div>
+          <div style="background: #000; border: 1px solid rgba(255,255,255,0.1); padding: 16px; border-radius: 12px;">
+            <div style="color: #aaa; font-size: 11px;">Receita Recorrente (MRR)</div>
+            <div style="color: #ffb800; font-size: 24px; font-weight: 800; margin-top: 4px;">R$ 18.700</div>
+          </div>
+        </div>
+
+        <!-- 🏍️ GESTÃO DE FROTA & CONFIGURAÇÃO DE VEÍCULOS DOS MOTORISTAS -->
+        <div style="background: #0b0b10; border: 1px solid rgba(0, 240, 255, 0.35); border-radius: 14px; padding: 18px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="font-size: 26px;">🏍️</span>
+              <div>
+                <h3 style="color: #00f0ff; margin: 0; font-size: 15px; font-weight: 800; letter-spacing: 0.5px;">Parâmetros da Frota & Perfil de Veículos</h3>
+                <span style="color: #aaa; font-size: 11px;">Ajuste o modelo, cilindrada/motor e consumo em km/L do motorista para refinar o cálculo de Lucro Líquido nos relatórios.</span>
+              </div>
+            </div>
+            <button class="btn" onclick="openVehicleConfigModal()" style="background: rgba(0, 240, 255, 0.15); border: 1px solid #00f0ff; color: #00f0ff; font-weight: bold; font-size: 12px; padding: 8px 16px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              <span>⚙️ Gerenciar Parâmetros do Veículo</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <!-- 📊 REALTIME FIRESTORE ERROR LOGS MONITORING VIEW -->
-      <div style="background: #0b0b10; border: 1px solid rgba(255, 51, 102, 0.35); border-radius: 14px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 22px;">📊</span>
-            <div>
-              <h3 style="color: #ff3366; margin: 0; font-size: 16px; font-weight: 800; letter-spacing: 0.5px;">Monitor de Estabilidade & Logs de Erros em Tempo Real</h3>
-              <span style="color: #aaa; font-size: 11px;">Exibindo os últimos 20 erros da coleção <code style="color:#00ff88;">logs</code> no Firestore</span>
+      <!-- SUB-TAB 3: REALTIME FIRESTORE ERROR LOGS MONITORING VIEW -->
+      <div id="adminSubTabErrorLogs" style="display: none;">
+        <div style="background: #0b0b10; border: 1px solid rgba(255, 51, 102, 0.35); border-radius: 14px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 22px;">📊</span>
+              <div>
+                <h3 style="color: #ff3366; margin: 0; font-size: 16px; font-weight: 800; letter-spacing: 0.5px;">Monitor de Estabilidade & Logs de Erros em Tempo Real</h3>
+                <span style="color: #aaa; font-size: 11px;">Exibindo os últimos 20 erros da coleção <code style="color:#00ff88;">logs</code> no Firestore</span>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="display: inline-flex; align-items: center; gap: 6px; background: rgba(0,255,136,0.15); border: 1px solid rgba(0,255,136,0.3); color: #00ff88; font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: bold;">
+                <span style="width: 8px; height: 8px; background: #00ff88; border-radius: 50%; box-shadow: 0 0 8px #00ff88; animation: pulse 1.5s infinite;"></span>
+                Firestore Sync
+              </span>
+              <button class="btn" onclick="fetchFirestoreErrorLogsAdmin()" style="background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Atualizar Logs">
+                🔄 Atualizar
+              </button>
+              <button class="btn" onclick="triggerTestErrorForAdmin()" style="background: rgba(255,51,102,0.2); color: #ff3366; border: 1px solid #ff3366; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Disparar Erro de Teste no Firestore">
+                🚨 Gerar Erro Teste
+              </button>
             </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="display: inline-flex; align-items: center; gap: 6px; background: rgba(0,255,136,0.15); border: 1px solid rgba(0,255,136,0.3); color: #00ff88; font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: bold;">
-              <span style="width: 8px; height: 8px; background: #00ff88; border-radius: 50%; box-shadow: 0 0 8px #00ff88; animation: pulse 1.5s infinite;"></span>
-              Firestore Sync
-            </span>
-            <button class="btn" onclick="fetchFirestoreErrorLogsAdmin()" style="background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Atualizar Logs">
-              🔄 Atualizar
-            </button>
-            <button class="btn" onclick="triggerTestErrorForAdmin()" style="background: rgba(255,51,102,0.2); color: #ff3366; border: 1px solid #ff3366; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 4px;" title="Disparar Erro de Teste no Firestore">
-              🚨 Gerar Erro Teste
-            </button>
-          </div>
-        </div>
 
-        <!-- Metric Badges -->
-        <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-          <div style="background: rgba(255,51,102,0.08); border: 1px solid rgba(255,51,102,0.2); padding: 10px 14px; border-radius: 10px; flex: 1; min-width: 130px;">
-            <div style="font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: bold;">Erros Monitorados</div>
-            <div style="font-size: 18px; font-weight: 900; color: #ff3366; margin-top: 2px;" id="adminLogsCount">0 / 20</div>
+          <!-- Metric Badges -->
+          <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+            <div style="background: rgba(255,51,102,0.08); border: 1px solid rgba(255,51,102,0.2); padding: 10px 14px; border-radius: 10px; flex: 1; min-width: 130px;">
+              <div style="font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: bold;">Erros Monitorados</div>
+              <div style="font-size: 18px; font-weight: 900; color: #ff3366; margin-top: 2px;" id="adminLogsCount">0 / 20</div>
+            </div>
+            <div style="background: rgba(0,240,255,0.08); border: 1px solid rgba(0,240,255,0.2); padding: 10px 14px; border-radius: 10px; flex: 1; min-width: 130px;">
+              <div style="font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: bold;">Última Ocorrência</div>
+              <div style="font-size: 12px; font-weight: bold; color: #00f0ff; margin-top: 4px;" id="adminLogsLastTime">—</div>
+            </div>
+            <div style="background: rgba(255,184,0,0.08); border: 1px solid rgba(255,184,0,0.2); padding: 10px 14px; border-radius: 10px; flex: 1; min-width: 130px;">
+              <div style="font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: bold;">Status de Estabilidade</div>
+              <div style="font-size: 12px; font-weight: bold; color: #00ff88; margin-top: 4px;" id="adminLogsSystemStatus">Conectando ao Firestore...</div>
+            </div>
           </div>
-          <div style="background: rgba(0,240,255,0.08); border: 1px solid rgba(0,240,255,0.2); padding: 10px 14px; border-radius: 10px; flex: 1; min-width: 130px;">
-            <div style="font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: bold;">Última Ocorrência</div>
-            <div style="font-size: 12px; font-weight: bold; color: #00f0ff; margin-top: 4px;" id="adminLogsLastTime">—</div>
-          </div>
-          <div style="background: rgba(255,184,0,0.08); border: 1px solid rgba(255,184,0,0.2); padding: 10px 14px; border-radius: 10px; flex: 1; min-width: 130px;">
-            <div style="font-size: 10px; color: #aaa; text-transform: uppercase; font-weight: bold;">Status de Estabilidade</div>
-            <div style="font-size: 12px; font-weight: bold; color: #00ff88; margin-top: 4px;" id="adminLogsSystemStatus">Conectando ao Firestore...</div>
-          </div>
-        </div>
 
-        <!-- Error Logs Table -->
-        <div style="overflow-x: auto; background: #000; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;">
-          <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; color: #e0e0e0;">
-            <thead>
-              <tr style="background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1); color: #aaa; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">
-                <th style="padding: 10px 12px; width: 140px;">Data / Hora</th>
-                <th style="padding: 10px 12px; width: 150px;">Contexto / Origem</th>
-                <th style="padding: 10px 12px;">Mensagem de Erro</th>
-                <th style="padding: 10px 12px; width: 100px;">Motorista</th>
-                <th style="padding: 10px 12px; width: 70px; text-align: center;">Ações</th>
-              </tr>
-            </thead>
-            <tbody id="adminLogsTableBody">
-              <tr>
-                <td colspan="5" style="padding: 24px; text-align: center; color: #888;">
-                  <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
-                    <span style="font-size: 24px;">⏳</span>
-                    <span>Carregando logs do Firestore collection('logs')...</span>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <!-- Error Logs Table -->
+          <div style="overflow-x: auto; background: #000; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; color: #e0e0e0;">
+              <thead>
+                <tr style="background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1); color: #aaa; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">
+                  <th style="padding: 10px 12px; width: 140px;">Data / Hora</th>
+                  <th style="padding: 10px 12px; width: 150px;">Contexto / Origem</th>
+                  <th style="padding: 10px 12px;">Mensagem de Erro</th>
+                  <th style="padding: 10px 12px; width: 100px;">Motorista</th>
+                  <th style="padding: 10px 12px; width: 70px; text-align: center;">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="adminLogsTableBody">
+                <tr>
+                  <td colspan="5" style="padding: 24px; text-align: center; color: #888;">
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                      <span style="font-size: 24px;">⏳</span>
+                      <span>Carregando logs do Firestore collection('logs')...</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -9471,7 +9609,7 @@
     }
 
     // ==========================================================================
-    // GHOST BATCH ANALYZER QUICK CONFIGURATION CONTROLLER
+    // GHOST BATCH ANALYZER QUICK CONFIGURATION CONTROLLER & D3 PREDICTION ENGINE
     // ==========================================================================
     function openGhostGroupingModeModal() {
       const existing = document.getElementById('ghostGroupingModeModal');
@@ -9493,13 +9631,13 @@
       const distPct = 100 - pricePct;
 
       modal.innerHTML = `
-        <div style="background: #111118; border: 2px solid #00ff88; border-radius: 18px; max-width: 500px; width: 100%; padding: 22px; box-shadow: 0 0 45px rgba(0, 255, 136, 0.35); font-family: system-ui; color: #fff;">
+        <div style="background: #111118; border: 2px solid #00ff88; border-radius: 18px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 22px; box-shadow: 0 0 45px rgba(0, 255, 136, 0.35); font-family: system-ui; color: #fff;">
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 12px; margin-bottom: 16px;">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 24px;">⚙️</span>
+              <span style="font-size: 24px;">👻</span>
               <div>
-                <h3 style="margin: 0; color: #00ff88; font-size: 16px; font-weight: 900; letter-spacing: 0.5px;">MODO DE AGRUPAMENTO GHOST</h3>
-                <span style="font-size: 11px; color: #aaa;">Ajuste fino de loteamento & ponderação em tempo real</span>
+                <h3 style="margin: 0; color: #00ff88; font-size: 16px; font-weight: 900; letter-spacing: 0.5px;">PARÂMETROS E LOTEAMENTO GHOST SEQUENCE</h3>
+                <span style="font-size: 11px; color: #aaa;">Ajuste fino de loteamento & predição D3.js em tempo real</span>
               </div>
             </div>
             <button onclick="document.getElementById('ghostGroupingModeModal').remove();" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; border-radius: 8px; padding: 5px 12px; font-size: 12px; font-weight: bold; cursor: pointer;">✕</button>
@@ -9557,7 +9695,7 @@
           </div>
 
           <!-- TEMPO MÁXIMO DE ESPERA (AJUSTE FINO DE ALGORITMO) -->
-          <div style="margin-bottom: 20px; background: rgba(0,0,0,0.4); border: 1px solid rgba(51,204,255,0.2); border-radius: 12px; padding: 12px;">
+          <div style="margin-bottom: 16px; background: rgba(0,0,0,0.4); border: 1px solid rgba(51,204,255,0.2); border-radius: 12px; padding: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <span style="font-size: 11px; font-weight: 800; color: #fff;">⏳ AJUSTE FINO: TEMPO MÁX. ESPERA ANTES DE DESCARTE:</span>
               <span id="ghostModalMaxWaitLabel" style="color: #33ccff; font-weight: 900; font-size: 12px;">${currentMaxWait} min</span>
@@ -9570,6 +9708,39 @@
             </div>
           </div>
 
+          <!-- D3.JS VISUALIZATION CHART: BATCH DENSITY PREDICTIONS -->
+          <div style="margin-bottom: 20px; background: rgba(0,0,0,0.55); border: 1px solid rgba(0, 255, 136, 0.3); border-radius: 12px; padding: 12px; position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 14px;">📊</span>
+                <span style="font-size: 11px; font-weight: 800; color: #00ff88; text-transform: uppercase;">PREDIÇÃO DE DENSIDADE DE LOTEAMENTO (D3.JS)</span>
+              </div>
+              <span style="font-size: 9px; background: rgba(0,255,136,0.15); color: #00ff88; border: 1px solid rgba(0,255,136,0.3); padding: 2px 6px; border-radius: 6px; font-weight: bold;">LIVE BATCH DENSITY</span>
+            </div>
+
+            <!-- PREDICTION STATS BADGES -->
+            <div style="display: flex; gap: 8px; margin-bottom: 8px; font-size: 10px;">
+              <div style="flex:1; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 6px; border-radius: 6px; text-align: center;">
+                <div style="color: #aaa; font-size: 9px;">Lotes Previstos</div>
+                <div style="color: #00ff88; font-weight: 900; font-size: 13px;" id="ghostModalD3PredictedStacks">3.8 /h</div>
+              </div>
+              <div style="flex:1; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 6px; border-radius: 6px; text-align: center;">
+                <div style="color: #aaa; font-size: 9px;">Eficiência Esperada</div>
+                <div style="color: #00f0ff; font-weight: 900; font-size: 13px;" id="ghostModalD3Efficiency">92%</div>
+              </div>
+              <div style="flex:1; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 6px; border-radius: 6px; text-align: center;">
+                <div style="color: #aaa; font-size: 9px;">R$/km Estimado</div>
+                <div style="color: #ffb800; font-weight: 900; font-size: 13px;" id="ghostModalD3GainPerKm">R$ 6,80</div>
+              </div>
+            </div>
+
+            <!-- SVG D3 CONTAINER -->
+            <div style="position: relative; width: 100%; height: 140px; background: rgba(10, 10, 15, 0.85); border-radius: 8px; overflow: hidden; padding: 4px;">
+              <svg id="d3GhostBatchDensityModalChart" style="width: 100%; height: 100%; display: block;"></svg>
+              <div id="d3GhostBatchModalTooltip" style="position: absolute; opacity: 0; pointer-events: none; background: rgba(17,17,24,0.95); border: 1px solid #00ff88; padding: 6px 10px; border-radius: 6px; font-size: 10px; color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.8); z-index: 10; transition: opacity 0.15s ease;"></div>
+            </div>
+          </div>
+
           <div style="display: flex; gap: 10px;">
             <button onclick="document.getElementById('ghostGroupingModeModal').remove(); recalculateGhostWaitTime(true);" style="flex: 1; background: #00ff88; color: #000; border: none; padding: 12px; border-radius: 10px; font-weight: 900; font-size: 12px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,255,136,0.4);">
               ✅ APLICAR E CALCULAR LOTEAMENTO
@@ -9579,6 +9750,10 @@
       `;
 
       document.body.appendChild(modal);
+
+      setTimeout(() => {
+        renderD3GhostBatchDensityChart('d3GhostBatchDensityModalChart', currentMaxWait, currentMode, currentWeight);
+      }, 50);
     }
 
     function syncGhostModalUI(mode, weightVal, maxWaitVal) {
@@ -9622,6 +9797,237 @@
         if (sliderWait) sliderWait.value = num;
         if (lblWait) lblWait.textContent = `${num} min`;
       }
+
+      // Re-render D3 Chart live in Modal
+      const modalWait = parseInt(document.getElementById('ghostModalMaxWaitSlider')?.value || '15', 10);
+      const modalAgg = document.getElementById('ghostModalAggLabel')?.textContent || 'EQUILIBRADO';
+      const modalWeight = parseFloat(document.getElementById('ghostModalSlider')?.value || '0.70');
+
+      renderD3GhostBatchDensityChart('d3GhostBatchDensityModalChart', modalWait, modalAgg, modalWeight);
+    }
+
+    // ==========================================================================
+    // D3.JS GHOST BATCH DENSITY PREDICTION CHART RENDERER
+    // ==========================================================================
+    function renderD3GhostBatchDensityChart(targetSvgId, maxWaitMinutes, aggressivenessMode, priceWeightVal) {
+      const svgEl = document.getElementById(targetSvgId);
+      if (!svgEl || !window.d3) return;
+
+      const maxWait = maxWaitMinutes !== undefined && maxWaitMinutes !== null ? parseInt(maxWaitMinutes, 10) : 15;
+      const agg = aggressivenessMode || 'EQUILIBRADO';
+      const weight = priceWeightVal !== undefined && priceWeightVal !== null ? (priceWeightVal > 1 ? priceWeightVal / 100 : parseFloat(priceWeightVal)) : 0.70;
+
+      const aggCoeff = agg === 'AGRESSIVO' ? 1.85 : (agg === 'CONSERVADOR' ? 1.0 : 1.35);
+      const waitCoeff = 1.0 + (maxWait / 30.0) * 0.85;
+      const priceCoeff = 0.7 + weight * 0.6;
+
+      const windowsData = [
+        { label: '0-5m', name: 'Giro Rápido', baseDensity: 1.2 },
+        { label: '5-10m', name: 'Lote Simples', baseDensity: 2.8 },
+        { label: '10-15m', name: 'Pico Multi-App', baseDensity: 4.3 },
+        { label: '15-20m', name: 'High Stack', baseDensity: maxWait >= 15 ? 3.8 : 1.2 },
+        { label: '20-25m', name: 'Cluster Ghost', baseDensity: maxWait >= 20 ? 2.9 : 0.5 },
+        { label: '25-30m', name: 'Super Cluster', baseDensity: maxWait >= 25 ? 2.1 : 0.1 }
+      ].map(w => {
+        const density = Math.round((w.baseDensity * aggCoeff * waitCoeff * priceCoeff) * 10) / 10;
+        const multiAppStacks = Math.round(density * (agg === 'AGRESSIVO' ? 0.75 : 0.50) * 10) / 10;
+        const efficiencyPct = Math.min(99, Math.round(70 + (density * 3.5) + (weight * 10)));
+        return {
+          label: w.label,
+          name: w.name,
+          density: density,
+          multiAppStacks: multiAppStacks,
+          efficiencyPct: efficiencyPct,
+          gainPerKm: (4.2 + (weight * 3.5) + (aggCoeff * 0.8)).toFixed(2)
+        };
+      });
+
+      const totalDensity = windowsData.reduce((acc, d) => acc + d.density, 0);
+      const avgEfficiency = Math.round(windowsData.reduce((acc, d) => acc + d.efficiencyPct, 0) / windowsData.length);
+      const predictedStacksPerHr = (totalDensity / 2.1).toFixed(1);
+      const avgGainPerKm = windowsData[2].gainPerKm;
+
+      const isModalChart = targetSvgId === 'd3GhostBatchDensityModalChart';
+      const prefix = isModalChart ? 'ghostModalD3' : 'ghostSettingsD3';
+
+      const elStacks = document.getElementById(prefix + 'PredictedStacks');
+      const elEff = document.getElementById(prefix + 'Efficiency');
+      const elGain = document.getElementById(prefix + 'GainPerKm');
+
+      if (elStacks) elStacks.textContent = `${predictedStacksPerHr} /h`;
+      if (elEff) elEff.textContent = `${avgEfficiency}%`;
+      if (elGain) elGain.textContent = `R$ ${avgGainPerKm}`;
+
+      const svg = d3.select(svgEl);
+      svg.selectAll('*').remove();
+
+      const rect = svgEl.getBoundingClientRect();
+      const width = rect.width || 420;
+      const height = rect.height || 140;
+
+      const margin = { top: 20, right: 15, bottom: 25, left: 30 };
+      const innerWidth = width - margin.left - margin.right;
+      const innerHeight = height - margin.top - margin.bottom;
+
+      if (innerWidth <= 0 || innerHeight <= 0) return;
+
+      const chartGroup = svg.append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+
+      const xScale = d3.scaleBand()
+        .domain(windowsData.map(d => d.label))
+        .range([0, innerWidth])
+        .padding(0.28);
+
+      const maxDensityVal = Math.max(8, d3.max(windowsData, d => d.density) || 6);
+
+      const yScale = d3.scaleLinear()
+        .domain([0, maxDensityVal])
+        .range([innerHeight, 0]);
+
+      chartGroup.append('g')
+        .attr('class', 'grid')
+        .call(
+          d3.axisLeft(yScale)
+            .ticks(4)
+            .tickSize(-innerWidth)
+            .tickFormat('')
+        )
+        .selectAll('line')
+        .attr('stroke', 'rgba(255, 255, 255, 0.08)')
+        .attr('stroke-dasharray', '3,3');
+
+      const xAxis = chartGroup.append('g')
+        .attr('transform', `translate(0,${innerHeight})`)
+        .call(d3.axisBottom(xScale).tickSize(0));
+
+      xAxis.selectAll('text')
+        .attr('fill', '#aaa')
+        .attr('font-size', '10px')
+        .attr('font-weight', 'bold')
+        .attr('dy', '8px');
+
+      xAxis.select('.domain').attr('stroke', 'rgba(255,255,255,0.15)');
+
+      const yAxis = chartGroup.append('g')
+        .call(d3.axisLeft(yScale).ticks(4));
+
+      yAxis.selectAll('text')
+        .attr('fill', '#888')
+        .attr('font-size', '9px');
+
+      yAxis.select('.domain').attr('stroke', 'none');
+
+      const defs = svg.append('defs');
+
+      const grad1 = defs.append('linearGradient')
+        .attr('id', `${targetSvgId}_grad1`)
+        .attr('x1', '0%').attr('y1', '0%')
+        .attr('x2', '0%').attr('y2', '100%');
+      grad1.append('stop').attr('offset', '0%').attr('stop-color', '#00ff88').attr('stop-opacity', 0.95);
+      grad1.append('stop').attr('offset', '100%').attr('stop-color', '#00ff88').attr('stop-opacity', 0.35);
+
+      const grad2 = defs.append('linearGradient')
+        .attr('id', `${targetSvgId}_grad2`)
+        .attr('x1', '0%').attr('y1', '0%')
+        .attr('x2', '0%').attr('y2', '100%');
+      grad2.append('stop').attr('offset', '0%').attr('stop-color', '#00f0ff').attr('stop-opacity', 0.95);
+      grad2.append('stop').attr('offset', '100%').attr('stop-color', '#00f0ff').attr('stop-opacity', 0.35);
+
+      const grad3 = defs.append('linearGradient')
+        .attr('id', `${targetSvgId}_grad3`)
+        .attr('x1', '0%').attr('y1', '0%')
+        .attr('x2', '0%').attr('y2', '100%');
+      grad3.append('stop').attr('offset', '0%').attr('stop-color', '#ffb800').attr('stop-opacity', 0.95);
+      grad3.append('stop').attr('offset', '100%').attr('stop-color', '#ffb800').attr('stop-opacity', 0.35);
+
+      const tooltip = d3.select(isModalChart ? '#d3GhostBatchModalTooltip' : '#d3GhostBatchSettingsTooltip');
+
+      chartGroup.selectAll('.batch-bar')
+        .data(windowsData)
+        .enter()
+        .append('rect')
+        .attr('class', 'batch-bar')
+        .attr('x', d => xScale(d.label))
+        .attr('width', xScale.bandwidth())
+        .attr('y', innerHeight)
+        .attr('height', 0)
+        .attr('rx', 4)
+        .attr('fill', (d, i) => {
+          if (i === 2 || i === 3) return `url(#${targetSvgId}_grad1)`;
+          if (i === 0 || i === 1) return `url(#${targetSvgId}_grad2)`;
+          return `url(#${targetSvgId}_grad3)`;
+        })
+        .attr('stroke', (d, i) => i === 2 ? '#00ff88' : 'rgba(255,255,255,0.15)')
+        .attr('stroke-width', (d, i) => i === 2 ? 1.5 : 0.5)
+        .style('cursor', 'pointer')
+        .on('mouseover', function(event, d) {
+          d3.select(this)
+            .transition().duration(150)
+            .attr('stroke', '#ffffff')
+            .attr('stroke-width', 2);
+
+          if (!tooltip.empty()) {
+            tooltip.html(`
+              <div style="font-weight: 900; color: #00ff88; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 3px; margin-bottom: 4px;">
+                Janela ${d.label} (${d.name})
+              </div>
+              <div>• Densidade Loteamento: <strong style="color: #fff;">${d.density} lotes/h</strong></div>
+              <div>• Multi-App Stacks: <strong style="color: #00f0ff;">${d.multiAppStacks} simultâneos</strong></div>
+              <div>• Eficiência de Rota: <strong style="color: #ffb800;">${d.efficiencyPct}%</strong></div>
+              <div>• Ganho Est.: <strong style="color: #00ff88;">R$ ${d.gainPerKm}/km</strong></div>
+            `);
+            tooltip.style('opacity', '1');
+          }
+        })
+        .on('mousemove', function(event) {
+          if (!tooltip.empty()) {
+            const containerRect = svgEl.getBoundingClientRect();
+            const mouseX = event.clientX - containerRect.left;
+            const mouseY = event.clientY - containerRect.top;
+            tooltip.style('left', Math.min(mouseX + 10, containerRect.width - 170) + 'px');
+            tooltip.style('top', Math.max(10, mouseY - 70) + 'px');
+          }
+        })
+        .on('mouseout', function(event, d) {
+          d3.select(this)
+            .transition().duration(150)
+            .attr('stroke', (d, i) => i === 2 ? '#00ff88' : 'rgba(255,255,255,0.15)')
+            .attr('stroke-width', (d, i) => i === 2 ? 1.5 : 0.5);
+
+          if (!tooltip.empty()) tooltip.style('opacity', '0');
+        })
+        .transition()
+        .duration(450)
+        .attr('y', d => yScale(d.density))
+        .attr('height', d => innerHeight - yScale(d.density));
+
+      chartGroup.selectAll('.bar-label')
+        .data(windowsData)
+        .enter()
+        .append('text')
+        .attr('class', 'bar-label')
+        .attr('x', d => xScale(d.label) + xScale.bandwidth() / 2)
+        .attr('y', d => yScale(d.density) - 4)
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#ffffff')
+        .attr('font-size', '9px')
+        .attr('font-weight', '900')
+        .text(d => d.density);
+
+      const lineGenerator = d3.line()
+        .x(d => xScale(d.label) + xScale.bandwidth() / 2)
+        .y(d => yScale(d.density))
+        .curve(d3.curveMonotoneX);
+
+      chartGroup.append('path')
+        .datum(windowsData)
+        .attr('fill', 'none')
+        .attr('stroke', '#00ff88')
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', '4,4')
+        .attr('opacity', 0.8)
+        .attr('d', lineGenerator);
     }
 
     function updateGhostMaxWaitTimeQuick(val, announce = false) {
@@ -12504,164 +12910,219 @@
     }
 
     // =========================================================================
-    // D3.JS REAL-TIME BAR CHART FOR OFFLINE SYNC QUEUE BY CATEGORY
+    // ADMIN SUB-TABS SWITCHER & D3.JS REAL-TIME BAR CHART FOR OFFLINE SYNC QUEUE
     // =========================================================================
-    function renderD3OfflineQueueChart(queue) {
-      const svgContainer = document.getElementById('d3OfflineQueueChart');
-      if (!svgContainer || !window.d3) return;
+    function switchAdminSubTab(tabName) {
+      const tabOverview = document.getElementById('adminSubTabOverview');
+      const tabSyncQueue = document.getElementById('adminSubTabSyncQueue');
+      const tabErrorLogs = document.getElementById('adminSubTabErrorLogs');
 
-      const queueArr = Array.isArray(queue) ? queue : [];
+      const btnOverview = document.getElementById('btnAdminTabOverview');
+      const btnSyncQueue = document.getElementById('btnAdminTabSyncQueue');
+      const btnErrorLogs = document.getElementById('btnAdminTabErrorLogs');
 
-      const totalEl = document.getElementById('d3QueueChartTotalItems');
-      if (totalEl) {
-        totalEl.textContent = `${queueArr.length} item(ns) em buffer`;
-      }
-
-      const svg = d3.select(svgContainer);
-      svg.selectAll('*').remove();
-
-      // Categories to aggregate
-      const categories = [
-        { key: 'EARNINGS', label: 'Ganhos', color: '#00ff88' },
-        { key: 'CONFIG', label: 'Config', color: '#00f0ff' },
-        { key: 'VEHICLE', label: 'Veículo', color: '#ffb800' },
-        { key: 'HEALTH_PULSE', label: 'Health', color: '#ff3366' },
-        { key: 'STACK', label: 'Stacks', color: '#b066fe' }
-      ];
-
-      const counts = {};
-      categories.forEach(c => counts[c.key] = 0);
-
-      queueArr.forEach(item => {
-        const type = String(item.type || 'CONFIG').toUpperCase();
-        if (type.includes('EARNING')) counts['EARNINGS']++;
-        else if (type.includes('CONFIG') || type.includes('SETTINGS')) counts['CONFIG']++;
-        else if (type.includes('VEHICLE')) counts['VEHICLE']++;
-        else if (type.includes('HEALTH')) counts['HEALTH_PULSE']++;
-        else if (type.includes('STACK')) counts['STACK']++;
-        else counts['CONFIG']++;
+      [tabOverview, tabSyncQueue, tabErrorLogs].forEach(t => { if (t) t.style.display = 'none'; });
+      [btnOverview, btnSyncQueue, btnErrorLogs].forEach(b => {
+        if (b) {
+          b.style.background = 'rgba(255,255,255,0.05)';
+          b.style.color = '#888';
+          b.style.borderColor = 'rgba(255,255,255,0.1)';
+        }
       });
 
-      const chartData = categories.map(cat => ({
-        key: cat.key,
-        label: cat.label,
-        count: counts[cat.key],
-        color: cat.color
-      }));
+      if (tabName === 'syncQueue') {
+        if (tabSyncQueue) tabSyncQueue.style.display = 'block';
+        if (btnSyncQueue) {
+          btnSyncQueue.style.background = 'rgba(0, 255, 136, 0.18)';
+          btnSyncQueue.style.color = '#00ff88';
+          btnSyncQueue.style.borderColor = '#00ff88';
+        }
+        if (typeof renderD3OfflineQueueChart === 'function') {
+          const queue = typeof getOfflineQueue === 'function' ? getOfflineQueue() : [];
+          setTimeout(() => renderD3OfflineQueueChart(queue), 50);
+        }
+      } else if (tabName === 'errorLogs') {
+        if (tabErrorLogs) tabErrorLogs.style.display = 'block';
+        if (btnErrorLogs) {
+          btnErrorLogs.style.background = 'rgba(255, 51, 102, 0.18)';
+          btnErrorLogs.style.color = '#ff3366';
+          btnErrorLogs.style.borderColor = '#ff3366';
+        }
+        if (typeof fetchFirestoreErrorLogsAdmin === 'function') {
+          fetchFirestoreErrorLogsAdmin();
+        }
+      } else {
+        if (tabOverview) tabOverview.style.display = 'block';
+        if (btnOverview) {
+          btnOverview.style.background = 'rgba(0, 240, 255, 0.18)';
+          btnOverview.style.color = '#00f0ff';
+          btnOverview.style.borderColor = '#00f0ff';
+        }
+      }
+    }
 
-      const bbox = svgContainer.getBoundingClientRect();
-      const width = bbox.width || 320;
-      const height = bbox.height || 130;
-      const margin = { top: 22, right: 12, bottom: 22, left: 24 };
+    function renderD3OfflineQueueChart(queue) {
+      const containerIds = ['d3OfflineQueueChart', 'adminTabD3QueueChart'];
+      const queueArr = Array.isArray(queue) ? queue : [];
 
-      const innerWidth = Math.max(width - margin.left - margin.right, 100);
-      const innerHeight = Math.max(height - margin.top - margin.bottom, 50);
+      ['d3QueueChartTotalItems', 'adminD3QueueChartTotalItems'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = `${queueArr.length} item(ns) em buffer`;
+      });
 
-      const g = svg.append('g')
-        .attr('transform', `translate(${margin.left},${margin.top})`);
+      if (!window.d3) return;
 
-      const maxVal = d3.max(chartData, d => d.count) || 1;
-      const yDomainMax = Math.max(maxVal + 1, 4);
+      containerIds.forEach(targetId => {
+        const svgContainer = document.getElementById(targetId);
+        if (!svgContainer) return;
 
-      const xScale = d3.scaleBand()
-        .domain(chartData.map(d => d.label))
-        .range([0, innerWidth])
-        .padding(0.32);
+        const svg = d3.select(svgContainer);
+        svg.selectAll('*').remove();
 
-      const yScale = d3.scaleLinear()
-        .domain([0, yDomainMax])
-        .range([innerHeight, 0]);
+        const categories = [
+          { key: 'EARNINGS', label: 'Ganhos', color: '#00ff88' },
+          { key: 'CONFIG', label: 'Config', color: '#00f0ff' },
+          { key: 'VEHICLE', label: 'Veículo', color: '#ffb800' },
+          { key: 'HEALTH_PULSE', label: 'Health', color: '#ff3366' },
+          { key: 'STACK', label: 'Stacks', color: '#b066fe' }
+        ];
 
-      // Y Gridlines
-      g.append('g')
-        .attr('class', 'grid')
-        .call(
-          d3.axisLeft(yScale)
-            .ticks(3)
-            .tickSize(-innerWidth)
-            .tickFormat('')
-        )
-        .selectAll('line')
-        .attr('stroke', 'rgba(255, 255, 255, 0.08)')
-        .attr('stroke-dasharray', '2,2');
+        const counts = {};
+        categories.forEach(c => counts[c.key] = 0);
 
-      // X Axis
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(d3.axisBottom(xScale).tickSize(0))
-        .selectAll('text')
-        .attr('fill', '#aaa')
-        .attr('font-size', '10px')
-        .attr('font-weight', 'bold')
-        .attr('dy', '10px');
+        queueArr.forEach(item => {
+          const type = String(item.type || 'CONFIG').toUpperCase();
+          if (type.includes('EARNING')) counts['EARNINGS']++;
+          else if (type.includes('CONFIG') || type.includes('SETTINGS')) counts['CONFIG']++;
+          else if (type.includes('VEHICLE')) counts['VEHICLE']++;
+          else if (type.includes('HEALTH')) counts['HEALTH_PULSE']++;
+          else if (type.includes('STACK')) counts['STACK']++;
+          else counts['CONFIG']++;
+        });
 
-      // Y Axis
-      g.append('g')
-        .call(d3.axisLeft(yScale).ticks(3).tickFormat(d3.format('d')))
-        .selectAll('text')
-        .attr('fill', '#888')
-        .attr('font-size', '9px');
+        const chartData = categories.map(cat => ({
+          key: cat.key,
+          label: cat.label,
+          count: counts[cat.key],
+          color: cat.color
+        }));
 
-      g.selectAll('.domain').attr('stroke', 'rgba(255,255,255,0.15)');
+        const bbox = svgContainer.getBoundingClientRect();
+        const width = bbox.width || 320;
+        const height = bbox.height || 140;
+        const margin = { top: 22, right: 12, bottom: 22, left: 24 };
 
-      const tooltip = d3.select('#d3QueueTooltip');
+        const innerWidth = Math.max(width - margin.left - margin.right, 100);
+        const innerHeight = Math.max(height - margin.top - margin.bottom, 50);
 
-      // Bars
-      const bars = g.selectAll('.bar')
-        .data(chartData)
-        .enter()
-        .append('rect')
-        .attr('class', 'bar')
-        .attr('x', d => xScale(d.label))
-        .attr('width', xScale.bandwidth())
-        .attr('y', innerHeight)
-        .attr('height', 0)
-        .attr('rx', 3)
-        .attr('ry', 3)
-        .attr('fill', d => d.count > 0 ? d.color : 'rgba(255,255,255,0.06)')
-        .attr('stroke', d => d.count > 0 ? d.color : 'rgba(255,255,255,0.12)')
-        .attr('stroke-width', 1)
-        .style('cursor', 'pointer');
+        const g = svg.append('g')
+          .attr('transform', `translate(${margin.left},${margin.top})`);
 
-      // Transition animation
-      bars.transition()
-        .duration(400)
-        .ease(d3.easeCubicOut)
-        .attr('y', d => yScale(d.count))
-        .attr('height', d => Math.max(innerHeight - yScale(d.count), d.count > 0 ? 3 : 2));
+        const maxVal = d3.max(chartData, d => d.count) || 1;
+        const yDomainMax = Math.max(maxVal + 1, 4);
 
-      // Bar count text labels on top
-      g.selectAll('.bar-label')
-        .data(chartData)
-        .enter()
-        .append('text')
-        .attr('class', 'bar-label')
-        .attr('x', d => xScale(d.label) + xScale.bandwidth() / 2)
-        .attr('y', d => yScale(d.count) - 5)
-        .attr('text-anchor', 'middle')
-        .attr('fill', d => d.count > 0 ? d.color : '#666')
-        .attr('font-size', '10px')
-        .attr('font-weight', '900')
-        .text(d => d.count);
+        const xScale = d3.scaleBand()
+          .domain(chartData.map(d => d.label))
+          .range([0, innerWidth])
+          .padding(0.32);
 
-      // Tooltip interactive events
-      bars.on('mouseover', function(event, d) {
-        d3.select(this).attr('opacity', 0.85);
-        tooltip
-          .style('opacity', 1)
-          .html(`<strong>${d.label} (${d.key})</strong><br><span style="color:${d.color}; font-weight:bold;">${d.count} item(ns) pendente(s)</span>`);
-      })
-      .on('mousemove', function(event) {
-        const bounds = svgContainer.getBoundingClientRect();
-        const mouseX = event.clientX - bounds.left;
-        const mouseY = event.clientY - bounds.top;
-        tooltip
-          .style('left', Math.min(mouseX + 10, width - 120) + 'px')
-          .style('top', Math.max(mouseY - 25, 5) + 'px');
-      })
-      .on('mouseout', function() {
-        d3.select(this).attr('opacity', 1);
-        tooltip.style('opacity', 0);
+        const yScale = d3.scaleLinear()
+          .domain([0, yDomainMax])
+          .range([innerHeight, 0]);
+
+        // Y Gridlines
+        g.append('g')
+          .attr('class', 'grid')
+          .call(
+            d3.axisLeft(yScale)
+              .ticks(3)
+              .tickSize(-innerWidth)
+              .tickFormat('')
+          )
+          .selectAll('line')
+          .attr('stroke', 'rgba(255, 255, 255, 0.08)')
+          .attr('stroke-dasharray', '2,2');
+
+        // X Axis
+        g.append('g')
+          .attr('transform', `translate(0,${innerHeight})`)
+          .call(d3.axisBottom(xScale).tickSize(0))
+          .selectAll('text')
+          .attr('fill', '#aaa')
+          .attr('font-size', '10px')
+          .attr('font-weight', 'bold')
+          .attr('dy', '10px');
+
+        // Y Axis
+        g.append('g')
+          .call(d3.axisLeft(yScale).ticks(3).tickFormat(d3.format('d')))
+          .selectAll('text')
+          .attr('fill', '#888')
+          .attr('font-size', '9px');
+
+        g.selectAll('.domain').attr('stroke', 'rgba(255,255,255,0.15)');
+
+        const tooltip = d3.select('#d3QueueTooltip');
+
+        // Bars
+        const bars = g.selectAll('.bar')
+          .data(chartData)
+          .enter()
+          .append('rect')
+          .attr('class', 'bar')
+          .attr('x', d => xScale(d.label))
+          .attr('width', xScale.bandwidth())
+          .attr('y', innerHeight)
+          .attr('height', 0)
+          .attr('rx', 3)
+          .attr('ry', 3)
+          .attr('fill', d => d.count > 0 ? d.color : 'rgba(255,255,255,0.06)')
+          .attr('stroke', d => d.count > 0 ? d.color : 'rgba(255,255,255,0.12)')
+          .attr('stroke-width', 1)
+          .style('cursor', 'pointer');
+
+        // Transition animation
+        bars.transition()
+          .duration(400)
+          .ease(d3.easeCubicOut)
+          .attr('y', d => yScale(d.count))
+          .attr('height', d => Math.max(innerHeight - yScale(d.count), d.count > 0 ? 3 : 2));
+
+        // Bar count text labels on top
+        g.selectAll('.bar-label')
+          .data(chartData)
+          .enter()
+          .append('text')
+          .attr('class', 'bar-label')
+          .attr('x', d => xScale(d.label) + xScale.bandwidth() / 2)
+          .attr('y', d => yScale(d.count) - 5)
+          .attr('text-anchor', 'middle')
+          .attr('fill', d => d.count > 0 ? d.color : '#666')
+          .attr('font-size', '10px')
+          .attr('font-weight', '900')
+          .text(d => d.count);
+
+        // Tooltip interactive events
+        if (tooltip.node()) {
+          bars.on('mouseover', function(event, d) {
+            d3.select(this).attr('opacity', 0.85);
+            tooltip
+              .style('opacity', 1)
+              .html(`<strong>${d.label} (${d.key})</strong><br><span style="color:${d.color}; font-weight:bold;">${d.count} item(ns) pendente(s)</span>`);
+          })
+          .on('mousemove', function(event) {
+            const bounds = svgContainer.getBoundingClientRect();
+            const mouseX = event.clientX - bounds.left;
+            const mouseY = event.clientY - bounds.top;
+            tooltip
+              .style('left', Math.min(mouseX + 10, width - 120) + 'px')
+              .style('top', Math.max(mouseY - 25, 5) + 'px');
+          })
+          .on('mouseout', function() {
+            d3.select(this).attr('opacity', 1);
+            tooltip.style('opacity', 0);
+          });
+        }
       });
     }
 
@@ -14221,15 +14682,171 @@
       }
     }
 
+    function validateGhostGeometryRouteConflict(angle, detourKm) {
+      const warningEl = document.getElementById('ghostGeometryConflictWarning');
+      const angleNum = parseInt(angle, 10);
+      const detourNum = parseFloat(detourKm);
+
+      // Backtracking conflict detection condition
+      const isBacktrackingRisk = (angleNum >= 75 && detourNum >= 2.5) || (angleNum >= 80) || (angleNum >= 60 && detourNum >= 3.5);
+
+      if (warningEl) {
+        if (isBacktrackingRisk) {
+          warningEl.style.background = 'rgba(255, 68, 31, 0.15)';
+          warningEl.style.border = '1px solid #ff441f';
+          warningEl.style.color = '#ffaa99';
+          warningEl.innerHTML = `
+            <div style="display: flex; align-items: flex-start; gap: 10px;">
+              <span style="font-size: 18px; line-height: 1;">⚠️</span>
+              <div>
+                <strong style="color: #ff441f; font-size: 12px; letter-spacing: 0.5px;">ALERTA DE CONFLITO DE ROTA / RISCO DE BACKTRACKING</strong>
+                <div style="margin-top: 4px; line-height: 1.4; color: #eeddff;">
+                  A combinação de trava angular de <strong>${angleNum}°</strong> com raio de detour de <strong>${detourNum.toFixed(1)} km</strong> pode gerar trajetos em sentido oposto ou desvios em ziguezague entre cozinhas de diferentes plataformas.
+                </div>
+                <div style="margin-top: 6px; font-size: 10px; color: #ffb800; font-weight: bold;">
+                  💡 Recomendação: Reduza a Trava Angular para ≤ 60° ou o Raio de Detour para ≤ 2.5 km (ou clique no preset ⚖️ Equilibrado).
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
+          warningEl.style.background = 'rgba(0, 255, 136, 0.08)';
+          warningEl.style.border = '1px solid rgba(0, 255, 136, 0.3)';
+          warningEl.style.color = '#00ff88';
+          warningEl.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 16px;">✅</span>
+              <div>
+                <strong style="color: #00ff88; font-size: 11px;">GEOMETRIA DE VETOR OTIMIZADA (SEM CONFLITOS DE RETORNO)</strong>
+                <span style="display: block; color: #aaa; font-size: 10px; margin-top: 2px;">
+                  Sua trajetória atual (Trava: ${angleNum}°, Detour: ${detourNum.toFixed(1)} km) garante que a Cozinha B estará alinhada no mesmo corredor de entrega.
+                </span>
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      return isBacktrackingRisk;
+    }
+
     function updateMultiAppMergeFromSliders() {
       const angle = document.getElementById('sliderBearingAngle')?.value || '60';
       const detour = document.getElementById('sliderPickupDetour')?.value || '2.5';
 
+      const angleNum = parseInt(angle, 10);
+      const detourNum = parseFloat(detour);
+
       const angleText = document.getElementById('valBearingAngleText');
-      if (angleText) angleText.textContent = `${angle}° (${angle <= 45 ? 'Estrito - Corredor' : angle <= 70 ? 'Mesmo Quadrante' : 'Ângulo Aberto'})`;
+      if (angleText) angleText.textContent = `${angleNum}° (${angleNum <= 45 ? 'Estrito - Corredor' : angleNum <= 70 ? 'Mesmo Quadrante' : 'Ângulo Aberto'})`;
 
       const detourText = document.getElementById('valPickupDetourText');
-      if (detourText) detourText.textContent = `${parseFloat(detour).toFixed(1)} km`;
+      if (detourText) detourText.textContent = `${detourNum.toFixed(1)} km`;
+
+      const metricsEl = document.getElementById('geometryDiagramMetrics');
+      if (metricsEl) {
+        metricsEl.textContent = `Cone de Aceitação: ±${angleNum}° | Raio Geofence: ${detourNum.toFixed(1)} km`;
+      }
+
+      validateGhostGeometryRouteConflict(angleNum, detourNum);
+      renderSVGVectorPreview(angleNum, detourNum);
+    }
+
+    function applyGeometryPreset(angle, detour) {
+      const sliderAngle = document.getElementById('sliderBearingAngle');
+      const sliderDetour = document.getElementById('sliderPickupDetour');
+
+      if (sliderAngle) sliderAngle.value = angle;
+      if (sliderDetour) sliderDetour.value = detour;
+
+      updateMultiAppMergeFromSliders();
+      updateGhostOptSettingsFromForm();
+
+      if (typeof speak === 'function') {
+        speak(`Geometria ajustada: Trava angular de ${angle} graus e detour de ${detour} quilômetros.`);
+      }
+    }
+
+    function renderSVGVectorPreview(angle, detourKm) {
+      const svgEl = document.getElementById('svgGhostVectorPreview');
+      if (!svgEl) return;
+
+      const rect = svgEl.getBoundingClientRect();
+      const width = rect.width || 440;
+      const height = rect.height || 180;
+
+      const cx = width / 2;
+      const cy = height - 30;
+
+      const angleRad = (angle * Math.PI) / 180;
+      const coneLength = 125;
+
+      const leftX = cx - coneLength * Math.sin(angleRad / 2);
+      const leftY = cy - coneLength * Math.cos(angleRad / 2);
+
+      const rightX = cx + coneLength * Math.sin(angleRad / 2);
+      const rightY = cy - coneLength * Math.cos(angleRad / 2);
+
+      const detourRadiusPx = Math.min(65, Math.max(22, detourKm * 18));
+      const kitchenAY = cy - 65;
+
+      const isConflict = (angle >= 75 && detourKm >= 2.5) || (angle >= 80) || (angle >= 60 && detourKm >= 3.5);
+
+      svgEl.innerHTML = `
+        <defs>
+          <radialGradient id="coneGrad" cx="50%" cy="100%" r="100%">
+            <stop offset="0%" stop-color="${isConflict ? '#ff441f' : '#00f0ff'}" stop-opacity="0.35" />
+            <stop offset="100%" stop-color="${isConflict ? '#ff8800' : '#00ff88'}" stop-opacity="0.05" />
+          </radialGradient>
+          <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+
+        <!-- BACKGROUND GRID -->
+        <line x1="0" y1="${cy}" x2="${width}" y2="${cy}" stroke="rgba(255,255,255,0.08)" stroke-dasharray="4,4" />
+        <line x1="${cx}" y1="0" x2="${cx}" y2="${height}" stroke="rgba(255,255,255,0.08)" stroke-dasharray="4,4" />
+
+        <!-- CONE DE ACEITAÇÃO ANGULAR (TRAVA) -->
+        <polygon points="${cx},${cy} ${leftX},${leftY} ${cx},${cy - coneLength} ${rightX},${rightY}" fill="url(#coneGrad)" stroke="${isConflict ? 'rgba(255,68,31,0.6)' : 'rgba(0,240,255,0.4)'}" stroke-width="1" />
+
+        <!-- LINHAS LIMITROFES DO CONE -->
+        <line x1="${cx}" y1="${cy}" x2="${leftX}" y2="${leftY}" stroke="${isConflict ? '#ff441f' : '#00f0ff'}" stroke-width="1.5" stroke-dasharray="3,3" />
+        <line x1="${cx}" y1="${cy}" x2="${rightX}" y2="${rightY}" stroke="${isConflict ? '#ff441f' : '#00f0ff'}" stroke-width="1.5" stroke-dasharray="3,3" />
+
+        <!-- RAIO MÁXIMO DE DETOUR DA COZINHA A (GEOFENCE CIRCLE) -->
+        <circle cx="${cx}" cy="${kitchenAY}" r="${detourRadiusPx}" fill="${isConflict ? 'rgba(255,68,31,0.1)' : 'rgba(0, 255, 136, 0.08)'}" stroke="${isConflict ? '#ff441f' : '#00ff88'}" stroke-width="1.5" stroke-dasharray="4,2" filter="url(#neonGlow)" />
+
+        <!-- VETOR DE ROTA PRINCIPAL (MOTORISTA -> COZINHA A) -->
+        <line x1="${cx}" y1="${cy}" x2="${cx}" y2="${kitchenAY}" stroke="${isConflict ? '#ffaa88' : '#00ff88'}" stroke-width="2.5" />
+
+        <!-- PONTO E ÍCONE DO MOTORISTA (ORIGEM) -->
+        <circle cx="${cx}" cy="${cy}" r="12" fill="#111118" stroke="#00f0ff" stroke-width="2" />
+        <text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="10">🏍️</text>
+        <text x="${cx}" y="${cy + 22}" text-anchor="middle" fill="#aaa" font-size="9" font-weight="bold">Você (Vetor 0°)</text>
+
+        <!-- COZINHA A (RESTAURANTE PRINCIPAL) -->
+        <circle cx="${cx}" cy="${kitchenAY}" r="13" fill="#111118" stroke="#00ff88" stroke-width="2" />
+        <text x="${cx}" y="${kitchenAY + 4}" text-anchor="middle" font-size="10">🍔</text>
+        <text x="${cx + 18}" y="${kitchenAY - 4}" fill="#00ff88" font-size="9" font-weight="900">Cozinha A (iFood)</text>
+
+        <!-- COZINHA B CANDIDATA (SEGUNDA PLATAFORMA - DENTRO DO CONE/GEOFENCE) -->
+        <circle cx="${cx + (detourRadiusPx * 0.65)}" cy="${kitchenAY - 20}" r="11" fill="#111118" stroke="${isConflict ? '#ff441f' : '#ffb800'}" stroke-width="2" />
+        <text x="${cx + (detourRadiusPx * 0.65)}" y="${kitchenAY - 16}" text-anchor="middle" font-size="9">🍕</text>
+        <text x="${cx + (detourRadiusPx * 0.65) + 14}" y="${kitchenAY - 18}" fill="${isConflict ? '#ff441f' : '#ffb800'}" font-size="8" font-weight="bold">Cozinha B (99)</text>
+
+        <!-- STATUS DE COMPATIBILIDADE DA COZINHA B -->
+        ${isConflict ? `
+          <rect x="${width - 145}" y="10" width="135" height="42" rx="6" fill="rgba(25,10,15,0.92)" stroke="#ff441f" stroke-width="1.5" />
+          <text x="${width - 77}" y="26" text-anchor="middle" fill="#ff441f" font-size="9" font-weight="900">⚠️ CONFLITO DE ROTA</text>
+          <text x="${width - 77}" y="38" text-anchor="middle" fill="#ffaa88" font-size="8">Risco de Backtracking</text>
+        ` : `
+          <rect x="${width - 130}" y="10" width="120" height="42" rx="6" fill="rgba(10,10,15,0.85)" stroke="rgba(0,255,136,0.3)" />
+          <text x="${width - 70}" y="26" text-anchor="middle" fill="#00ff88" font-size="9" font-weight="900">✅ COMPATÍVEL</text>
+          <text x="${width - 70}" y="38" text-anchor="middle" fill="#aaa" font-size="8">Detour &lt; ${detourKm}km</text>
+        `}
+      `;
     }
 
     function loadGhostOptSettingsToForm() {
@@ -14270,6 +14887,13 @@
       syncHapticSlidersFromState();
       renderCoreDemandZonesChips();
       updateMapHeatmapFromCoreZones();
+
+      renderD3GhostBatchDensityChart(
+        'd3GhostBatchDensitySettingsChart',
+        cfg.ghostMaxWaitTimeMinutes || 15,
+        cfg.ghostSequenceAggressiveBatching ? 'AGRESSIVO' : 'EQUILIBRADO',
+        cfg.priceDistanceWeight !== undefined ? cfg.priceDistanceWeight : 75
+      );
     }
 
     function updateGhostOptSettingsFromForm() {
@@ -14332,6 +14956,13 @@
 
       updateMultiAppMergeFromSliders();
       updateMapHeatmapFromCoreZones();
+
+      renderD3GhostBatchDensityChart(
+        'd3GhostBatchDensitySettingsChart',
+        window.AppState?.config?.ghostMaxWaitTimeMinutes || 15,
+        aggBatching ? 'AGRESSIVO' : 'EQUILIBRADO',
+        priceWeight
+      );
     }
 
     function runMultiAppStackSimulation() {
@@ -14577,6 +15208,15 @@
           btnGhost.style.color = '#00ff88';
           btnGhost.style.borderColor = '#00ff88';
         }
+        setTimeout(() => {
+          const cfg = (window.AppState && window.AppState.config) || {};
+          renderD3GhostBatchDensityChart(
+            'd3GhostBatchDensitySettingsChart',
+            cfg.ghostMaxWaitTimeMinutes || 15,
+            cfg.ghostSequenceAggressiveBatching ? 'AGRESSIVO' : 'EQUILIBRADO',
+            cfg.priceDistanceWeight !== undefined ? cfg.priceDistanceWeight : 75
+          );
+        }, 60);
       } else if (tabName === 'autodecline') {
         if (tabAuto) tabAuto.style.display = 'flex';
         if (btnAuto) {

@@ -630,134 +630,36 @@ class RadarAccessibilityService : AccessibilityService() {
     }
 
     private fun parseAndProcessTexts(packageName: String, texts: List<String>, joined: String) {
-        // Look for fare value (e.g., R$ 15,40 or R$15.00)
-        var fareValue = 0.0
-        val fareMatcher = FARE_REGEX.matcher(joined)
-        if (fareMatcher.find()) {
-            val fareStr = fareMatcher.group(1)?.replace(",", ".") ?: ""
-            fareValue = fareStr.toDoubleOrNull() ?: 0.0
-        }
+        val settings = RadarCoordinator.settings.value
+        val parsedOffer = com.example.util.BrazilianAppRideParser.parseRideOffer(
+            packageName = packageName,
+            extractedTexts = texts,
+            fuelConsumptionKmPerL = settings.motorcycleConsumptionKmPerL,
+            fuelPricePerL = settings.fuelPrice,
+            minGainPerKm = settings.minValuePerKm
+        ) ?: return
 
-        if (fareValue <= 0.0) {
-            return // Not a valid offer screen or no fare detected
-        }
+        val fareValue = parsedOffer.fareValue
+        val currentTime = System.currentTimeMillis()
 
         // Check if we already processed this exact fare value in the last 15 seconds to prevent spam
-        val currentTime = System.currentTimeMillis()
         if (fareValue == lastParsedFare && (currentTime - lastParsedTime) < 15000L) {
             return
         }
 
-        // Advanced extraction of distance (km/m) and duration (min) based on 2026 iFood, Uber, 99 layout designs
-        val distanceRegex = Pattern.compile("(\\d+([.,]\\d+)?)\\s*(km|m)", Pattern.CASE_INSENSITIVE)
-        val distanceMatcher = distanceRegex.matcher(joined)
-        val foundDistances = mutableListOf<Double>()
-        while (distanceMatcher.find()) {
-            val number = distanceMatcher.group(1)?.replace(",", ".")?.toDoubleOrNull() ?: continue
-            val unit = distanceMatcher.group(3)?.lowercase() ?: "km"
-            val distInKm = if (unit == "m") number / 1000.0 else number
-            foundDistances.add(distInKm)
-        }
-        val distanceValue = if (foundDistances.isNotEmpty()) {
-            // Take the maximum of all detected distances, which represents the total trip distance (pickup + delivery) in 99% of layout cases
-            foundDistances.maxOrNull() ?: 0.0
-        } else {
-            0.0
-        }
-
-        val timeRegex = Pattern.compile("(\\d+)\\s*(min|minutos)", Pattern.CASE_INSENSITIVE)
-        val timeMatcher = timeRegex.matcher(joined)
-        val foundTimes = mutableListOf<Double>()
-        while (timeMatcher.find()) {
-            val mins = timeMatcher.group(1)?.toDoubleOrNull() ?: continue
-            foundTimes.add(mins)
-        }
-        val durationValue = if (foundTimes.isNotEmpty()) {
-            foundTimes.maxOrNull() ?: 0.0
-        } else {
-            0.0
-        }
-
-        // Detect app name primarily based on package name to avoid mixing
-        val appNameBase = when {
-            packageName.contains("ifood", ignoreCase = true) -> "iFood"
-            packageName.contains("uber", ignoreCase = true) -> "Uber"
-            packageName.contains("taxis99", ignoreCase = true) || packageName.contains("nine9", ignoreCase = true) || packageName.contains("99", ignoreCase = true) -> "99"
-            packageName.contains("lalamove", ignoreCase = true) -> "Lalamove"
-            packageName.contains("rappi", ignoreCase = true) -> "Rappi"
-            packageName.contains("indriver", ignoreCase = true) -> "inDrive"
-            packageName.contains("loggi", ignoreCase = true) -> "Loggi"
-            packageName.contains("borzo", ignoreCase = true) -> "Borzo"
-            // Fallbacks based on text only if package is system UI or something else
-            joined.contains("ifood", ignoreCase = true) -> "iFood"
-            joined.contains("uber", ignoreCase = true) -> "Uber"
-            joined.contains("99", ignoreCase = true) -> "99"
-            joined.contains("lalamove", ignoreCase = true) -> "Lalamove"
-            joined.contains("indriver", ignoreCase = true) -> "inDrive"
-            else -> "App de Entrega"
-        }
-
-        // Detect service type (Moto, Flash, Entrega, X, Comfort, etc)
-        val serviceType = when {
-            joined.contains("flash", ignoreCase = true) -> "Flash"
-            joined.contains("moto", ignoreCase = true) -> "Moto"
-            joined.contains("uberx", ignoreCase = true) || joined.contains("uber x", ignoreCase = true) -> "X"
-            joined.contains("comfort", ignoreCase = true) -> "Comfort"
-            joined.contains("black", ignoreCase = true) -> "Black"
-            joined.contains("entrega", ignoreCase = true) || joined.contains("delivery", ignoreCase = true) -> "Entrega"
-            joined.contains("pop", ignoreCase = true) -> "Pop"
-            else -> ""
-        }
-
-        val appName = if (serviceType.isNotEmpty() && !appNameBase.contains(serviceType, ignoreCase = true)) {
-            "$appNameBase $serviceType"
-        } else {
-            appNameBase
-        }
-
-        // Try to identify pickup and delivery addresses
-        var pickupAddress = ""
-        var deliveryAddress = ""
-
-        // Smart heuristics to find addresses
-        // Often address strings contain "R.", "Av.", "Rua", "Avenida", "Alameda", "Estrada", "Rodovia"
-        val addressKeywords = listOf("rua", "av.", "avenida", "alameda", "travessa", "praça", "rodovia", "r.", "av", "estrada")
-        val potentialAddresses = texts.filter { text ->
-            addressKeywords.any { keyword -> text.contains(keyword, ignoreCase = true) }
-        }
-
-        if (potentialAddresses.size >= 2) {
-            pickupAddress = potentialAddresses[0]
-            deliveryAddress = potentialAddresses[1]
-        } else if (potentialAddresses.size == 1) {
-            pickupAddress = potentialAddresses[0]
-            deliveryAddress = "Endereço secundário não detectado"
-        } else {
-            // Fallback heuristics using lines from texts
-            val filteredTexts = texts.filter { 
-                it.length > 5 && 
-                !it.contains("R$") && 
-                !it.contains("km", ignoreCase = true) && 
-                !it.contains("aceitar", ignoreCase = true) && 
-                !it.contains("recusar", ignoreCase = true) && 
-                !it.contains("rejeitar", ignoreCase = true)
-            }
-            if (filteredTexts.size >= 2) {
-                pickupAddress = filteredTexts[0]
-                deliveryAddress = filteredTexts[1]
-            } else {
-                pickupAddress = "Coleta automática"
-                deliveryAddress = "Entrega automática"
-            }
-        }
+        val appName = parsedOffer.appName
+        val distanceValue = parsedOffer.totalDistanceKm
+        val durationValue = parsedOffer.totalTimeMinutes
+        val pickupAddress = parsedOffer.pickupAddress
+        val deliveryAddress = parsedOffer.deliveryAddress
 
         // Save last parsed state to prevent duplicate loops
         lastParsedFare = fareValue
         lastParsedTime = currentTime
         lastParsedTexts = joined
 
-        Log.d(TAG, "Extracted offer automatically from accessibility: $appName, R$ $fareValue, Distance: $distanceValue km, Time: $durationValue min, Pickup: $pickupAddress, Delivery: $deliveryAddress")
-        RadarCoordinator.addLog("Acessibilidade: Capturada oferta do app $appName. Valor: R$ $fareValue | Distância: ${if (distanceValue > 0) "$distanceValue km" else "Não detectada"} | Tempo: ${if (durationValue > 0) "$durationValue min" else "Não detectado"}.", com.example.coordinator.LogType.SUCCESS)
+        Log.d(TAG, "Extracted offer via BrazilianAppRideParser: ${parsedOffer.appName} (${parsedOffer.serviceType}), R$ $fareValue, Distance: $distanceValue km, Gain/km: R$ ${parsedOffer.gainPerKm}, Rec: ${parsedOffer.recommendation}")
+        RadarCoordinator.addLog("Acessibilidade [${parsedOffer.appName}]: Oferta R$ $fareValue (${parsedOffer.serviceType}) | R$ ${parsedOffer.gainPerKm}/km | $distanceValue km | Rec: ${parsedOffer.recommendation}.", com.example.coordinator.LogType.SUCCESS)
 
         // Trigger the central service to analyze this offer in the background!
         val serviceIntent = Intent(this, RadarCoordinatorService::class.java).apply {
@@ -768,6 +670,12 @@ class RadarAccessibilityService : AccessibilityService() {
             putExtra("DELIVERY_ADDRESS", deliveryAddress)
             putExtra("DISTANCE_VALUE", distanceValue)
             putExtra("TIME_VALUE", durationValue)
+            putExtra("SERVICE_TYPE", parsedOffer.serviceType)
+            putExtra("GAIN_PER_KM", parsedOffer.gainPerKm)
+            putExtra("GAIN_PER_HOUR", parsedOffer.gainPerHour)
+            putExtra("NET_PROFIT", parsedOffer.netProfit)
+            putExtra("RECOMMENDATION", parsedOffer.recommendation)
+            putExtra("RECOMMENDATION_REASON", parsedOffer.recommendationReason)
         }
         
         // Analyze for high-value orders to trigger physiological adrenaline spike simulation

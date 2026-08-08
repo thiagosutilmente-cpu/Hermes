@@ -272,6 +272,76 @@ object FirestoreManager {
             }
     }
 
+    data class DriverSessionStats(
+        val completedCount: Int = 0,
+        val totalEarnings: Double = 0.0,
+        val totalDistanceKm: Double = 0.0,
+        val totalTimeMinutes: Double = 0.0,
+        val lastUpdate: Long = 0L
+    )
+
+    // Real-time listener for active session driver analytics across devices/sessions
+    fun listenToActiveSessionStats(
+        riderId: String = FirebaseAuthManager.getCurrentRiderId(),
+        onUpdate: (DriverSessionStats) -> Unit
+    ): ListenerRegistration? {
+        val firestore = db ?: return null
+        return firestore.collection("riders")
+            .document(riderId)
+            .collection("session")
+            .document("active_stats")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e(TAG, "Error listening to active session stats", e)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null && snapshot.exists()) {
+                    val data = snapshot.data ?: return@addSnapshotListener
+                    val stats = DriverSessionStats(
+                        completedCount = (data["completedCount"] as? Number)?.toInt() ?: 0,
+                        totalEarnings = (data["totalEarnings"] as? Number)?.toDouble() ?: 0.0,
+                        totalDistanceKm = (data["totalDistanceKm"] as? Number)?.toDouble() ?: 0.0,
+                        totalTimeMinutes = (data["totalTimeMinutes"] as? Number)?.toDouble() ?: 0.0,
+                        lastUpdate = (data["lastUpdate"] as? Number)?.toLong() ?: System.currentTimeMillis()
+                    )
+                    onUpdate(stats)
+                }
+            }
+    }
+
+    data class SystemPulseData(
+        val systemHealthScore: Int = 100,
+        val activeAnomalies: List<String> = emptyList(),
+        val lastPulse: Long = 0L
+    )
+
+    // Real-time listener for system pulse and anomalies
+    fun listenToSystemPulse(
+        riderId: String = FirebaseAuthManager.getCurrentRiderId(),
+        onUpdate: (SystemPulseData) -> Unit
+    ): ListenerRegistration? {
+        val firestore = db ?: return null
+        return firestore.collection("riders")
+            .document(riderId)
+            .collection("pulse")
+            .document("current")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e(TAG, "Error listening to system pulse", e)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null && snapshot.exists()) {
+                    val data = snapshot.data ?: return@addSnapshotListener
+                    val pulse = SystemPulseData(
+                        systemHealthScore = (data["systemHealthScore"] as? Number)?.toInt() ?: 100,
+                        activeAnomalies = (data["activeAnomalies"] as? List<*>)?.mapNotNull { it as? String } ?: emptyList(),
+                        lastPulse = (data["lastPulse"] as? Number)?.toLong() ?: System.currentTimeMillis()
+                    )
+                    onUpdate(pulse)
+                }
+            }
+    }
+
     // Send real-time system health pulse
     fun uploadSystemPulse(score: Int, anomalies: List<String>, riderId: String = FirebaseAuthManager.getCurrentRiderId()) {
         val firestore = db ?: return

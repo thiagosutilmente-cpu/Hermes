@@ -503,10 +503,13 @@ object RadarCoordinator {
     private val _isGhostSequenceActive = MutableStateFlow(false)
     val isGhostSequenceActive: StateFlow<Boolean> = _isGhostSequenceActive.asStateFlow()
 
+    val ghostScanResult: StateFlow<com.example.service.GhostSequenceScanResult?> = com.example.service.GhostSequenceOptimizationService.scanResult
+    val rankedGhostStacks: StateFlow<List<com.example.util.GhostBatchCandidate>> = com.example.service.GhostSequenceOptimizationService.rankedStacks
+
     fun toggleGhostSequence(active: Boolean) {
         _isGhostSequenceActive.value = active
         if (active) {
-            addLog("Ghost Sequence: Otimização multi-app ativada.", LogType.INFO)
+            addLog("Ghost Sequence: Otimização multi-app e varredura de clusters ativada.", LogType.INFO)
             applyGhostSequenceOptimization()
         }
     }
@@ -521,7 +524,6 @@ object RadarCoordinator {
         val aggressiveness = settings.ghostSequenceAggressiveness
         val trafficWeight = settings.ghostSequenceTrafficWeight
         val latencyWeight = settings.ghostSequenceLatencyWeight
-        val minGainPerKm = settings.minValuePerKm.coerceAtLeast(settings.ghostMinPerKm)
 
         // 1. Otimizar paradas pendentes existentes
         if (currentStops.size >= 2) {
@@ -538,25 +540,11 @@ object RadarCoordinator {
             addLog("Ghost Sequence: Rota otimizada para ${optimized.size} paradas multi-app.", LogType.SUCCESS)
         }
 
-        // 2. Analisar ofertas pendentes para agrupamento (batching) multi-app inteligente
-        val pendingOffers = com.example.util.MultiAppOrderManager.pendingOffers.value
-        if (pendingOffers.isNotEmpty()) {
-            val batches = com.example.util.GhostRouteOptimizer.filterAndBatchMultiAppOffers(
-                currentLat = lat,
-                currentLng = lng,
-                offers = pendingOffers,
-                minGainPerKm = minGainPerKm,
-                maxProximityKm = 3.5,
-                trafficFactor = traffic,
-                aggressiveness = aggressiveness,
-                trafficWeight = trafficWeight,
-                latencyWeight = latencyWeight
-            )
-
-            if (batches.isNotEmpty()) {
-                val bestBatch = batches.first()
-                addLog("Ghost Sequence: ${batches.size} stacks identificados! Melhor opção: ${bestBatch.appNames} (R$ ${String.format("%.2f", bestBatch.totalValue)} • R$ ${String.format("%.2f", bestBatch.gainPerKm)}/km)", LogType.SUCCESS)
-            }
+        // 2. Executar varredura de clusters e ranqueamento via GhostSequenceOptimizationService
+        val scanRes = com.example.service.GhostSequenceOptimizationService.performClusterScanAndOptimize(lat, lng)
+        if (scanRes.rankedStacks.isNotEmpty()) {
+            val bestBatch = scanRes.rankedStacks.first()
+            addLog("Ghost Sequence Scanner: ${scanRes.rankedStacks.size} stacks ranqueados em ${scanRes.scannedClustersCount} clusters! Top 1: ${bestBatch.appNames} (R$ ${String.format("%.2f", bestBatch.totalValue)} • R$ ${String.format("%.2f", bestBatch.gainPerKm)}/km)", LogType.SUCCESS)
         }
     }
 
@@ -1671,6 +1659,8 @@ object RadarCoordinator {
     private var commandsListener: com.google.firebase.firestore.ListenerRegistration? = null
     private var profileListener: com.google.firebase.firestore.ListenerRegistration? = null
     private var reportsListener: com.google.firebase.firestore.ListenerRegistration? = null
+    private var sessionStatsListener: com.google.firebase.firestore.ListenerRegistration? = null
+    private var pulseListener: com.google.firebase.firestore.ListenerRegistration? = null
 
     data class DailySummary(
         val totalAccepted: Int = 0,
@@ -1859,9 +1849,37 @@ object RadarCoordinator {
                 )
             }
         }
+
+        sessionStatsListener?.remove()
+        sessionStatsListener = FirestoreManager.listenToActiveSessionStats { stats ->
+            Log.d(TAG, "Dashboard: Driver Analytics em tempo real recebido via Firestore ($stats)")
+            if (stats.completedCount != _deliveryCompletedCount.value) {
+                _deliveryCompletedCount.value = stats.completedCount
+            }
+            if (stats.totalEarnings != _deliveryTotalEarnings.value) {
+                _deliveryTotalEarnings.value = stats.totalEarnings
+            }
+            if (stats.totalDistanceKm != _deliveryTotalDistanceKm.value) {
+                _deliveryTotalDistanceKm.value = stats.totalDistanceKm
+            }
+            if (stats.totalTimeMinutes != _deliveryTotalTimeMinutes.value) {
+                _deliveryTotalTimeMinutes.value = stats.totalTimeMinutes
+            }
+        }
+
+        pulseListener?.remove()
+        pulseListener = FirestoreManager.listenToSystemPulse { pulse ->
+            Log.d(TAG, "Dashboard: Pulse de saúde em tempo real recebido via Firestore (${pulse.systemHealthScore} pts)")
+            _settings.update { current ->
+                current.copy(
+                    systemHealthScore = pulse.systemHealthScore,
+                    activeAnomalies = pulse.activeAnomalies
+                )
+            }
+        }
     }
 
-    private fun syncActiveSessionStatsToCloud() {
+    fun syncActiveSessionStatsToCloud() {
         FirestoreManager.saveActiveSessionStats(
             completedCount = _deliveryCompletedCount.value,
             totalEarnings = _deliveryTotalEarnings.value,
