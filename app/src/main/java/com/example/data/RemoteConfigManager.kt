@@ -51,7 +51,7 @@ object RemoteConfigManager {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error fetching remote config: \${e.message}")
+            Log.w(TAG, "Notice fetching remote config: ${e.localizedMessage ?: e.message}")
         }
     }
 
@@ -69,7 +69,7 @@ object RemoteConfigManager {
                 )
             } else null
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking app update: \${e.message}")
+            Log.w(TAG, "Notice checking app update: ${e.localizedMessage ?: e.message}")
             null
         }
     }

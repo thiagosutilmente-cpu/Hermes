@@ -427,7 +427,47 @@ class VoiceInputManager(private val context: Context) {
         val matchQuickReply2 = settings.quickReply2Cmd.isNotEmpty() && cleanText.contains(settings.quickReply2Cmd.lowercase(Locale.getDefault()).trim())
         val matchQuickReply3 = settings.quickReply3Cmd.isNotEmpty() && cleanText.contains(settings.quickReply3Cmd.lowercase(Locale.getDefault()).trim())
 
-        if (matchQuickReply1) {
+        // Comandos de Voz Táticos Hands-Free para Rotas Mescladas
+        val isCollectCmd = listOf("coletado", "coletei", "peguei", "retirado", "retirei", "concluir coleta", "confirmar coleta").any { cleanText.contains(it) }
+        val isDeliverCmd = listOf("entregue", "entreguei", "concluir entrega", "confirmar entrega", "finalizar entrega").any { cleanText.contains(it) }
+        val isNavCmd = listOf("abrir waze", "waze", "maps", "navegar", "traçar rota", "tracar rota", "abrir mapa").any { cleanText.contains(it) }
+        val isCodeCmd = listOf("qual código", "qual codigo", "ler código", "ler codigo", "código do pedido", "codigo do pedido", "repetir código", "repetir codigo").any { cleanText.contains(it) }
+        val isWhereCmd = listOf("onde ir", "qual parada", "qual endereço", "qual endereco", "próxima etapa", "proxima etapa", "roteiro").any { cleanText.contains(it) }
+
+        if (isCollectCmd || isDeliverCmd) {
+            val route = com.example.manager.MergedDeliveryDispatcher.activeRoute.value
+            val currentStop = route?.currentStop
+            if (currentStop != null) {
+                com.example.manager.MergedDeliveryDispatcher.completeCurrentStopAndAdvance(context)
+                val verb = if (isCollectCmd) "Coleta confirmada" else "Entrega confirmada"
+                com.example.coordinator.RadarCoordinator.voiceManager?.speak("$verb com sucesso!")
+            } else {
+                onCommandReceived?.invoke(if (isCollectCmd) "coletado" else "entregue")
+            }
+        } else if (isNavCmd) {
+            val currentStop = com.example.manager.MergedDeliveryDispatcher.activeRoute.value?.currentStop
+            if (currentStop != null) {
+                com.example.manager.MergedDeliveryDispatcher.launchNavigation(context, currentStop.fullAddress, currentStop.latitude, currentStop.longitude)
+                com.example.coordinator.RadarCoordinator.voiceManager?.speak("Abrindo navegação para ${currentStop.establishmentOrCustomer}.")
+            } else {
+                onCommandReceived?.invoke("waze")
+            }
+        } else if (isCodeCmd) {
+            val currentStop = com.example.manager.MergedDeliveryDispatcher.activeRoute.value?.currentStop
+            if (currentStop != null && currentStop.orderCode.isNotEmpty()) {
+                com.example.coordinator.RadarCoordinator.voiceManager?.speak("Thiago, o código do pedido no ${currentStop.appName} é: ${currentStop.orderCode.replace("#", "número ")}.")
+            } else {
+                com.example.coordinator.RadarCoordinator.voiceManager?.speak("Nenhum código de pedido ativo no momento.")
+            }
+        } else if (isWhereCmd) {
+            val currentStop = com.example.manager.MergedDeliveryDispatcher.activeRoute.value?.currentStop
+            if (currentStop != null) {
+                val actionVerb = if (currentStop.actionType == com.example.model.StopActionType.PICKUP) "Coleta no" else "Entrega para"
+                com.example.coordinator.RadarCoordinator.voiceManager?.speak("Etapa atual: $actionVerb ${currentStop.establishmentOrCustomer}, no endereço ${currentStop.fullAddress}.")
+            } else {
+                com.example.coordinator.RadarCoordinator.voiceManager?.speak("Você não possui paradas mescladas em andamento.")
+            }
+        } else if (matchQuickReply1) {
             onCommandReceived?.invoke("quick_reply_1")
         } else if (matchQuickReply2) {
             onCommandReceived?.invoke("quick_reply_2")

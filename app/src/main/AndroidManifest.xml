@@ -34,6 +34,9 @@
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
+        <package android:name="com.google.android.gms" />
+        <package android:name="com.google.android.gsf" />
+        <package android:name="com.android.vending" />
         <package android:name="com.google.android.apps.maps" />
         <package android:name="com.waze" />
         <package android:name="com.whatsapp" />
@@ -84,6 +87,15 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <receiver
+            android:name=".geofence.GeofenceBroadcastReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.ACTION_GEOFENCE_EVENT" />
+            </intent-filter>
+        </receiver>
 
         <activity
             android:name=".MainActivity"

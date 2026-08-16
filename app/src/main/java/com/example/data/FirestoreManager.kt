@@ -943,6 +943,54 @@ object FirestoreManager {
             }
     }
 
+    // Sync multiple offers from integrated platforms to Firestore in real time
+    suspend fun syncBatchOffersToFirestore(
+        offers: List<OfferEntity>,
+        riderId: String = FirebaseAuthManager.getCurrentRiderId()
+    ) = withContext(Dispatchers.IO) {
+        val firestore = db ?: return@withContext
+        if (offers.isEmpty()) return@withContext
+        try {
+            val batch = firestore.batch()
+            val offersCollection = firestore.collection("riders").document(riderId).collection("offers")
+            val globalPedidosCollection = firestore.collection("pedidos")
+
+            for (offer in offers) {
+                val docId = if (offer.id > 0) "offer_${offer.id}" else "offer_${offer.timestamp}_${offer.appName}"
+                val docRef = offersCollection.document(docId)
+                val globalRef = globalPedidosCollection.document(docId)
+
+                val data = hashMapOf(
+                    "id" to offer.id,
+                    "appName" to offer.appName,
+                    "fareValue" to offer.fareValue,
+                    "pickupAddress" to offer.pickupAddress,
+                    "deliveryAddress" to offer.deliveryAddress,
+                    "totalDistance" to offer.totalDistance,
+                    "totalTime" to offer.totalTime,
+                    "detourDistance" to offer.detourDistance,
+                    "detourTime" to offer.detourTime,
+                    "suggestion" to offer.suggestion,
+                    "reason" to offer.reason,
+                    "timestamp" to offer.timestamp,
+                    "speedKmhAtDecision" to offer.speedKmhAtDecision,
+                    "isChained" to offer.isChained,
+                    "activeDeliveryDestination" to offer.activeDeliveryDestination,
+                    "userAction" to offer.userAction,
+                    "lastSyncAt" to System.currentTimeMillis()
+                )
+
+                batch.set(docRef, data, SetOptions.merge())
+                batch.set(globalRef, data, SetOptions.merge())
+            }
+
+            batch.commit().awaitTask()
+            Log.d(TAG, "Batch of ${offers.size} offers synced to Firestore for rider $riderId")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error syncing batch offers to Firestore: ${e.message}")
+        }
+    }
+
     // Load route logs from Firestore
     suspend fun loadRouteLogs(riderId: String = FirebaseAuthManager.getCurrentRiderId()): List<OfferEntity> = withContext(Dispatchers.IO) {
         val firestore = db ?: return@withContext emptyList()
@@ -1257,7 +1305,7 @@ object FirestoreManager {
                 UserProfile() // return default profile if not set in cloud
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading user profile from Firestore: ${e.message}")
+            Log.w(TAG, "Notice loading user profile from Firestore (using local default): ${e.localizedMessage ?: e.message}")
             UserProfile()
         }
     }
@@ -1623,7 +1671,197 @@ object FirestoreManager {
                 Log.e(TAG, "Error fetching shared neural learnings", e)
             }
     }
+
+    // Share real-time traffic report detected by Radar Coordinator to the network via Firestore
+    fun shareTrafficReportToFirestore(
+        latitude: Double,
+        longitude: Double,
+        speedKmh: Float,
+        trafficMultiplier: Double,
+        delayMinutes: Int,
+        locationName: String,
+        congestionLevel: String,
+        reason: String,
+        driverId: String = FirebaseAuthManager.getCurrentRiderId()
+    ) {
+        val firestore = db ?: return
+        val reportId = "tr_${System.currentTimeMillis()}_${(1000..9999).random()}"
+        val activeRiderId = if (driverId.isNotBlank()) driverId else DEFAULT_RIDER_ID
+        val data = mapOf(
+            "id" to reportId,
+            "driverId" to activeRiderId,
+            "latitude" to latitude,
+            "longitude" to longitude,
+            "speedKmh" to speedKmh,
+            "trafficMultiplier" to trafficMultiplier,
+            "delayMinutes" to delayMinutes,
+            "locationName" to locationName,
+            "congestionLevel" to congestionLevel,
+            "reason" to reason,
+            "timestamp" to System.currentTimeMillis()
+        )
+
+        firestore.collection("network_traffic_reports")
+            .document(reportId)
+            .set(data, SetOptions.merge())
+            .addOnSuccessListener {
+                Log.d(TAG, "Real-time traffic report shared to Firestore network: $locationName ($congestionLevel)")
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Error sharing traffic report to Firestore", e)
+            }
+    }
+
+    // Listen to real-time community traffic reports from other network drivers via Firestore
+    fun listenToCommunityTrafficReports(onTrafficUpdated: (List<CommunityTrafficReport>) -> Unit): ListenerRegistration? {
+        val firestore = db ?: return null
+        return firestore.collection("network_traffic_reports")
+            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .limit(25)
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.w(TAG, "Notice listening to community traffic reports: ${e.message}")
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    val reports = mutableListOf<CommunityTrafficReport>()
+                    for (doc in snapshot.documents) {
+                        try {
+                            val id = doc.getString("id") ?: doc.id
+                            val driverId = doc.getString("driverId") ?: "Driver"
+                            val lat = (doc.get("latitude") as? Number)?.toDouble() ?: 0.0
+                            val lng = (doc.get("longitude") as? Number)?.toDouble() ?: 0.0
+                            val speed = (doc.get("speedKmh") as? Number)?.toFloat() ?: 0f
+                            val mult = (doc.get("trafficMultiplier") as? Number)?.toDouble() ?: 1.0
+                            val delay = (doc.get("delayMinutes") as? Number)?.toInt() ?: 0
+                            val locName = doc.getString("locationName") ?: "Setor Urbano"
+                            val level = doc.getString("congestionLevel") ?: "FLUID"
+                            val reason = doc.getString("reason") ?: ""
+                            val ts = (doc.get("timestamp") as? Number)?.toLong() ?: System.currentTimeMillis()
+
+                            reports.add(
+                                CommunityTrafficReport(
+                                    id = id,
+                                    driverId = driverId,
+                                    latitude = lat,
+                                    longitude = lng,
+                                    speedKmh = speed,
+                                    trafficMultiplier = mult,
+                                    delayMinutes = delay,
+                                    locationName = locName,
+                                    congestionLevel = level,
+                                    reason = reason,
+                                    timestamp = ts
+                                )
+                            )
+                        } catch (ex: Exception) {
+                            Log.e(TAG, "Error parsing community traffic doc ${doc.id}", ex)
+                        }
+                    }
+                    onTrafficUpdated(reports)
+                }
+            }
+    }
+
+    // Share incident report (Acidente, Blitz, Bloqueio, Obras) to 'network_reports' collection in Firestore
+    fun shareNetworkIncidentReportToFirestore(
+        incidentType: String,
+        description: String,
+        latitude: Double,
+        longitude: Double,
+        driverId: String = FirebaseAuthManager.getCurrentRiderId()
+    ) {
+        val firestore = db ?: return
+        val reportId = "inc_${System.currentTimeMillis()}_${(1000..9999).random()}"
+        val activeRiderId = if (driverId.isNotBlank()) driverId else DEFAULT_RIDER_ID
+        val data = mapOf(
+            "id" to reportId,
+            "driverId" to activeRiderId,
+            "incidentType" to incidentType,
+            "description" to description,
+            "latitude" to latitude,
+            "longitude" to longitude,
+            "timestamp" to System.currentTimeMillis()
+        )
+
+        firestore.collection("network_reports")
+            .document(reportId)
+            .set(data, SetOptions.merge())
+            .addOnSuccessListener {
+                Log.d(TAG, "Network incident report saved to 'network_reports' collection: $incidentType - $description")
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Error saving incident report to 'network_reports' collection", e)
+            }
+    }
+
+    // Listen to real-time incident reports from 'network_reports' collection
+    fun listenToNetworkIncidentReports(onIncidentsUpdated: (List<NetworkIncidentReport>) -> Unit): ListenerRegistration? {
+        val firestore = db ?: return null
+        return firestore.collection("network_reports")
+            .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .limit(20)
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.w(TAG, "Notice listening to network_reports collection: ${e.message}")
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    val reports = mutableListOf<NetworkIncidentReport>()
+                    for (doc in snapshot.documents) {
+                        try {
+                            val id = doc.getString("id") ?: doc.id
+                            val driverId = doc.getString("driverId") ?: "Driver"
+                            val incidentType = doc.getString("incidentType") ?: "Alerta"
+                            val desc = doc.getString("description") ?: ""
+                            val lat = (doc.get("latitude") as? Number)?.toDouble() ?: 0.0
+                            val lng = (doc.get("longitude") as? Number)?.toDouble() ?: 0.0
+                            val ts = (doc.get("timestamp") as? Number)?.toLong() ?: System.currentTimeMillis()
+
+                            reports.add(
+                                NetworkIncidentReport(
+                                    id = id,
+                                    driverId = driverId,
+                                    incidentType = incidentType,
+                                    description = desc,
+                                    latitude = lat,
+                                    longitude = lng,
+                                    timestamp = ts
+                                )
+                            )
+                        } catch (ex: Exception) {
+                            Log.e(TAG, "Error parsing network incident doc ${doc.id}", ex)
+                        }
+                    }
+                    onIncidentsUpdated(reports)
+                }
+            }
+    }
 }
+
+data class NetworkIncidentReport(
+    val id: String = "",
+    val driverId: String = "",
+    val incidentType: String = "Alerta",
+    val description: String = "",
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+data class CommunityTrafficReport(
+    val id: String = "",
+    val driverId: String = "",
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val speedKmh: Float = 0f,
+    val trafficMultiplier: Double = 1.0,
+    val delayMinutes: Int = 0,
+    val locationName: String = "",
+    val congestionLevel: String = "FLUID",
+    val reason: String = "",
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 data class UserFeedback(
     val id: String = "",

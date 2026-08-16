@@ -110,6 +110,7 @@ data class RadarSettings(
     val jarvisApiKey: String = "",
     val riskZonesKeywords: String = "Cracolândia, Heliópolis, Capão Redondo, Paraisópolis, Favela, Beco",
     val isDarkMode: Boolean = true,
+    val focusModeAuto: Boolean = true,
     val isAutoRejectEnabled: Boolean = false,
     val autoRejectMinFare: Double = 10.0,
     val speedLimitKmh: Float = 10.0f,
@@ -243,6 +244,7 @@ object RadarCoordinator {
         startPatchListener()
         try {
             FirestoreManager.startConnectionMonitor()
+            startCommunityTrafficListener()
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing connection monitor: ${e.message}")
         }
@@ -477,6 +479,13 @@ object RadarCoordinator {
     private val _activeOffer = MutableStateFlow<ActiveOffer?>(null)
     val activeOffer: StateFlow<ActiveOffer?> = _activeOffer.asStateFlow()
 
+    private val _latestGeminiEvaluation = MutableStateFlow<com.example.service.gemini.GeminiOfferEvaluation?>(null)
+    val latestGeminiEvaluation: StateFlow<com.example.service.gemini.GeminiOfferEvaluation?> = _latestGeminiEvaluation.asStateFlow()
+
+    fun updateGeminiEvaluation(eval: com.example.service.gemini.GeminiOfferEvaluation?) {
+        _latestGeminiEvaluation.value = eval
+    }
+
     private val _jarvisProactiveMessage = MutableStateFlow<String?>(null)
     val jarvisProactiveMessage: StateFlow<String?> = _jarvisProactiveMessage.asStateFlow()
 
@@ -498,6 +507,10 @@ object RadarCoordinator {
 
     fun updatePendingStops(stops: List<DeliveryStop>) {
         _pendingStops.value = stops
+    }
+
+    fun addPendingStops(stops: List<DeliveryStop>) {
+        _pendingStops.value = (_pendingStops.value + stops).distinctBy { it.id }
     }
 
     private val _isGhostSequenceActive = MutableStateFlow(false)
@@ -772,6 +785,9 @@ object RadarCoordinator {
 
     private val _detourReason = MutableStateFlow("")
     val detourReason: StateFlow<String> = _detourReason.asStateFlow()
+
+    private val _communityTrafficReports = MutableStateFlow<List<com.example.data.CommunityTrafficReport>>(emptyList())
+    val communityTrafficReports: StateFlow<List<com.example.data.CommunityTrafficReport>> = _communityTrafficReports.asStateFlow()
 
     private val _fuelSuggestionActive = MutableStateFlow(false)
     val fuelSuggestionActive: StateFlow<Boolean> = _fuelSuggestionActive.asStateFlow()
@@ -1073,10 +1089,51 @@ object RadarCoordinator {
         _trafficMultiplier.value = multiplier
     }
 
+    private var lastTrafficShareTime = 0L
+
     fun updateTrafficDetour(suggested: Boolean, delayMinutes: Int, reason: String) {
         _detourSuggested.value = suggested
         _trafficDelayMinutes.value = delayMinutes
         _detourReason.value = reason
+
+        if (delayMinutes >= 3 && System.currentTimeMillis() - lastTrafficShareTime > 120000) {
+            lastTrafficShareTime = System.currentTimeMillis()
+            shareLiveTrafficToNetwork()
+        }
+    }
+
+    fun shareLiveTrafficToNetwork(locationName: String = "Corredor Urbano") {
+        val loc = _currentLocation.value
+        val lat = loc?.latitude ?: -23.5505
+        val lng = loc?.longitude ?: -46.6333
+        val speed = _currentSpeedKmh.value
+        val mult = _trafficMultiplier.value
+        val delay = _trafficDelayMinutes.value
+        val reason = _detourReason.value.ifBlank { "Lentidão detectada em tempo real pelo Radar Coordinator" }
+        val level = when {
+            delay >= 15 || mult >= 1.6 -> "SEVERE"
+            delay >= 8 || mult >= 1.3 -> "HEAVY"
+            delay >= 3 || mult >= 1.15 -> "MODERATE"
+            else -> "FLUID"
+        }
+
+        FirestoreManager.shareTrafficReportToFirestore(
+            latitude = lat,
+            longitude = lng,
+            speedKmh = speed,
+            trafficMultiplier = mult,
+            delayMinutes = delay,
+            locationName = locationName,
+            congestionLevel = level,
+            reason = reason
+        )
+        addLog("Rede Coletiva: Dados de tráfego em tempo real compartilhados com a frota via Firestore ($locationName - $level).", LogType.INFO)
+    }
+
+    fun startCommunityTrafficListener() {
+        FirestoreManager.listenToCommunityTrafficReports { reports ->
+            _communityTrafficReports.value = reports
+        }
     }
 
     fun updateFuelSuggestion(active: Boolean) {
@@ -1650,6 +1707,7 @@ object RadarCoordinator {
     private var database: AppDatabase? = null
     var voiceInputManager: VoiceInputManager? = null
     var voiceManager: VoiceManager? = null
+    var safeVoiceTtsService: com.example.service.voice.SafeDrivingVoiceTtsService? = null
 
     // For hysteresis calculation
     private var speedBelow3StartTime: Long = 0L
@@ -1681,7 +1739,9 @@ object RadarCoordinator {
         database = AppDatabase.getDatabase(context)
         try {
             voiceInputManager = VoiceInputManager(context.applicationContext)
-            voiceManager = VoiceManager(context.applicationContext)
+            val vm = VoiceManager(context.applicationContext)
+            voiceManager = vm
+            safeVoiceTtsService = com.example.service.voice.SafeDrivingVoiceTtsService(context.applicationContext, vm)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to instantiate Voice/VoiceInput Managers: ${e.message}")
         }
@@ -2261,6 +2321,18 @@ apply()
     }
 
     private fun checkGeofences(location: Location) {
+        // 1. Google Location Geofencing API & Demand Hotspots Evaluator
+        try {
+            com.example.geofence.RadarGeofenceManager.evaluateLocationProximity(
+                location.latitude,
+                location.longitude,
+                _currentSpeedKmh.value
+            )
+        } catch (e: Throwable) {
+            // Safe fallback
+        }
+
+        // 2. Custom Configured Geofence Zones
         val zones = _settings.value.geofenceZones.filter { it.active }
         val currentZones = mutableSetOf<String>()
         

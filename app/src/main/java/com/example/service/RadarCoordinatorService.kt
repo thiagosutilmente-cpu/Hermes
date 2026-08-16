@@ -45,12 +45,6 @@ import com.example.data.OfferEntity
 import com.example.data.FirestoreManager
 import com.example.voice.VoiceManager
 import com.example.voice.VoiceInputManager
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
@@ -102,10 +96,9 @@ open class RadarCoordinatorService : Service() {
     }
     private val scope = CoroutineScope(Dispatchers.Main + job + exceptionHandler)
 
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private var locationCallback: LocationCallback? = null
     private var systemLocationManager: android.location.LocationManager? = null
     private var systemLocationListener: android.location.LocationListener? = null
+    private var lastValidLocation: Location? = null
 
     private var voiceManager: VoiceManager? = null
 
@@ -297,18 +290,8 @@ open class RadarCoordinatorService : Service() {
         startProactiveMonitoring()
         startFatigueMonitoring()
 
-        // Initialize FusedLocation with attribution tag for privacy
-        try {
-            val locationContext = applicationContext
-            fusedLocationClient = LocationServices.getFusedLocationProviderClient(locationContext)
-        } catch (e: Throwable) {
-            Log.e(TAG, "Failed to create attribution context or location client: ${e.message}")
-            try {
-                fusedLocationClient = LocationServices.getFusedLocationProviderClient(applicationContext)
-            } catch (ex: Throwable) {
-                Log.e(TAG, "FusedLocationProviderClient unavailable: ${ex.message}")
-            }
-        }
+        // Initialize Location provider via native Android LocationManager
+        systemLocationManager = getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager
         setupOverlay()
 
         // Initialize VoiceManager with audio attribution if supported
@@ -824,196 +807,159 @@ open class RadarCoordinatorService : Service() {
             return
         }
 
-        if (locationCallback != null) {
+        if (systemLocationListener != null) {
             Log.d(TAG, "Location updates already started.")
             return
         }
 
         try {
-            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2000L)
-                .setMinUpdateIntervalMillis(1000L)
-                .build()
-
-            locationCallback = object : LocationCallback() {
-                private var lastValidLocation: Location? = null
-                
-                override fun onLocationResult(locationResult: LocationResult) {
-                    locationResult.lastLocation?.let { location ->
-                        // Filtro de Saltos de GPS (Watchdog)
-                        // Se o piloto pulou 500 metros em 1 segundo (1800 km/h), é erro de GPS.
-                        val lastLoc = lastValidLocation
-                        if (lastLoc != null) {
-                            val dist = location.distanceTo(lastLoc)
-                            val timeDelta = (location.time - lastLoc.time) / 1000.0
-                            if (timeDelta > 0 && (dist / timeDelta) > 55.0) { // > 200 km/h jump check
-                                Log.w(TAG, "GPS Jump detectado ($dist m em $timeDelta s). Ignorando para estabilidade.")
-                                return@let
-                            }
-                        }
-                        
-                        lastValidLocation = location
-                        RadarCoordinator.updateLocation(location)
-
-                        // Monitoramento de Tráfego Proativo para Smart Focus
-                        val now = System.currentTimeMillis()
-                        if (now - lastTrafficCheckTime > 60000L && RadarCoordinator.deliveryActive.value && RadarCoordinator.settings.value.aiActiveTrafficReroute) {
-                            lastTrafficCheckTime = now
-                            scope.launch(Dispatchers.IO) {
-                                val destination = RadarCoordinator.settings.value.activeDeliveryDestination
-                                if (destination.isNotBlank()) {
-                                    val trafficResult = com.example.util.GoogleMapsTrafficMonitor.monitorTraffic(
-                                        this@RadarCoordinatorService,
-                                        location.latitude,
-                                        location.longitude,
-                                        destination
-                                    )
-                                    RadarCoordinator.updateTrafficMultiplier(trafficResult.trafficMultiplier)
-                                    val delayMin = ((trafficResult.durationInTrafficSeconds - trafficResult.durationSeconds) / 60).toInt()
-                                    RadarCoordinator.updateTrafficDetour(trafficResult.detourSuggested, delayMin, trafficResult.reason)
-                                    
-                                    // Se tráfego intenso (> 50% de atraso), ativa Smart Focus
-                                    if (trafficResult.trafficMultiplier >= 1.5) {
-                                        RadarCoordinator.setSmartFocusActive(true)
-                                    } else if (trafficResult.trafficMultiplier < 1.3 && (location.speed * 3.6f) > 20) {
-                                        RadarCoordinator.setSmartFocusActive(false)
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // Automatic arrival detection
-                        val settings = RadarCoordinator.settings.value
-                        if (settings.isActiveDeliveryEnabled && settings.activeDeliveryDestination.isNotBlank()) {
-                            if (cachedDestinationString != settings.activeDeliveryDestination) {
-                                cachedDestinationString = settings.activeDeliveryDestination
-                                scope.launch(Dispatchers.IO) {
-                                    try {
-                                        val geocoder = Geocoder(this@RadarCoordinatorService, Locale.getDefault())
-                                        @Suppress("DEPRECATION")
-                                        val addresses = geocoder.getFromLocationName(settings.activeDeliveryDestination, 1)
-                                        if (!addresses.isNullOrEmpty()) {
-                                            val address = addresses[0]
-                                            val loc = Location("geocoder").apply {
-                                                latitude = address.latitude
-                                                longitude = address.longitude
-                                            }
-                                            cachedDestinationLocation = loc
-                                            Log.d(TAG, "Geocoded destination: ${loc.latitude}, ${loc.longitude}")
-                                        } else {
-                                            cachedDestinationLocation = null
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "Failed to geocode address: ${e.message}")
-                                        com.example.data.FirestoreManager.logErrorToFirebase("GEOLOCATION_ERROR", "Falha ao geocodificar o endereço de destino '${settings.activeDeliveryDestination}': ${e.message}")
-                                        cachedDestinationLocation = null
-                                    }
-                                }
-                            }
-                            
-                            val dest = cachedDestinationLocation
-                            if (dest != null) {
-                                val distance = location.distanceTo(dest)
-                                Log.d(TAG, "Distance to destination: ${distance}m")
-                                
-                                val isNear = distance < 150f
-                                val isStopped = RadarCoordinator.podeInteragir() || (location.speed * 3.6f) < 5.0f
-                                
-                                if (isNear && isStopped) {
-                                    Log.d(TAG, "AUTOMATIC ARRIVAL DETECTED")
-                                    val updated = settings.copy(
-                                        isActiveDeliveryEnabled = false,
-                                        activeDeliveryDestination = ""
-                                    )
-                                    RadarCoordinator.saveSettings(this@RadarCoordinatorService, updated)
-                                    cachedDestinationString = null
-                                    cachedDestinationLocation = null
-                                    
-                                    // Complete the active delivery tracking
-                                    RadarCoordinator.completeActiveDelivery()
-                                    isArrivalMessageSent = false // Reset for next delivery
-                                    
-                                    speakText("Excelente, Thiago! Chegamos ao seu destino final. O Radar já está em modo de espera e pronto para a próxima.")
-                                    
-                                    // Sugestão de Abastecimento Proativo IA
-                                    if (settings.aiActiveFuelSuggest) {
-                                        scope.launch(Dispatchers.IO) {
-                                            kotlinx.coroutines.delay(6500L) // Dá tempo para terminar de falar a chegada
-                                            speakText("Thiago, identifiquei um Posto Ipiranga a 800 metros à frente com preço promocional de combustível para usuários do Radar. Gostaria de adicionar uma rota rápida de abastecimento?")
-                                            RadarCoordinator.updateFuelSuggestion(true)
-                                            RadarCoordinator.addLog("Jarvis IA: Posto promocional sugerido próximo ao destino concluído.", com.example.coordinator.LogType.SUCCESS)
-                                        }
-                                    }
-                                } else if (distance < 400f && !isArrivalMessageSent) {
-                                    sendArrivalMessageToClient()
-                                }
-                            }
-                        } else {
-                            cachedDestinationString = null
-                            cachedDestinationLocation = null
-                        }
-                    }
-                }
+            val lm = getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager
+            if (lm == null) {
+                Log.e(TAG, "LocationManager not available")
+                return
             }
-
-            // Request updates from FusedLocationClient if initialized, or fall back to system LocationManager
-            if (::fusedLocationClient.isInitialized) {
-                fusedLocationClient.requestLocationUpdates(
-                    locationRequest,
-                    locationCallback!!,
-                    Looper.getMainLooper()
-                )
-            } else {
-                startFallbackSystemLocation()
-            }
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Permission/Security error requesting location updates: ${e.message}")
-            com.example.data.FirestoreManager.logErrorToFirebase("PERMISSION_ERROR", "Permissão negada ao iniciar atualizações de geolocalização: ${e.message}")
-            startFallbackSystemLocation()
-        } catch (e: Throwable) {
-            Log.e(TAG, "Error starting location updates, falling back to system LocationManager: ${e.message}")
-            com.example.data.FirestoreManager.logErrorToFirebase("GEOLOCATION_ERROR", "Falha no FusedLocation, iniciando fallback: ${e.message}")
-            startFallbackSystemLocation()
-        }
-    }
-
-    private fun startFallbackSystemLocation() {
-        try {
-            val lm = getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager ?: return
             systemLocationManager = lm
+
             val listener = object : android.location.LocationListener {
                 override fun onLocationChanged(location: Location) {
+                    // Filtro de Saltos de GPS (Watchdog)
+                    // Se o piloto pulou 500 metros em 1 segundo (1800 km/h), é erro de GPS.
+                    val lastLoc = lastValidLocation
+                    if (lastLoc != null) {
+                        val dist = location.distanceTo(lastLoc)
+                        val timeDelta = (location.time - lastLoc.time) / 1000.0
+                        if (timeDelta > 0 && (dist / timeDelta) > 55.0) { // > 200 km/h jump check
+                            Log.w(TAG, "GPS Jump detectado ($dist m em $timeDelta s). Ignorando para estabilidade.")
+                            return
+                        }
+                    }
+                    
+                    lastValidLocation = location
                     RadarCoordinator.updateLocation(location)
+
+                    // Monitoramento de Tráfego Proativo para Smart Focus
+                    val now = System.currentTimeMillis()
+                    if (now - lastTrafficCheckTime > 60000L && RadarCoordinator.deliveryActive.value && RadarCoordinator.settings.value.aiActiveTrafficReroute) {
+                        lastTrafficCheckTime = now
+                        scope.launch(Dispatchers.IO) {
+                            val destination = RadarCoordinator.settings.value.activeDeliveryDestination
+                            if (destination.isNotBlank()) {
+                                val trafficResult = com.example.util.GoogleMapsTrafficMonitor.monitorTraffic(
+                                    this@RadarCoordinatorService,
+                                    location.latitude,
+                                    location.longitude,
+                                    destination
+                                )
+                                RadarCoordinator.updateTrafficMultiplier(trafficResult.trafficMultiplier)
+                                val delayMin = ((trafficResult.durationInTrafficSeconds - trafficResult.durationSeconds) / 60).toInt()
+                                RadarCoordinator.updateTrafficDetour(trafficResult.detourSuggested, delayMin, trafficResult.reason)
+                                
+                                // Se tráfego intenso (> 50% de atraso), ativa Smart Focus
+                                if (trafficResult.trafficMultiplier >= 1.5) {
+                                    RadarCoordinator.setSmartFocusActive(true)
+                                } else if (trafficResult.trafficMultiplier < 1.3 && (location.speed * 3.6f) > 20) {
+                                    RadarCoordinator.setSmartFocusActive(false)
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Automatic arrival detection
+                    val settings = RadarCoordinator.settings.value
+                    if (settings.isActiveDeliveryEnabled && settings.activeDeliveryDestination.isNotBlank()) {
+                        if (cachedDestinationString != settings.activeDeliveryDestination) {
+                            cachedDestinationString = settings.activeDeliveryDestination
+                            scope.launch(Dispatchers.IO) {
+                                try {
+                                    val geocoder = Geocoder(this@RadarCoordinatorService, Locale.getDefault())
+                                    @Suppress("DEPRECATION")
+                                    val addresses = geocoder.getFromLocationName(settings.activeDeliveryDestination, 1)
+                                    if (!addresses.isNullOrEmpty()) {
+                                        val address = addresses[0]
+                                        val loc = Location("geocoder").apply {
+                                            latitude = address.latitude
+                                            longitude = address.longitude
+                                        }
+                                        cachedDestinationLocation = loc
+                                        Log.d(TAG, "Geocoded destination: ${loc.latitude}, ${loc.longitude}")
+                                    } else {
+                                        cachedDestinationLocation = null
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Failed to geocode address: ${e.message}")
+                                    com.example.data.FirestoreManager.logErrorToFirebase("GEOLOCATION_ERROR", "Falha ao geocodificar o endereço de destino '${settings.activeDeliveryDestination}': ${e.message}")
+                                    cachedDestinationLocation = null
+                                }
+                            }
+                        }
+                        
+                        val dest = cachedDestinationLocation
+                        if (dest != null) {
+                            val distance = location.distanceTo(dest)
+                            Log.d(TAG, "Distance to destination: ${distance}m")
+                            
+                            val isNear = distance < 150f
+                            val isStopped = RadarCoordinator.podeInteragir() || (location.speed * 3.6f) < 5.0f
+                            
+                            if (isNear && isStopped) {
+                                Log.d(TAG, "AUTOMATIC ARRIVAL DETECTED")
+                                val updated = settings.copy(
+                                    isActiveDeliveryEnabled = false,
+                                    activeDeliveryDestination = ""
+                                )
+                                RadarCoordinator.saveSettings(this@RadarCoordinatorService, updated)
+                                cachedDestinationString = null
+                                cachedDestinationLocation = null
+                                
+                                // Complete the active delivery tracking
+                                RadarCoordinator.completeActiveDelivery()
+                                isArrivalMessageSent = false // Reset for next delivery
+                                
+                                speakText("Excelente, Thiago! Chegamos ao seu destino final. O Radar já está em modo de espera e pronto para a próxima.")
+                                
+                                // Sugestão de Abastecimento Proativo IA
+                                if (settings.aiActiveFuelSuggest) {
+                                    scope.launch(Dispatchers.IO) {
+                                        kotlinx.coroutines.delay(6500L) // Dá tempo para terminar de falar a chegada
+                                        speakText("Thiago, identifiquei um Posto Ipiranga a 800 metros à frente com preço promocional de combustível para usuários do Radar. Gostaria de adicionar uma rota rápida de abastecimento?")
+                                        RadarCoordinator.updateFuelSuggestion(true)
+                                        RadarCoordinator.addLog("Jarvis IA: Posto promocional sugerido próximo ao destino concluído.", com.example.coordinator.LogType.SUCCESS)
+                                    }
+                                }
+                            } else if (distance < 400f && !isArrivalMessageSent) {
+                                sendArrivalMessageToClient()
+                            }
+                        }
+                    } else {
+                        cachedDestinationString = null
+                        cachedDestinationLocation = null
+                    }
                 }
+
                 @Deprecated("Deprecated in Java")
                 override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {}
                 override fun onProviderEnabled(provider: String) {}
                 override fun onProviderDisabled(provider: String) {}
             }
+
             systemLocationListener = listener
             if (lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)) {
-                lm.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 3000L, 5f, listener, Looper.getMainLooper())
-            } else if (lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)) {
-                lm.requestLocationUpdates(android.location.LocationManager.NETWORK_PROVIDER, 3000L, 5f, listener, Looper.getMainLooper())
+                lm.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 2000L, 1f, listener, Looper.getMainLooper())
             }
-            Log.i(TAG, "Fallback LocationManager actively listening for location updates.")
+            if (lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)) {
+                lm.requestLocationUpdates(android.location.LocationManager.NETWORK_PROVIDER, 2000L, 1f, listener, Looper.getMainLooper())
+            }
+            Log.i(TAG, "LocationManager actively listening for location updates.")
         } catch (e: SecurityException) {
-            Log.e(TAG, "LocationManager security exception: ${e.message}")
+            Log.e(TAG, "Permission/Security error requesting location updates: ${e.message}")
+            com.example.data.FirestoreManager.logErrorToFirebase("PERMISSION_ERROR", "Permissão negada ao iniciar atualizações de geolocalização: ${e.message}")
         } catch (e: Throwable) {
-            Log.e(TAG, "LocationManager fallback error: ${e.message}")
+            Log.e(TAG, "Error starting location updates: ${e.message}")
+            com.example.data.FirestoreManager.logErrorToFirebase("GEOLOCATION_ERROR", "Falha ao iniciar geolocalização: ${e.message}")
         }
     }
 
     private fun stopLocationUpdates() {
-        try {
-            locationCallback?.let {
-                if (::fusedLocationClient.isInitialized) {
-                    fusedLocationClient.removeLocationUpdates(it)
-                }
-                locationCallback = null
-            }
-        } catch (e: Throwable) {
-            Log.w(TAG, "Error removing fused location updates: ${e.message}")
-        }
         try {
             systemLocationListener?.let { listener ->
                 systemLocationManager?.removeUpdates(listener)
@@ -1488,6 +1434,29 @@ open class RadarCoordinatorService : Service() {
             
             // Decisão Inteligente Híbrida (Local + Cloud se necessário)
             val shouldAutoAcceptJarvis = com.example.util.JarvisIntelligenceEngine.analyzeOfferDecision(this@RadarCoordinatorService, activeOffer, currentSettings)
+
+            // Avaliação Neural com o GeminiOfferRepository (Filtros de KM, Tarifa e IA)
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val repo = com.example.data.GeminiOfferRepository.getInstance(this@RadarCoordinatorService)
+                    val result = repo.processAndFilterOffers(
+                        listOf(activeOffer),
+                        currentSettings,
+                        this@RadarCoordinatorService
+                    )
+                    Log.d(TAG, "GeminiOfferRepository: ${result.filterSummary} | Rec=${result.recommendedOffer?.appName} | Dec=${result.evaluation?.decision}")
+                    
+                    // Notificação por TTS Seguro quando a velocidade permitir
+                    if (result.recommendedOffer != null && result.evaluation != null) {
+                        RadarCoordinator.safeVoiceTtsService?.notifyGeminiRecommendedOffer(
+                            offer = result.recommendedOffer,
+                            evaluation = result.evaluation
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erro no processamento pelo GeminiOfferRepository: ${e.message}")
+                }
+            }
 
             if (shouldAutoAcceptJarvis && currentSettings.isAutoAcceptEnabled) {
                 RadarCoordinator.addLog("Jarvis: OFERTA DE OURO! Iniciando aceite automático.", com.example.coordinator.LogType.SUCCESS)

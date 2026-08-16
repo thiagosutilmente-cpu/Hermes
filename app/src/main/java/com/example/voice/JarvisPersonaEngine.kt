@@ -66,6 +66,22 @@ object JarvisPersonaEngine {
         }
     """
 
+    private fun extractJsonFromText(rawText: String): String {
+        val trimmed = rawText.trim()
+        val withoutFences = when {
+            trimmed.startsWith("```json") -> trimmed.removePrefix("```json").removeSuffix("```").trim()
+            trimmed.startsWith("```") -> trimmed.removePrefix("```").removeSuffix("```").trim()
+            else -> trimmed
+        }
+        val firstBrace = withoutFences.indexOf('{')
+        val lastBrace = withoutFences.lastIndexOf('}')
+        if (firstBrace != -1 && lastBrace != -1 && lastBrace > firstBrace) {
+            return withoutFences.substring(firstBrace, lastBrace + 1)
+        }
+        val safeText = JSONObject.quote(withoutFences)
+        return "{\"voiceResponse\": $safeText, \"action\": \"NONE\"}"
+    }
+
     suspend fun processCognitiveClick(command: String, screenLayout: String): Pair<Float, Float>? = withContext(Dispatchers.IO) {
         Log.d(TAG, "Processando Clique Cognitivo para: $command")
         try {
@@ -88,13 +104,7 @@ object JarvisPersonaEngine {
             """.trimIndent()
 
             val responseText = GeminiManager.generateResponse(prompt).trim()
-            val cleanJson = if (responseText.startsWith("```json")) {
-                responseText.removePrefix("```json").removeSuffix("```").trim()
-            } else if (responseText.startsWith("```")) {
-                responseText.removePrefix("```").removeSuffix("```").trim()
-            } else {
-                responseText
-            }
+            val cleanJson = extractJsonFromText(responseText)
 
             val json = JSONObject(cleanJson)
             if (json.has("x") && json.has("y")) {
@@ -138,19 +148,13 @@ object JarvisPersonaEngine {
             val endTime = System.currentTimeMillis()
             com.example.coordinator.RadarCoordinator.reportLatency(endTime - startTime)
             
-            val cleanJson = if (responseText.startsWith("```json")) {
-                responseText.removePrefix("```json").removeSuffix("```").trim()
-            } else if (responseText.startsWith("```")) {
-                responseText.removePrefix("```").removeSuffix("```").trim()
-            } else {
-                responseText
-            }
+            val cleanJson = extractJsonFromText(responseText)
             
             Log.d(TAG, "Resposta do Gemini: $cleanJson")
             
             try {
                 val json = JSONObject(cleanJson)
-                val voiceResponse = json.optString("voiceResponse", "Não compreendi o JSON.")
+                val voiceResponse = json.optString("voiceResponse", if (responseText.isNotBlank()) responseText else "Comando recebido.")
                 val action = json.optString("action", "NONE")
                 val memoryContent = json.optString("memory_content", "")
                 val thoughtProcess = json.optString("thought_process", "")

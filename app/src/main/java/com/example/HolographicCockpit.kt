@@ -144,6 +144,54 @@ fun HolographicCockpit(
                             .padding(horizontal = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        // FEATURE WIDGET TELEMETRIA, CONEXÃO, VELOCIDADE & TRAVA DE SEGURANÇA
+                        item {
+                            com.example.ui.components.TelemetrySafetyStatusWidget(
+                                onToggleSafetyLock = {
+                                    val currentSettings = RadarCoordinator.settings.value
+                                    val newFocusMode = !currentSettings.focusModeAuto
+                                    RadarCoordinator.updateSettings(currentSettings.copy(focusModeAuto = newFocusMode))
+                                    val msg = if (newFocusMode) "🛡️ Trava de Segurança em Movimento ATIVADA" else "⚠️ Trava de Segurança DESATIVADA (Modo Livre)"
+                                    com.example.util.ToastUtils.showToast(context, msg, Toast.LENGTH_SHORT)
+                                    viewModel.updateJarvisResponse(msg)
+                                }
+                            )
+                        }
+
+                        // GRÁFICO RECHARTS / D3 DE GANHOS POR HORA (ÚLTIMAS 8 HORAS)
+                        item {
+                            com.example.ui.components.RechartsHourlyEarningsCard()
+                        }
+
+                        // PAINEL TÁTICO DA GHOST SEQUENCE (BATCHING & REDUÇÃO DE TEMPO DE ESPERA)
+                        item {
+                            com.example.ui.components.TacticalGhostSequenceOverviewCard(
+                                onActivateGhostBatch = { batch ->
+                                    com.example.manager.MergedDeliveryDispatcher.startGhostBatchRoute(context, batch)
+                                    val msg = "👻 LOTE GHOST ACEITO: ${batch.appNamesFormatted} (R$ ${String.format(java.util.Locale.US, "%.2f", batch.totalEarnings)} - Economia de ${batch.waitTimeSavedMinutes} min)"
+                                    com.example.util.ToastUtils.showToast(context, msg, Toast.LENGTH_LONG)
+                                    viewModel.updateJarvisResponse(msg)
+                                }
+                            )
+                        }
+
+                        // GUIA OPERACIONAL PASSO A PASSO DA ROTA MESCLADA (CENTRAL TÁTICA DE ENTREGAS)
+                        item {
+                            com.example.ui.components.MergedRouteTacticalCockpitCard()
+                        }
+
+                        // LISTA DE SEQUENCIAMENTO DE ENTREGAS (COLETA 🛍️ VS ENTREGA 🏠)
+                        item {
+                            com.example.ui.components.SimplifiedDeliverySequenceListCard(
+                                onStopSelected = { stop ->
+                                    val action = if (stop.actionType == com.example.model.StopActionType.PICKUP) "Coleta" else "Entrega"
+                                    val msg = "📍 $action selecionada: ${stop.establishmentOrCustomer} (${stop.appName})"
+                                    com.example.util.ToastUtils.showToast(context, msg, Toast.LENGTH_SHORT)
+                                    viewModel.updateJarvisResponse(msg)
+                                }
+                            )
+                        }
+
                         // FEATURE 1 & 2: CONSTELLATION MAP & GHOST OVERLAY
                         item {
                             ConstellationMapCard(
@@ -454,6 +502,9 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
     val settings by RadarCoordinator.settings.collectAsStateWithLifecycle()
     val currentLocation by RadarCoordinator.currentLocation.collectAsStateWithLifecycle()
     val pendingOffers by MultiAppOrderManager.pendingOffers.collectAsStateWithLifecycle()
+    val latestGeminiEval by RadarCoordinator.latestGeminiEvaluation.collectAsStateWithLifecycle()
+
+    val hasGeminiNewRoute = latestGeminiEval != null || pendingOffers.isNotEmpty()
 
     val showTraffic = settings.showTrafficDensity || settings.showTrafficOverlay
     var showDemandHeatmap by remember { mutableStateOf(true) }
@@ -701,6 +752,7 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
                 value = "Em movimento",
                 iconBg = Brush.horizontalGradient(listOf(CockpitGreen, CockpitCyan)),
                 valueColor = CockpitGreen,
+                isPulsing = false,
                 onClick = { onNodeClick("Sua posição GPS: Precisão de 1.2m em movimento.") }
             )
 
@@ -712,10 +764,12 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
                 value = "R$ 15,00",
                 iconBg = Brush.linearGradient(listOf(CockpitIFood, CockpitIFood)),
                 valueColor = CockpitGreen,
+                isPulsing = hasGeminiNewRoute,
+                pulseColor = CockpitGreen,
                 onClick = {
                     val zone = cityZones.firstOrNull { it.id == "z_paulista" }
                     activeZoneTelemetry = zone
-                    onNodeClick("Restaurante Burger King: Coleta iFood R$ 15,00 pronta em 2 min. 🔥 Cluster de Alta Demanda (${zone?.baseOrdersPerHour ?: 48} ped/h).")
+                    onNodeClick("Restaurante Burger King: Coleta iFood R$ 15,00 otimizada pelo Gemini AI. 🔥 Cluster de Alta Demanda (${zone?.baseOrdersPerHour ?: 48} ped/h).")
                 }
             )
 
@@ -727,10 +781,12 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
                 value = "R$ 18,00",
                 iconBg = Brush.linearGradient(listOf(CockpitRappi, CockpitRappi)),
                 valueColor = CockpitGreen,
+                isPulsing = hasGeminiNewRoute,
+                pulseColor = CockpitCyan,
                 onClick = {
                     val zone = cityZones.firstOrNull { it.id == "z_pinheiros" }
                     activeZoneTelemetry = zone
-                    onNodeClick("Restaurante Pizza Hut: Coleta Rappi R$ 18,00 pronta em 3 min. ⚡ Cluster de Média Demanda (${zone?.baseOrdersPerHour ?: 36} ped/h).")
+                    onNodeClick("Restaurante Pizza Hut: Coleta Rappi R$ 18,00 encadeada pelo Gemini AI. ⚡ Cluster de Média Demanda (${zone?.baseOrdersPerHour ?: 36} ped/h).")
                 }
             )
 
@@ -742,7 +798,9 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
                 value = "Ponto 1",
                 iconBg = Brush.linearGradient(listOf(CockpitGreen.copy(alpha = 0.3f), CockpitGreen.copy(alpha = 0.3f))),
                 valueColor = CockpitGreen,
-                onClick = { onNodeClick("Entrega A: Av. Paulista. Cliente aguardando.") }
+                isPulsing = hasGeminiNewRoute,
+                pulseColor = CockpitGreen,
+                onClick = { onNodeClick("Entrega A: Av. Paulista. Rota calculada pelo Gemini AI.") }
             )
 
             // Node 5: Delivery B 🏢
@@ -753,7 +811,9 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
                 value = "Ponto 2",
                 iconBg = Brush.linearGradient(listOf(CockpitCyan.copy(alpha = 0.3f), CockpitCyan.copy(alpha = 0.3f))),
                 valueColor = CockpitCyan,
-                onClick = { onNodeClick("Entrega B: Rua Consolação. Ponto final do stack.") }
+                isPulsing = hasGeminiNewRoute,
+                pulseColor = CockpitCyan,
+                onClick = { onNodeClick("Entrega B: Rua Consolação. Ponto final do stack neural.") }
             )
 
             // Node 6: Uber Solo ☕ (Bottom Right)
@@ -764,6 +824,7 @@ fun ConstellationMapCard(onNodeClick: (String) -> Unit) {
                 value = "R$ 9,00",
                 iconBg = Brush.linearGradient(listOf(CockpitUber, CockpitUber)),
                 valueColor = CockpitTextSecondary,
+                isPulsing = false,
                 onClick = { onNodeClick("Corrida Uber Solo descartada em prol do Stack Multi-App.") }
             )
 
@@ -1011,8 +1072,39 @@ fun StarNodeComposable(
     value: String,
     iconBg: Brush,
     valueColor: Color,
+    isPulsing: Boolean = false,
+    pulseColor: Color = CockpitGreen,
     onClick: () -> Unit
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "starNodePulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1.0f,
+        targetValue = if (isPulsing) 1.12f else 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseScale"
+    )
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = if (isPulsing) 0.55f else 0f,
+        targetValue = if (isPulsing) 0.15f else 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glowAlpha"
+    )
+    val ringBorderWidthFloat by infiniteTransition.animateFloat(
+        initialValue = if (isPulsing) 1.5f else 1.5f,
+        targetValue = if (isPulsing) 3.5f else 1.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "ringBorderWidth"
+    )
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
@@ -1020,13 +1112,34 @@ fun StarNodeComposable(
     ) {
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(iconBg)
-                .border(1.5.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+            modifier = Modifier.size(44.dp)
         ) {
-            Text(text = emoji, fontSize = 16.sp)
+            // Suave halo/anel de pulsação (Aura de processamento neural Gemini)
+            if (isPulsing) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp * pulseScale)
+                        .clip(CircleShape)
+                        .background(pulseColor.copy(alpha = glowAlpha * 0.35f))
+                        .border(ringBorderWidthFloat.dp, pulseColor.copy(alpha = glowAlpha), CircleShape)
+                )
+            }
+
+            // Ícone do marcador central
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(iconBg)
+                    .border(
+                        if (isPulsing) 1.8.dp else 1.5.dp,
+                        if (isPulsing) pulseColor else Color.White.copy(alpha = 0.4f),
+                        CircleShape
+                    )
+            ) {
+                Text(text = emoji, fontSize = 16.sp)
+            }
         }
         Text(
             text = label,
@@ -1036,12 +1149,16 @@ fun StarNodeComposable(
             modifier = Modifier
                 .padding(top = 2.dp)
                 .background(Color.Black.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
-                .border(0.5.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                .border(
+                    0.5.dp,
+                    if (isPulsing) pulseColor.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.2f),
+                    RoundedCornerShape(4.dp)
+                )
                 .padding(horizontal = 4.dp, vertical = 1.dp)
         )
         Text(
             text = value,
-            color = valueColor,
+            color = if (isPulsing) pulseColor else valueColor,
             fontSize = 9.sp,
             fontWeight = FontWeight.Black,
             fontFamily = FontFamily.Monospace
@@ -1055,6 +1172,7 @@ fun StarNodeComposable(
 @Composable
 fun StackPanelBentoGrid(onAccept: (String) -> Unit, onDecline: (String) -> Unit) {
     val pendingOffers by com.example.util.MultiAppOrderManager.pendingOffers.collectAsStateWithLifecycle()
+    val latestGeminiEval by RadarCoordinator.latestGeminiEvaluation.collectAsStateWithLifecycle()
     var showTunerModal by remember { mutableStateOf(false) }
 
     if (showTunerModal) {
@@ -1113,6 +1231,71 @@ fun StackPanelBentoGrid(onAccept: (String) -> Unit, onDecline: (String) -> Unit)
                         Text(text = "🔄 Sincronizar", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+            }
+
+            // Gemini Neural Reasoning Card
+            if (latestGeminiEval != null) {
+                val eval = latestGeminiEval!!
+                val isAccept = eval.decision.equals("ACCEPT", ignoreCase = true) || eval.decision.equals("CHAIN", ignoreCase = true)
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = if (isAccept) CockpitGreen.copy(alpha = 0.10f) else CockpitDangerRed.copy(alpha = 0.10f)),
+                    border = BorderStroke(1.dp, if (isAccept) CockpitGreen.copy(alpha = 0.6f) else CockpitDangerRed.copy(alpha = 0.6f)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(text = "✨ IA GEMINI RECOMENDA:", color = if (isAccept) CockpitGreen else CockpitDangerRed, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                                Text(text = eval.decision, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                            }
+                            Text(
+                                text = "Confiança: ${(eval.confidence * 100).toInt()}%",
+                                color = CockpitTextSecondary,
+                                fontSize = 9.sp
+                            )
+                        }
+                        Text(
+                            text = eval.reason,
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (!eval.suggestedVoiceAnnouncement.isNullOrBlank()) {
+                            Text(
+                                text = "🎙️ \"${eval.suggestedVoiceAnnouncement}\"",
+                                color = CockpitCyan,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Constellation Map Visual Component com Clustering Google Maps
+            if (pendingOffers.isNotEmpty()) {
+                val convertedOffers = pendingOffers.map { p ->
+                    com.example.coordinator.ActiveOffer(
+                        appName = p.appName,
+                        fareValue = p.fareValue,
+                        pickupAddress = p.pickupAddress,
+                        deliveryAddress = p.deliveryAddress,
+                        totalDistance = p.totalDistance,
+                        totalTime = p.totalTime
+                    )
+                }
+                com.example.ui.components.OfferConstellationMap(
+                    offers = convertedOffers,
+                    geminiEvaluation = latestGeminiEval,
+                    onOfferSelected = { selectedOffer ->
+                        onAccept("${selectedOffer.appName} (R$ ${String.format("%.2f", selectedOffer.fareValue)})")
+                    }
+                )
             }
 
             if (pendingOffers.isEmpty()) {
