@@ -1,6 +1,8 @@
 {
-  "name": "Radar Coordinator — Jarvis Neural Cockpit v2.4",
-  "description": "Sistema de inteligência de entregas multi-app (iFood, Rappi, Uber, 99) com Ghost Sequence Batching e Constellation Map.",
+  "name": "Radar Coordinator",
+  "description": "Jarvis Neural Cockpit para entregadores brasileiros",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
