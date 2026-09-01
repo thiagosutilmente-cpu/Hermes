@@ -1,1 +1,1 @@
-rootProject.name = "radar-coordinator"
+rootProject.name = "Radar Coordinator"
