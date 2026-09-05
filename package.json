@@ -1,0 +1,10 @@
+{
+  "name": "radar-coordinator",
+  "version": "1.0.0",
+  "description": "Radar Coordinator — Jarvis Neural Cockpit",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  }
+}

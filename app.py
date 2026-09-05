@@ -22,11 +22,12 @@ import sqlite3
 import datetime
 import threading
 import urllib.parse
+import socket
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 
 # Suporte opcional a Flask se instalado; fallback automático para servidor padrão Python (Zero dependências externas)
 try:
-    from flask import Flask, request as flask_request, jsonify as flask_jsonify, Response as FlaskResponse
+    from flask import Flask, request as flask_request, jsonify as flask_jsonify, Response as FlaskResponse, send_file as flask_send_file
     FLASK_AVAILABLE = True
 except ImportError:
     FLASK_AVAILABLE = False
@@ -388,10 +389,29 @@ if FLASK_AVAILABLE:
     def f_mnf(): return FlaskResponse(get_manifest_json(), mimetype="application/json")
     @app.route("/sw.js", methods=["GET"])
     def f_sw(): return FlaskResponse(get_sw_js(), mimetype="application/javascript")
+    @app.route("/download/apk", methods=["GET"])
+    @app.route("/api/download-apk", methods=["GET"])
+    def f_apk():
+        apk_paths = [
+            file_path for file_path in [
+                os.path.abspath(".build-outputs/app-debug.apk"),
+                os.path.abspath("app/build/outputs/apk/debug/app-debug.apk"),
+                os.path.abspath("build/outputs/apk/debug/app-debug.apk")
+            ] if os.path.exists(file_path)
+        ]
+        if apk_paths:
+            return flask_send_file(apk_paths[0], as_attachment=True, download_name="RadarCoordinator.apk", mimetype="application/vnd.android.package-archive")
+        return flask_jsonify({"error": "APK não encontrado"}), 404
     @app.route("/", methods=["GET"])
     def f_idx(): return HTML_CONTENT
 
 class RadarHTTPHandler(BaseHTTPRequestHandler):
+    def handle(self):
+        try:
+            super().handle()
+        except (BrokenPipeError, ConnectionResetError, socket.error):
+            pass
+
     def send_cors_headers(self, content_type="application/json"):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -404,9 +424,18 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_HEAD(self):
-        self.send_response(200)
-        self.send_cors_headers("text/html; charset=utf-8")
-        self.end_headers()
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        if path in ("/download/apk", "/api/download-apk"):
+            self.send_response(200)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Content-Type", "application/vnd.android.package-archive")
+            self.send_header("Content-Disposition", 'attachment; filename="RadarCoordinator.apk"')
+            self.end_headers()
+        else:
+            self.send_response(200)
+            self.send_cors_headers("text/html; charset=utf-8")
+            self.end_headers()
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -419,21 +448,60 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.send_cors_headers("text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(body)
+            try:
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError, socket.error):
+                pass
         elif path == "/manifest.json":
             body = get_manifest_json().encode("utf-8")
             self.send_response(200)
             self.send_cors_headers("application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(body)
+            try:
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError, socket.error):
+                pass
         elif path == "/sw.js":
             body = get_sw_js().encode("utf-8")
             self.send_response(200)
             self.send_cors_headers("application/javascript")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(body)
+            try:
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError, socket.error):
+                pass
+        elif path == "/download/apk" or path == "/api/download-apk":
+            apk_paths = [
+                file_path for file_path in [
+                    os.path.abspath(".build-outputs/app-debug.apk"),
+                    os.path.abspath("app/build/outputs/apk/debug/app-debug.apk"),
+                    os.path.abspath("build/outputs/apk/debug/app-debug.apk")
+                ] if os.path.exists(file_path)
+            ]
+            if apk_paths:
+                file_size = os.path.getsize(apk_paths[0])
+                self.send_response(200)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Type", "application/vnd.android.package-archive")
+                self.send_header("Content-Disposition", 'attachment; filename="RadarCoordinator.apk"')
+                self.send_header("Content-Length", str(file_size))
+                self.end_headers()
+                try:
+                    with open(apk_paths[0], "rb") as f:
+                        while True:
+                            chunk = f.read(65536)
+                            if not chunk:
+                                break
+                            self.wfile.write(chunk)
+                except (BrokenPipeError, ConnectionResetError, socket.error):
+                    pass
+            else:
+                self.send_response(404)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "APK not found"}')
         elif path == "/api/stacks":
             status = qs.get("status", ["pending"])[0]
             body = json.dumps(get_stacks_data(status)).encode("utf-8")
@@ -912,6 +980,13 @@ HTML_CONTENT = """<!DOCTYPE html>
       box-shadow: 0 4px 14px rgba(0, 255, 136, 0.25);
     }
     .btn-green:hover { background: #1aff96; transform: translateY(-2px); }
+    .btn-maps {
+      background: rgba(0, 210, 255, 0.15);
+      color: #00d2ff;
+      border: 1px solid rgba(0, 210, 255, 0.4);
+      box-shadow: 0 4px 12px rgba(0, 210, 255, 0.15);
+    }
+    .btn-maps:hover { background: rgba(0, 210, 255, 0.28); }
     .btn-red {
       background: rgba(255, 71, 87, 0.12);
       color: var(--danger);
@@ -1171,12 +1246,27 @@ HTML_CONTENT = """<!DOCTYPE html>
     
     <!-- Navegação -->
     <div class="nav-pills">
-      <a href="#dashboard" class="nav-pill active">Cockpit</a>
-      <a href="#stacks" class="nav-pill">Stacks (8)</a>
-      <a href="#analytics" class="nav-pill">Analytics</a>
-      <a href="#subscription" class="nav-pill">Plano Pro</a>
-      <a href="#settings" class="nav-pill">Ajustes</a>
-      <a href="#admin" class="nav-pill">Admin</a>
+      <a href="#dashboard" class="nav-pill active">🎯 Cockpit</a>
+      <a href="#stacks" class="nav-pill">📦 Stacks (8)</a>
+      <a href="#analytics" class="nav-pill">📊 Analytics</a>
+      <a href="#subscription" class="nav-pill">⭐ Plano Pro</a>
+      <a href="#settings" class="nav-pill">⚙️ Ajustes</a>
+      <a href="#admin" class="nav-pill">🔒 Admin</a>
+      <a href="/download/apk" class="nav-pill" style="background: rgba(0, 255, 136, 0.15); color: #00ff88; border-color: #00ff88;" download>📲 Baixar APK (.apk)</a>
+    </div>
+
+    <!-- Banner de Download do APK Nativo Android -->
+    <div style="background: linear-gradient(90deg, rgba(0, 255, 136, 0.12) 0%, rgba(17, 17, 24, 0.95) 100%); border: 1px solid rgba(0, 255, 136, 0.35); border-radius: 14px; padding: 12px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="font-size: 26px;">📱</div>
+        <div>
+          <div style="font-size: 13px; font-weight: 800; color: #00ff88;">APK Nativo Android Pronto para Instalação</div>
+          <div style="font-size: 11px; color: var(--text-muted);">Radar Coordinator com Reconhecimento de Voz nativo (SpeechRecognizer) e Google Maps.</div>
+        </div>
+      </div>
+      <a href="/download/apk" class="btn btn-green" style="flex: 0 0 auto; padding: 9px 18px; font-size: 12px; text-decoration: none; border-radius: 10px;" download>
+        ⬇️ Baixar APK Direto
+      </a>
     </div>
 
     <!-- Status: GPS 4.2m, Firebase Sync, 4 Apps (bolinhas pulsantes) -->
@@ -1270,11 +1360,12 @@ HTML_CONTENT = """<!DOCTYPE html>
     </div>
 
     <div id="dash-stacks-container">
-      <!-- Card 1: Multi-app iFood+Rappi -->
+      <!-- Card 1: Multi-app iFood+Rappi (Mesclada) -->
       <div class="stack-card multi" id="card-stk_01">
         <div class="stack-header">
           <div>
             <span class="app-dot app-ifood">iFood</span> + <span class="app-dot app-rappi">Rappi</span>
+            <span style="background: rgba(0, 255, 136, 0.2); color: var(--primary); font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid var(--primary);">✨ MESCLADA</span>
             <div style="font-size: 14px; font-weight: 800; color: #ffffff; margin-top: 6px;">Burger King Paulista & Pizza Hut Jardins</div>
           </div>
           <div style="text-align: right;">
@@ -1291,6 +1382,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
         <div class="stack-btn-row">
           <button class="btn btn-red" onclick="declineStack(this, 'stk_01')">❌ Recusar</button>
+          <button class="btn btn-maps" onclick="openMapsRoute('Burger King Avenida Paulista, Sao Paulo', 'Pizza Hut Alameda Santos, Sao Paulo', 'Edificio Paulista Corporate, Sao Paulo', 'stk_01')">🗺️ Maps Rota</button>
           <button class="btn btn-green" onclick="acceptStack(this, 33.00, 'stk_01')">✅ Aceitar</button>
         </div>
       </div>
@@ -1314,6 +1406,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
         <div class="stack-btn-row">
           <button class="btn btn-red" onclick="declineStack(this, 'stk_02')">❌ Recusar</button>
+          <button class="btn btn-maps" onclick="openMapsRoute('McDonalds Henrique Schaumann, Sao Paulo', null, 'Rua Augusta 1500, Sao Paulo', 'stk_02')">🗺️ Maps</button>
           <button class="btn btn-green" onclick="acceptStack(this, 15.00, 'stk_02')">✅ Aceitar</button>
         </div>
       </div>
@@ -1337,6 +1430,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
         <div class="stack-btn-row">
           <button class="btn btn-red" onclick="declineStack(this, 'stk_03')">❌ Recusar</button>
+          <button class="btn btn-maps" onclick="openMapsRoute('Starbucks Shopping Frei Caneca, Sao Paulo', null, 'Avenida Consolacao 2000, Sao Paulo', 'stk_03')">🗺️ Maps</button>
           <button class="btn btn-green" onclick="acceptStack(this, 18.00, 'stk_03')">✅ Aceitar</button>
         </div>
       </div>
@@ -1634,8 +1728,22 @@ HTML_CONTENT = """<!DOCTYPE html>
       saveState();
     }
 
+    function openMapsRoute(origin, waypoint, destination, stackId) {
+      speak('Sincronizando rota com Google Maps. Navegação multi-ponto ativada.');
+      let url = '';
+      const dest = encodeURIComponent(destination || 'Sao Paulo, SP');
+      const orig = encodeURIComponent(origin || 'Minha Localizacao');
+      if (waypoint) {
+        const way = encodeURIComponent(waypoint);
+        url = `https://www.google.com/maps/dir/?api=1&origin=${orig}&destination=${dest}&waypoints=${way}&travelmode=two_wheeler`;
+      } else {
+        url = `https://www.google.com/maps/dir/?api=1&origin=${orig}&destination=${dest}&travelmode=two_wheeler`;
+      }
+      window.open(url, '_blank');
+    }
+
     // acceptStack(btn, valor): destaca verde, atualiza ganhos, remove outros, chama POST /api/stacks/accept
-    async function acceptStack(btn, valor, stackId) {
+    async function acceptStack(btn, valor, stackId, shouldOpenMaps = true) {
       const card = btn.closest('.stack-card');
       if (card) card.classList.add('accepted');
 
@@ -1650,6 +1758,15 @@ HTML_CONTENT = """<!DOCTYPE html>
           body: JSON.stringify({ stack_id: stackId })
         });
       } catch (e) {}
+
+      // Se for stack mesclado de 2 pedidos ou solicitado, sincroniza rota do Maps automaticamente
+      if (shouldOpenMaps) {
+        setTimeout(() => {
+          if (stackId === 'stk_01' || stackId === 'stk_04' || stackId === 'stk_06' || stackId === 'stk_08') {
+            openMapsRoute('Burger King Avenida Paulista, Sao Paulo', 'Pizza Hut Alameda Santos, Sao Paulo', 'Edificio Paulista Corporate, Sao Paulo', stackId);
+          }
+        }, 300);
+      }
 
       setTimeout(() => {
         if (card) card.style.display = 'none';
@@ -1794,11 +1911,16 @@ HTML_CONTENT = """<!DOCTYPE html>
       if (!cont) return;
       cont.innerHTML = list.map(s => {
         const gain = (s.total_value / s.distance_km).toFixed(2);
+        const isMulti = s.apps.includes('+');
+        const restParts = s.restaurant.split('&');
+        const r1 = restParts[0] ? restParts[0].trim() : s.restaurant;
+        const r2 = restParts[1] ? restParts[1].trim() : null;
         return `
-          <div class="stack-card ${s.apps.includes('+') ? 'multi' : ''}">
+          <div class="stack-card ${isMulti ? 'multi' : ''}">
             <div class="stack-header">
               <div>
-                <span class="app-dot ${s.apps.includes('iFood') ? 'app-ifood' : 'app-rappi'}">${s.apps}</span>
+                <span class="app-dot ${s.apps.includes('iFood') ? 'app-ifood' : (s.apps.includes('Rappi') ? 'app-rappi' : 'app-99')}">${s.apps}</span>
+                ${isMulti ? '<span style="background: rgba(0, 255, 136, 0.2); color: var(--primary); font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid var(--primary);">✨ MESCLADA</span>' : ''}
                 <div style="font-size: 14px; font-weight: 800; color: #ffffff; margin-top: 6px;">${s.restaurant}</div>
               </div>
               <div style="text-align: right;">
@@ -1807,11 +1929,14 @@ HTML_CONTENT = """<!DOCTYPE html>
               </div>
             </div>
             <div class="stack-route-display">
-              <span>● ${s.restaurant}</span> <span class="route-arrow">➔</span> <span>Destino</span>
+              <span>● ${r1}</span> <span class="route-arrow">➔</span> 
+              ${r2 ? `<span>● ${r2}</span> <span class="route-arrow">➔</span>` : ''}
+              <span>🏢 Entrega</span>
               <span style="margin-left: auto; color: var(--text-muted);">${s.distance_km} km • ${s.time_min} min</span>
             </div>
             <div class="stack-btn-row">
               <button class="btn btn-red" onclick="declineStack(this, '${s.id}')">❌ Recusar</button>
+              <button class="btn btn-maps" onclick="openMapsRoute('${r1}, Sao Paulo', ${r2 ? `'${r2}, Sao Paulo'` : 'null'}, 'Sao Paulo, SP', '${s.id}')">🗺️ Maps Rota</button>
               <button class="btn btn-green" onclick="acceptStack(this, ${s.total_value}, '${s.id}')">✅ Aceitar</button>
             </div>
           </div>
@@ -1870,9 +1995,18 @@ HTML_CONTENT = """<!DOCTYPE html>
 # EXECUÇÃO DO SERVIDOR (DUAL PORT 3000 E 5000)
 # ==============================================================================
 
+class RadarServer(ThreadingHTTPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+    def handle_error(self, request, client_address):
+        exc_type, exc_val, exc_tb = sys.exc_info()
+        if exc_type in (BrokenPipeError, ConnectionResetError, socket.error):
+            return
+        super().handle_error(request, client_address)
+
 def run_server(port):
     try:
-        server = ThreadingHTTPServer(("0.0.0.0", port), RadarHTTPHandler)
+        server = RadarServer(("0.0.0.0", port), RadarHTTPHandler)
         print(f"[RADAR COCKPIT] Servidor operacional na porta {port} (http://localhost:{port})")
         server.serve_forever()
     except Exception as e:
