@@ -30,7 +30,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -120,6 +123,15 @@ fun MainScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostStateState() }
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    // Inicialização do Gerenciador de Assinaturas Pro e Google Play Billing
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        SubscriptionManager.initialize(context)
+        PlayBillingManager.initialize(context)
+    }
+    val subscriptionState by SubscriptionManager.subscriptionState.collectAsState()
+    var showSubscriptionPaywall by remember { mutableStateOf(false) }
 
     // 1. Telemetria em Tempo Real via SpeedSafetyViewModel conectado ao LocationService
     val speedUiState by viewModel.uiState.collectAsState()
@@ -221,7 +233,20 @@ fun MainScreen(
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                         containerColor = DarkBg
-                    )
+                    ),
+                    actions = {
+                        // Botão VIP de Assinatura / Plano Pro
+                        IconButton(
+                            onClick = { showSubscriptionPaywall = true },
+                            modifier = Modifier.testTag("btn_open_subscription")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "Plano VIP Pro",
+                                tint = if (subscriptionState.isActive) Color(0xFFFFD700) else TextMuted
+                            )
+                        }
+                    }
                 )
 
                 // -------------------------------------------------------------
@@ -260,6 +285,49 @@ fun MainScreen(
                 .padding(horizontal = 16.dp)
         ) {
             // Feedback do Comando de Voz
+            if (!subscriptionState.isActive) {
+                // Banner de Conversão do Plano Free
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clickable { showSubscriptionPaywall = true }
+                        .testTag("banner_upgrade_pro"),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1B1B26)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "👑 SEJA PRO POR R$ 29,90/MÊS",
+                                color = Color(0xFFFFD700),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                            Text(
+                                text = "Varredura ilimitada, comandos de voz e descarte automático.",
+                                color = TextMuted,
+                                fontSize = 9.sp
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFFFFD700))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("ASSINAR", color = Color(0xFF0A0A0F), fontSize = 10.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
+            }
             AnimatedVisibility(
                 visible = isVoiceListening || lastVoiceTranscript.isNotBlank(),
                 enter = fadeIn(),
@@ -815,6 +883,13 @@ fun EmptyOffersPlaceholder(
         ) {
             Text("Simular Novas Ofertas 🔄", fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
+    }
+
+    // Modal de Paywall de Assinatura (Venda Pro / PIX)
+    if (showSubscriptionPaywall) {
+        SubscriptionScreen(
+            onDismiss = { showSubscriptionPaywall = false }
+        )
     }
 }
 

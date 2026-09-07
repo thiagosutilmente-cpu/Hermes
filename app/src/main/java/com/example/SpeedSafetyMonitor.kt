@@ -10,6 +10,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
+import android.os.Looper
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -50,6 +51,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -66,8 +73,9 @@ import kotlin.math.sqrt
 data class SpeedSafetyState(
     val currentSpeedKmh: Double = 0.0,
     val isSafetyLockActive: Boolean = false, // true quando > 10.0 km/h
+    val isMoving: Boolean = false, // true quando moto está em movimento
     val isGpsActive: Boolean = false,
-    val gpsAccuracyMeters: Float = 4.2f,
+    val gpsAccuracyMeters: Float = 3.8f,
     val latitude: Double = -23.561684,
     val longitude: Double = -46.655981,
     val altitudeMeters: Double = 760.0,
@@ -75,17 +83,17 @@ data class SpeedSafetyState(
     val isSimulating: Boolean = false,
     val safetySpeedThresholdKmh: Double = 10.0,
     val sensorAccelerationMps2: Float = 0f,
-    val provider: String = "GPS"
+    val provider: String = "Fused Location (GPS)"
 )
 
 /**
  * Monitor de Velocidade para Segurança do Entregador.
- * Utiliza o [LocationManager] nativo do Android para computar a velocidade real por satélite (GPS)
- * e o [SensorManager] (Acelerômetro/Linear Acceleration) para detectar movimento e vibração do motor.
+ * Utiliza o [FusedLocationProviderClient] da Google Play Services (API oficial de localização do Android)
+ * com fallback para o [LocationManager] nativo e [SensorManager] (Acelerômetro) para detectar movimento.
  *
  * Regra Crítica:
- * Se a velocidade ultrapassar 10 km/h, ativa o modo de segurança, ocultando a lista de ofertas
- * para impedir distrações visuais e acidentes durante a pilotagem.
+ * Se a velocidade ultrapassar 10 km/h, ativa automaticamente a trava de segurança, ocultando a lista
+ * de ofertas para impedir distrações visuais e acidentes durante a pilotagem.
  */
 class SpeedSafetyMonitor(
     private val context: Context,
@@ -94,6 +102,8 @@ class SpeedSafetyMonitor(
 
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+    private val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
+    private var fusedLocationCallback: LocationCallback? = null
 
     private val _state = MutableStateFlow(SpeedSafetyState())
     val state: StateFlow<SpeedSafetyState> = _state.asStateFlow()
@@ -115,6 +125,32 @@ class SpeedSafetyMonitor(
 
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
+        // 1. Google Play Services FusedLocationProviderClient (API oficial de alta precisão)
+        try {
+            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
+                .setMinUpdateIntervalMillis(500L)
+                .setMinUpdateDistanceMeters(0.5f)
+                .setWaitForAccurateLocation(false)
+                .build()
+
+            fusedLocationCallback = object : LocationCallback() {
+                override fun onLocationResult(locationResult: LocationResult) {
+                    val location = locationResult.lastLocation ?: return
+                    processLocationUpdate(location, "Fused Location API")
+                }
+            }
+
+            fusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                fusedLocationCallback!!,
+                Looper.getMainLooper()
+            )
+            Log.d("SpeedSafetyMonitor", "FusedLocationProviderClient conectado com sucesso.")
+        } catch (e: Exception) {
+            Log.d("SpeedSafetyMonitor", "Falha ao registrar FusedLocationProviderClient: ${e.message}")
+        }
+
+        // 2. LocationManager nativo (GPS e Network) para redundância e hardware direto
         try {
             val hasGps = locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true
             val hasNetwork = locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true
@@ -122,8 +158,8 @@ class SpeedSafetyMonitor(
             if (hasGps) {
                 locationManager?.requestLocationUpdates(
                     LocationManager.GPS_PROVIDER,
-                    500L, // 500ms para rastreamento de alta fidelidade
-                    0.5f,  // 0.5 metro de deslocamento
+                    500L,
+                    0.5f,
                     this
                 )
             }
@@ -136,12 +172,9 @@ class SpeedSafetyMonitor(
                 )
             }
 
-            val lastKnown = try {
-                locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                    ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-            } catch (_: Exception) { null }
-
-            lastKnown?.let { onLocationChanged(it) }
+            fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
+                loc?.let { processLocationUpdate(it, "Fused Location (Cache)") }
+            }
         } catch (e: Exception) {
             Log.d("SpeedSafetyMonitor", "Falha ao registrar LocationManager: ${e.message}")
         }
@@ -161,15 +194,19 @@ class SpeedSafetyMonitor(
     }
 
     override fun onLocationChanged(location: Location) {
+        processLocationUpdate(location, location.provider ?: "GPS Nativo")
+    }
+
+    private fun processLocationUpdate(location: Location, providerName: String) {
         if (isSimulatingSpeed) return
 
         var speedKmh = 0.0
-        if (location.hasSpeed() && location.speed > 0) {
-            speedKmh = location.speed * 3.6 // m/s para km/h
+        if (location.hasSpeed() && location.speed >= 0f) {
+            speedKmh = (location.speed * 3.6).toDouble()
         } else if (lastLocation != null && location.time > lastLocation!!.time) {
             val distMeters = location.distanceTo(lastLocation!!)
             val timeSec = (location.time - lastLocation!!.time) / 1000.0
-            if (timeSec > 0) {
+            if (timeSec in 0.3..15.0) {
                 speedKmh = (distMeters / timeSec) * 3.6
             }
         }
@@ -177,19 +214,24 @@ class SpeedSafetyMonitor(
 
         val wasLocked = _state.value.isSafetyLockActive
         val isLocked = speedKmh > SAFETY_SPEED_THRESHOLD_KMH
+        val isMoving = speedKmh > 2.0 || _state.value.sensorAccelerationMps2 > 1.2f
 
         _state.value = _state.value.copy(
             currentSpeedKmh = speedKmh,
             isSafetyLockActive = isLocked,
+            isMoving = isMoving,
             isGpsActive = true,
-            gpsAccuracyMeters = if (location.hasAccuracy()) location.accuracy else 4.2f,
+            gpsAccuracyMeters = if (location.hasAccuracy()) location.accuracy else 3.8f,
             latitude = location.latitude,
             longitude = location.longitude,
             altitudeMeters = location.altitude,
             bearingDegrees = if (location.hasBearing()) location.bearing else 0f,
-            provider = location.provider ?: "GPS",
+            provider = providerName,
             isSimulating = false
         )
+
+        // Sincroniza com LocationService
+        LocationService.updateSimulatedSpeed(speedKmh)
 
         if (wasLocked != isLocked) {
             onSafetyLockChanged(isLocked, speedKmh)
@@ -204,8 +246,11 @@ class SpeedSafetyMonitor(
             val z = event.values[2]
             val magnitude = sqrt(x * x + y * y + z * z)
 
+            val isMoving = _state.value.currentSpeedKmh > 2.0 || magnitude > 1.5f
+
             _state.value = _state.value.copy(
-                sensorAccelerationMps2 = magnitude
+                sensorAccelerationMps2 = magnitude,
+                isMoving = isMoving
             )
         }
     }
@@ -217,7 +262,7 @@ class SpeedSafetyMonitor(
     override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
 
     /**
-     * Permite testar a velocidade (ex: 0 km/h parado, 18 km/h movimento, 42 km/h trânsito livre)
+     * Permite testar a velocidade (ex: 0 km/h parado, 18 km/h movimento, 45 km/h trânsito livre)
      * sem precisar estar em uma moto física em movimento.
      */
     fun setSimulatedSpeed(speedKmh: Double) {
@@ -226,12 +271,17 @@ class SpeedSafetyMonitor(
 
         val wasLocked = _state.value.isSafetyLockActive
         val isLocked = speedKmh > SAFETY_SPEED_THRESHOLD_KMH
+        val isMoving = speedKmh > 2.0
 
         _state.value = _state.value.copy(
             currentSpeedKmh = speedKmh,
             isSafetyLockActive = isLocked,
-            isSimulating = true
+            isMoving = isMoving,
+            isSimulating = true,
+            provider = "Simulação Teste"
         )
+
+        LocationService.updateSimulatedSpeed(speedKmh)
 
         if (wasLocked != isLocked) {
             onSafetyLockChanged(isLocked, speedKmh)
@@ -240,18 +290,25 @@ class SpeedSafetyMonitor(
 
     fun disableSimulation() {
         isSimulatingSpeed = false
-        lastLocation?.let { onLocationChanged(it) } ?: run {
+        lastLocation?.let { processLocationUpdate(it, "Fused Location (GPS)") } ?: run {
+            val wasLocked = _state.value.isSafetyLockActive
             _state.value = _state.value.copy(
                 currentSpeedKmh = 0.0,
                 isSafetyLockActive = false,
-                isSimulating = false
+                isMoving = false,
+                isSimulating = false,
+                provider = "Fused Location (GPS)"
             )
-            onSafetyLockChanged(false, 0.0)
+            LocationService.updateSimulatedSpeed(0.0)
+            if (wasLocked) {
+                onSafetyLockChanged(false, 0.0)
+            }
         }
     }
 
     fun destroy() {
         try {
+            fusedLocationCallback?.let { fusedLocationClient.removeLocationUpdates(it) }
             locationManager?.removeUpdates(this)
             sensorManager?.unregisterListener(this)
         } catch (_: Exception) {}
@@ -553,16 +610,24 @@ fun RealtimeSpeedTelemetryCard(
                 }
 
                 Column(horizontalAlignment = Alignment.End) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (speedState.isMoving) "🏍️ Em Movimento" else "🟢 Parado",
+                            color = if (speedState.isMoving) (if (isLocked) RedDecline else NeonGreen) else TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     Text(
-                        text = if (isLocked) "Limite: > 10 km/h" else "Seguro: <= 10 km/h",
+                        text = if (isLocked) "🚨 Trava Ativa (> 10 km/h)" else "🛡️ Modo Toque Livre (<= 10 km/h)",
                         color = if (isLocked) RedDecline else TextLight,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = if (isLocked) "Ofertas ocultas para sua segurança" else "Ofertas visíveis na tela",
+                        text = "Fonte: ${speedState.provider}",
                         color = TextMuted,
-                        fontSize = 10.sp
+                        fontSize = 9.sp
                     )
                 }
             }

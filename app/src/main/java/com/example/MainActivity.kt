@@ -143,7 +143,7 @@ class MainActivity : ComponentActivity() {
         voiceManager = vm
 
         setContent {
-            MaterialTheme(colorScheme = RadarColorScheme) {
+            DeliveryHighContrastTheme {
                 RadarDeliveryDashboard(
                     voiceManager = vm,
                     notificationIntent = currentIntentState.value,
@@ -226,6 +226,17 @@ fun RadarDeliveryDashboard(
 
     // Estado da Tela de Perfil do Entregador
     var showProfileScreen by remember { mutableStateOf(false) }
+
+    // Inicialização do Gerenciador de Assinaturas Pro e Google Play Billing
+    LaunchedEffect(Unit) {
+        SubscriptionManager.initialize(context)
+        PlayBillingManager.initialize(context)
+        FirebaseAnalyticsManager.initialize(context)
+        FirebaseAnalyticsManager.logScreenView("RadarDeliveryDashboard", "MainActivity")
+    }
+    val subscriptionState by SubscriptionManager.subscriptionState.collectAsState()
+    var showSubscriptionPaywall by remember { mutableStateOf(false) }
+    var showAnalyticsDashboard by remember { mutableStateOf(false) }
 
     // Inicialização do Gerenciador de Logs de Decisões do Entregador
     LaunchedEffect(Unit) {
@@ -337,11 +348,25 @@ fun RadarDeliveryDashboard(
     var speedMonitor: SpeedSafetyMonitor? by remember { mutableStateOf(null) }
 
     DisposableEffect(hasLocationPermission) {
+        if (hasLocationPermission) {
+            val serviceIntent = Intent(context, LocationService::class.java).apply {
+                action = LocationService.ACTION_START_LOCATION_TRACKING
+            }
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent)
+                } else {
+                    context.startService(serviceIntent)
+                }
+            } catch (_: Exception) {}
+        }
+
         val monitor = SpeedSafetyMonitor(context) { isLocked, speed ->
+            FirebaseAnalyticsManager.logSpeedSafetyAlert(speed, limit = 10.0)
             if (isLocked) {
                 HapticFeedbackHelper.vibrateDecline(context)
                 if (isVoiceEnabled) {
-                    voiceManager?.speak("Atenção: velocidade acima de 10 por hora. Bloqueio ativo por segurança. Diga 'Aceitar' ou 'Cancelar'.")
+                    voiceManager?.speak("Atenção: moto em movimento acima de 10 por hora. Trava de segurança ativada. Use comandos de voz.")
                 }
             } else {
                 HapticFeedbackHelper.vibrateTap(context)
@@ -378,6 +403,16 @@ fun RadarDeliveryDashboard(
             offer = targetOffer,
             reason = targetOffer.neuralDecision.reason.ifEmpty { "Ganho/km vantajoso" },
             source = source
+        )
+
+        // Rastreamento de Telemetria no Firebase Analytics
+        FirebaseAnalyticsManager.logOfferAccepted(
+            offerId = targetOffer.id,
+            appName = targetOffer.appName,
+            value = targetOffer.value,
+            distanceKm = targetOffer.distanceKm,
+            gainPerKm = targetOffer.gainPerKm,
+            decisionSource = source
         )
 
         todayEarnings += targetOffer.value
@@ -435,6 +470,16 @@ fun RadarDeliveryDashboard(
             offer = targetOffer,
             reason = targetOffer.neuralDecision.reason.ifEmpty { "Recusado pelo entregador" },
             source = source
+        )
+
+        // Rastreamento de Telemetria no Firebase Analytics
+        FirebaseAnalyticsManager.logOfferDeclined(
+            offerId = targetOffer.id,
+            appName = targetOffer.appName,
+            value = targetOffer.value,
+            distanceKm = targetOffer.distanceKm,
+            reason = targetOffer.neuralDecision.reason.ifEmpty { "Recusado pelo entregador" },
+            decisionSource = source
         )
 
         offersList.remove(targetOffer)
@@ -498,6 +543,8 @@ fun RadarDeliveryDashboard(
     DisposableEffect(context) {
         val manager = HandsFreeSpeechManager(context) { command, spokenText ->
             lastVoiceCommandText = spokenText
+            FirebaseAnalyticsManager.logVoiceCommandRecognized(command.name, spokenText)
+            FirebaseAnalyticsManager.logFeatureUsed("voice_hands_free")
             when (command) {
                 VoiceActionCommand.ACCEPT -> {
                     onAcceptCurrentBestOffer()
@@ -689,6 +736,31 @@ fun RadarDeliveryDashboard(
                         )
                     }
 
+                    // Botão VIP Pro de Assinatura / Upgrade
+                    IconButton(
+                        onClick = { showSubscriptionPaywall = true },
+                        modifier = Modifier.testTag("action_subscription_vip")
+                    ) {
+                        Text(
+                            text = if (subscriptionState.isActive) "👑" else "⭐",
+                            fontSize = 18.sp
+                        )
+                    }
+
+                    // Botão de Telemetria e Métricas do Firebase Analytics
+                    IconButton(
+                        onClick = {
+                            FirebaseAnalyticsManager.logScreenView("AnalyticsDashboardSheet", "Dashboard")
+                            showAnalyticsDashboard = true
+                        },
+                        modifier = Modifier.testTag("action_analytics_dashboard")
+                    ) {
+                        Text(
+                            text = "🔥",
+                            fontSize = 18.sp
+                        )
+                    }
+
                     // Botão Manual de Despacho / Varredura Imediata
                     IconButton(
                         onClick = {
@@ -742,6 +814,64 @@ fun RadarDeliveryDashboard(
                 contentPadding = PaddingValues(top = 14.dp, bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Banner Promocional Plano Pro / Upgrade
+                if (!subscriptionState.isActive) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showSubscriptionPaywall = true }
+                                .testTag("banner_pro_upgrade_main"),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF14141E)),
+                            border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFFFFD700).copy(alpha = 0.65f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("👑", fontSize = 24.sp)
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            text = "DESBLOQUEIE O RADAR PRO",
+                                            color = Color(0xFFFFD700),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Black,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                        Text(
+                                            text = "Filtro anti-corrida ruim, radar ilimitado e voz mãos-livres.",
+                                            color = TextLight,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFFFD700))
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "VER PLANO",
+                                        color = Color(0xFF0A0A0F),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 1. ESTADO ATUAL DO RADAR E BOTÃO GRANDE DE RASTREAMENTO
                 item {
                     BigRadarTrackingControl(
@@ -1093,11 +1223,47 @@ fun RadarDeliveryDashboard(
                         onDecline = { onDeclineOffer(offer, "Toque na Tela") },
                         onInspectPickup = {
                             selectedPickupOfferId = offer.id
+                        },
+                        onSpeakOffer = {
+                            if (voiceManager != null) {
+                                voiceManager.readOfferAloud(
+                                    appName = offer.appName,
+                                    restaurant = offer.restaurant,
+                                    value = offer.value,
+                                    distanceKm = offer.distanceKm,
+                                    gainPerKm = offer.gainPerKm,
+                                    pickupAddress = offer.pickupAddress,
+                                    estimatedMinutes = offer.timeMinutes,
+                                    neuralDecision = offer.neuralDecision.decision.name,
+                                    neuralReason = offer.neuralDecision.reason
+                                )
+                            }
                         }
                     )
                 }
             }
         }
+    }
+
+    // Tela de Perfil do Entregador (Histórico de Decisões)
+    if (showProfileScreen) {
+        DeliveryProfileScreen(
+            onNavigateBack = { showProfileScreen = false }
+        )
+    }
+
+    // Modal de Paywall e Planos Pro / PIX
+    if (showSubscriptionPaywall) {
+        SubscriptionScreen(
+            onDismiss = { showSubscriptionPaywall = false }
+        )
+    }
+
+    // Modal de Métricas do Firebase Analytics (Conversão, Retenção e Feed)
+    if (showAnalyticsDashboard) {
+        AnalyticsDashboardSheet(
+            onDismiss = { showAnalyticsDashboard = false }
+        )
     }
 }
 
@@ -1468,7 +1634,8 @@ fun OfferCard(
     offer: RadarOffer = LiveDispatchSimulator.getInitialOffers().first(),
     onAccept: () -> Unit = {},
     onDecline: () -> Unit = {},
-    onInspectPickup: (() -> Unit)? = null
+    onInspectPickup: (() -> Unit)? = null,
+    onSpeakOffer: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val formattedPrice = String.format(Locale.GERMANY, "R$ %.2f", offer.value)
@@ -1489,6 +1656,22 @@ fun OfferCard(
     val isDecisionAccept = decision.isAccept
     val decisionBorderColor = if (isDecisionAccept) NeonGreen else Color(0xFFFF9900)
     val decisionBgColor = if (isDecisionAccept) NeonGreen.copy(alpha = 0.15f) else Color(0xFFFF9900).copy(alpha = 0.14f)
+
+    val cardRenderTime = remember(offer.id) { System.currentTimeMillis() }
+
+    // Rastreamento automático de visualização de oferta no Firebase Analytics
+    LaunchedEffect(offer.id) {
+        FirebaseAnalyticsManager.logOfferViewed(
+            offerId = offer.id,
+            appName = offer.appName,
+            restaurant = offer.restaurant,
+            value = offer.value,
+            distanceKm = offer.distanceKm,
+            gainPerKm = offer.gainPerKm,
+            neuralDecision = offer.neuralDecision.decision.name,
+            viewSource = "radar_feed_card"
+        )
+    }
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -1789,6 +1972,22 @@ fun OfferCard(
                     Text("❌ RECUSAR", fontWeight = FontWeight.Black, fontSize = 11.sp)
                 }
 
+                // Botão TTS - Ouvir Oferta em Voz Alta (Hands-Free)
+                OutlinedButton(
+                    onClick = {
+                        HapticFeedbackHelper.vibrateTap(context)
+                        onSpeakOffer?.invoke()
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFFD700)),
+                    border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFFFFD700).copy(alpha = 0.65f)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .weight(0.75f)
+                        .height(48.dp)
+                        .testTag("btn_tts_offer_${offer.id}")
+                ) {
+                    Text("🔊 OUVIR", fontWeight = FontWeight.Black, fontSize = 10.5.sp)
+                }
                 // Botão Navegação GPS
                 OutlinedButton(
                     onClick = {
@@ -1815,7 +2014,18 @@ fun OfferCard(
                 // Botão Aceitar com Alto Contraste Neon
                 Button(
                     onClick = {
+                        val latencyMs = System.currentTimeMillis() - cardRenderTime
                         HapticFeedbackHelper.vibrateAccept(context)
+                        FirebaseAnalyticsManager.logOfferAcceptClicked(
+                            offerId = offer.id,
+                            appName = offer.appName,
+                            restaurant = offer.restaurant,
+                            value = offer.value,
+                            distanceKm = offer.distanceKm,
+                            gainPerKm = offer.gainPerKm,
+                            clickSource = "feed_card_accept_button",
+                            timeToClickMs = latencyMs
+                        )
                         val waypoint = if (offer.isMultiStack) "Pizza Hut Al. Santos, Sao Paulo" else null
                         launchGoogleMapsNavigation(
                             context = context,

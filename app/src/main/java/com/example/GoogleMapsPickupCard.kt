@@ -162,6 +162,21 @@ fun GoogleMapsPickupCard(
         )
     }
 
+    val pickupCardRenderTime = remember(offer.id) { System.currentTimeMillis() }
+
+    LaunchedEffect(offer.id) {
+        FirebaseAnalyticsManager.logOfferViewed(
+            offerId = offer.id,
+            appName = offer.appName,
+            restaurant = offer.restaurant,
+            value = offer.value,
+            distanceKm = offer.distanceKm,
+            gainPerKm = offer.gainPerKm,
+            neuralDecision = offer.neuralDecision.decision.name,
+            viewSource = "maps_pickup_card"
+        )
+    }
+
     var isDetailsExpanded by remember { mutableStateOf(false) }
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse_radar_maps")
@@ -541,7 +556,18 @@ fun GoogleMapsPickupCard(
                 // Aceitar com Rota de Coleta Imediata
                 Button(
                     onClick = {
+                        val latency = System.currentTimeMillis() - pickupCardRenderTime
                         HapticFeedbackHelper.vibrateAccept(context)
+                        FirebaseAnalyticsManager.logOfferAcceptClicked(
+                            offerId = offer.id,
+                            appName = offer.appName,
+                            restaurant = offer.restaurant,
+                            value = offer.value,
+                            distanceKm = offer.distanceKm,
+                            gainPerKm = offer.gainPerKm,
+                            clickSource = "maps_pickup_card",
+                            timeToClickMs = latency
+                        )
                         launchGoogleMapsDirectPickup(context, pickupEstimate.pickupAddress)
                         onAcceptWithNavigation(offer)
                     },

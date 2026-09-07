@@ -9,7 +9,8 @@ import java.util.Locale
 
 /**
  * Gerenciador profissional de voz neural via Text-to-Speech nativo do Android.
- * Projetado para anunciar corridas, decisões neurais e métricas no fone Bluetooth do entregador.
+ * Projetado para anunciar corridas, decisões neurais e métricas no fone Bluetooth do entregador,
+ * permitindo operação hands-free no trânsito.
  */
 class NeuralVoiceManager(private val context: Context) : TextToSpeech.OnInitListener {
 
@@ -33,9 +34,10 @@ class NeuralVoiceManager(private val context: Context) : TextToSpeech.OnInitList
                 // Fallback para idioma padrão do sistema
                 tts?.setLanguage(Locale.getDefault())
             }
-            tts?.setSpeechRate(1.15f) // Velocidade ligeiramente ágil para trânsito
+            tts?.setSpeechRate(1.15f) // Velocidade ágil e dinâmica para o trânsito
             tts?.setPitch(1.0f)
             isInitialized = true
+            Log.i("NeuralVoiceManager", "Text-to-Speech inicializado com sucesso em pt-BR.")
         } else {
             Log.w("NeuralVoiceManager", "Falha na inicialização do TTS: $status")
         }
@@ -58,6 +60,37 @@ class NeuralVoiceManager(private val context: Context) : TextToSpeech.OnInitList
     }
 
     /**
+     * Lê uma oferta de entrega detalhadamente em voz alta para o piloto em movimento.
+     */
+    fun readOfferAloud(
+        appName: String,
+        restaurant: String,
+        value: Double,
+        distanceKm: Double,
+        gainPerKm: Double,
+        pickupAddress: String = "",
+        estimatedMinutes: Int = 0,
+        neuralDecision: String = "ACCEPT",
+        neuralReason: String = ""
+    ) {
+        val formattedVal = String.format(Locale.GERMANY, "%.2f", value).replace(".", ",")
+        val formattedKm = String.format(Locale.GERMANY, "%.1f", distanceKm).replace(".", ",")
+        val formattedGain = String.format(Locale.GERMANY, "%.2f", gainPerKm).replace(".", ",")
+
+        val recommendation = if (neuralDecision.equals("accept", ignoreCase = true) || neuralDecision.contains("ACCEPT")) {
+            "Recomendação Jarvis: Aceitar corrida vantajosa."
+        } else {
+            "Recomendação Jarvis: Atenção, rendimento abaixo do ideal."
+        }
+
+        val reasonText = if (neuralReason.isNotBlank()) " Motivo: $neuralReason." else ""
+        val timeText = if (estimatedMinutes > 0) " Tempo estimado de $estimatedMinutes minutos." else ""
+
+        val speech = "Oferta $appName. Estabelecimento: $restaurant. Valor total: $formattedVal reais para $formattedKm quilômetros, rendendo $formattedGain por quilômetro.$timeText $recommendation$reasonText"
+        speak(speech)
+    }
+
+    /**
      * Anúncio inteligente de nova corrida interceptada
      */
     fun announceNewOffer(
@@ -68,18 +101,14 @@ class NeuralVoiceManager(private val context: Context) : TextToSpeech.OnInitList
         gainPerKm: Double,
         neuralDecision: String
     ) {
-        val formattedVal = String.format(Locale.GERMANY, "%.2f", value).replace(".", ",")
-        val formattedKm = String.format(Locale.GERMANY, "%.1f", distanceKm).replace(".", ",")
-        val formattedGain = String.format(Locale.GERMANY, "%.2f", gainPerKm).replace(".", ",")
-        
-        val recommendationPhrase = if (neuralDecision.equals("accept", ignoreCase = true)) {
-            "Recomendação Jarvis: Aceitar corrida."
-        } else {
-            "Recomendação Jarvis: Corrida desvantajosa, considere recusar."
-        }
-
-        val speech = "Nova oferta $appName no $restaurant. Valor: $formattedVal reais para $formattedKm quilômetros. Rendimento: $formattedGain por quilômetro. $recommendationPhrase"
-        speak(speech)
+        readOfferAloud(
+            appName = appName,
+            restaurant = restaurant,
+            value = value,
+            distanceKm = distanceKm,
+            gainPerKm = gainPerKm,
+            neuralDecision = neuralDecision
+        )
     }
 
     /**

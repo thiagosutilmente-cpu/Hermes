@@ -385,6 +385,13 @@ if FLASK_AVAILABLE:
     def f_dcs():
         res, code = evaluate_decision_data(flask_request.get_json(silent=True) or {})
         return flask_jsonify(res), code
+    @app.route("/api/analytics", methods=["POST"])
+    def f_analytics():
+        data = flask_request.get_json(silent=True) or {}
+        event_name = data.get("event_name", "unknown")
+        params = data.get("params", {})
+        print(f"[FIREBASE ANALYTICS WEB] Event: {event_name} | {params}")
+        return flask_jsonify({"success": True, "event": event_name, "status": "recorded"}), 200
     @app.route("/manifest.json", methods=["GET"])
     def f_mnf(): return FlaskResponse(get_manifest_json(), mimetype="application/json")
     @app.route("/sw.js", methods=["GET"])
@@ -1168,6 +1175,18 @@ HTML_CONTENT = """<!DOCTYPE html>
       z-index: 200;
       box-shadow: 0 4px 20px rgba(0, 255, 136, 0.4);
     }
+    .hud-btn.listening {
+      background: #ff4757 !important;
+      color: #ffffff !important;
+      border-color: #ff4757 !important;
+      box-shadow: 0 0 16px rgba(255, 71, 87, 0.8) !important;
+      animation: voiceListenPulse 1.2s infinite ease-in-out;
+    }
+    @keyframes voiceListenPulse {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7); }
+      70% { transform: scale(1.12); box-shadow: 0 0 0 10px rgba(255, 71, 87, 0); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); }
+    }
   </style>
 </head>
 <body>
@@ -1286,6 +1305,55 @@ HTML_CONTENT = """<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- Card de Telemetria de Velocidade e Trava de Segurança em Movimento (Android Location API) -->
+    <div class="glass" style="padding: 14px 16px; margin-bottom: 14px; border: 1.5px solid var(--surface-border); border-radius: 16px;" id="speed-telemetry-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">🏍️</span>
+          <div>
+            <div style="font-size: 12px; font-weight: 800; color: #ffffff;">TELEMETRIA DE VELOCIDADE (GPS ANDROID)</div>
+            <div style="font-size: 10px; color: var(--text-muted);">API de Localização em Tempo Real • Trava Automática > 10 km/h</div>
+          </div>
+        </div>
+        <div id="speed-lock-badge">
+          <span style="color:#00ff88; font-weight:800; font-size:11px;">🛡️ TOQUE LIVRE (<= 10 km/h)</span>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.35); padding: 10px 14px; border-radius: 12px; margin-bottom: 10px;">
+        <div style="display: flex; align-items: baseline; gap: 6px;">
+          <span id="dash-speed-display" style="font-size: 32px; font-weight: 900; color: var(--primary);" class="tabular">0</span>
+          <span style="font-size: 12px; font-weight: 700; color: var(--text-muted);">km/h</span>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-size: 11px; font-weight: 700; color: #fff;">Limite de Segurança: 10 km/h</div>
+          <div style="font-size: 10px; color: var(--text-muted);" id="speed-movement-status">🟢 Moto Parada</div>
+        </div>
+      </div>
+
+      <!-- Trava de Segurança Banner -->
+      <div id="speed-safety-lock-banner" style="display:none; background: rgba(255, 71, 87, 0.15); border: 1.5px solid #ff4757; border-radius: 10px; padding: 10px; margin-bottom: 10px; text-align: center;">
+        <div style="font-size: 13px; font-weight: 800; color: #ff4757;">🚨 TRAVA DE SEGURANÇA ATIVADA (> 10 KM/H)</div>
+        <div style="font-size: 11px; color: #ffccd0; margin-top: 2px;">Moto em movimento! Toques bloqueados para evitar acidentes. Diga "Aceitar" ou "Recusar" no viva-voz.</div>
+        <div style="margin-top: 6px; display: flex; justify-content: center; gap: 8px;">
+          <button class="btn" style="flex: initial; padding: 4px 10px; font-size: 10px; background: rgba(0, 255, 136, 0.2); color: #00ff88; border: 1px solid #00ff88;" onclick="triggerVoiceCommand('aceitar')">🗣️ Simular "Aceitar"</button>
+          <button class="btn" style="flex: initial; padding: 4px 10px; font-size: 10px; background: rgba(255, 71, 87, 0.25); color: #ff4757; border: 1px solid #ff4757;" onclick="triggerVoiceCommand('recusar')">🗣️ Simular "Recusar"</button>
+          <button class="btn" id="btn-mic-safety" style="flex: initial; padding: 4px 10px; font-size: 10px; background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2);" onclick="toggleVoiceRecognition()">🎙️ Falar Agora</button>
+        </div>
+      </div>
+
+      <!-- Controles de Teste / Simulação de Velocidade -->
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+        <span style="font-size: 10px; font-weight: 700; color: var(--text-muted);">Testar Velocidade:</span>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255,255,255,0.08);" onclick="updateSpeed(0, 'Simulado')">0 km/h</button>
+          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255, 71, 87, 0.2); color: #ff4757; border: 1px solid #ff4757;" onclick="updateSpeed(18, 'Simulado')">18 km/h (Trava)</button>
+          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255, 71, 87, 0.25); color: #ff4757; border: 1px solid #ff4757;" onclick="updateSpeed(45, 'Simulado')">45 km/h (Trânsito)</button>
+          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid #00ff88;" onclick="initGeoLocationTracking()">🛰️ GPS Real</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Constellation Map: nós absolutos (🏍️ você, 🍔 BK, 🍕 PH, 🏠, 🏢, ☕ Starbucks) -->
     <div class="constellation-map">
       <div class="map-grid"></div>
@@ -1382,6 +1450,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
         <div class="stack-btn-row">
           <button class="btn btn-red" onclick="declineStack(this, 'stk_01')">❌ Recusar</button>
+          <button class="btn" style="background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid #ffd700;" onclick="readOfferAloud('iFood e Rappi', 'Burger King e Pizza Hut', 33.0, 4.2, 7.86, 18)">🔊 Ouvir</button>
           <button class="btn btn-maps" onclick="openMapsRoute('Burger King Avenida Paulista, Sao Paulo', 'Pizza Hut Alameda Santos, Sao Paulo', 'Edificio Paulista Corporate, Sao Paulo', 'stk_01')">🗺️ Maps Rota</button>
           <button class="btn btn-green" onclick="acceptStack(this, 33.00, 'stk_01')">✅ Aceitar</button>
         </div>
@@ -1406,6 +1475,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
         <div class="stack-btn-row">
           <button class="btn btn-red" onclick="declineStack(this, 'stk_02')">❌ Recusar</button>
+          <button class="btn" style="background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid #ffd700;" onclick="readOfferAloud('iFood', 'McDonalds Henrique Schaumann', 15.0, 2.8, 5.35, 12)">🔊 Ouvir</button>
           <button class="btn btn-maps" onclick="openMapsRoute('McDonalds Henrique Schaumann, Sao Paulo', null, 'Rua Augusta 1500, Sao Paulo', 'stk_02')">🗺️ Maps</button>
           <button class="btn btn-green" onclick="acceptStack(this, 15.00, 'stk_02')">✅ Aceitar</button>
         </div>
@@ -1430,6 +1500,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
         <div class="stack-btn-row">
           <button class="btn btn-red" onclick="declineStack(this, 'stk_03')">❌ Recusar</button>
+          <button class="btn" style="background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid #ffd700;" onclick="readOfferAloud('Rappi', 'Starbucks Frei Caneca', 18.0, 3.1, 5.80, 14)">🔊 Ouvir</button>
           <button class="btn btn-maps" onclick="openMapsRoute('Starbucks Shopping Frei Caneca, Sao Paulo', null, 'Avenida Consolacao 2000, Sao Paulo', 'stk_03')">🗺️ Maps</button>
           <button class="btn btn-green" onclick="acceptStack(this, 18.00, 'stk_03')">✅ Aceitar</button>
         </div>
@@ -1615,6 +1686,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     <div class="hud-sensors">
       <span>GPS: <strong>4.2m</strong></span>
+      <span>Vel: <strong id="hud-speed-val" style="color: var(--primary);">0 km/h</strong></span>
       <span>Lat: <strong>12ms</strong></span>
       <span>Temp: <strong>28°C</strong></span>
     </div>
@@ -1635,7 +1707,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       session: { isLoggedIn: true, token: 'token_123' },
       earnings: { today: 284.50, week: 1420.80, month: 5680.00, totalKm: 38.2, profit: 218.40 },
       stacks: { active: [], pending: [], history: [], autoAccept: false, minGainPerKm: 5.0 },
-      health: { score: 94, gpsAccuracy: 4.2, latency: 12, temperature: 28 },
+      health: { score: 94, gpsAccuracy: 4.2, latency: 12, temperature: 28, speed: 0.0, isSafetyLock: false, isMoving: false },
       config: { voiceEnabled: true, focusModeAuto: true, theme: 'dark' }
     };
 
@@ -1654,6 +1726,16 @@ HTML_CONTENT = """<!DOCTYPE html>
         localStorage.setItem('RadarCoordinator_AppState', JSON.stringify(window.AppState));
       } catch (e) {}
       render();
+    }
+
+    // Leitura inteligente de oferta em voz alta (Text-to-Speech Hands-Free)
+    function readOfferAloud(appName, restaurant, valor, distKm, gainKm, timeMin) {
+      const rec = gainKm >= 5.0 ? 'Recomendação Jarvis: Aceitar corrida vantajosa.' : (gainKm >= 3.5 ? 'Recomendação Jarvis: Distância curta compensa.' : 'Atenção: Ganho por quilômetro abaixo do ideal.');
+      const valStr = valor.toFixed(2).replace('.', ',');
+      const kmStr = distKm.toFixed(1).replace('.', ',');
+      const gainStr = gainKm.toFixed(2).replace('.', ',');
+      const speechText = `Oferta ${appName}. Estabelecimento: ${restaurant}. Valor: ${valStr} reais para ${kmStr} quilômetros, rendendo ${gainStr} por quilômetro. Tempo estimado de ${timeMin} minutos. ${rec}`;
+      speak(speechText);
     }
 
     // Função speak(text): Web Speech API pt-BR
@@ -1721,6 +1803,228 @@ HTML_CONTENT = """<!DOCTYPE html>
       location.hash = '#dashboard';
     }
 
+    // Monitor de Velocidade e Trava de Segurança em Movimento (Android Location API)
+    function updateSpeed(speedKmh, source = 'GPS') {
+      const prevLock = window.AppState.health.isSafetyLock || false;
+      const isLock = speedKmh > 10.0;
+      const isMove = speedKmh > 2.0;
+
+      window.AppState.health.speed = speedKmh;
+      window.AppState.health.isSafetyLock = isLock;
+      window.AppState.health.isMoving = isMove;
+      window.AppState.health.speedSource = source;
+
+      const hudSpeed = document.getElementById('hud-speed-val');
+      if (hudSpeed) {
+        hudSpeed.innerText = `${speedKmh.toFixed(0)} km/h`;
+        hudSpeed.style.color = isLock ? '#ff4757' : (isMove ? '#00ff88' : '#8e92a8');
+      }
+
+      const dashSpeed = document.getElementById('dash-speed-display');
+      if (dashSpeed) {
+        dashSpeed.innerText = speedKmh.toFixed(0);
+        dashSpeed.style.color = isLock ? '#ff4757' : '#00ff88';
+      }
+
+      const moveStatus = document.getElementById('speed-movement-status');
+      if (moveStatus) {
+        moveStatus.innerHTML = isMove ? (isLock ? '<span style="color:#ff4757; font-weight:bold;">🚨 Em Movimento (> 10 km/h)</span>' : '<span style="color:#00ff88; font-weight:bold;">🏍️ Em Movimento (Lento)</span>') : '<span style="color:#8e92a8;">🟢 Moto Parada</span>';
+      }
+
+      const lockBanner = document.getElementById('speed-safety-lock-banner');
+      if (lockBanner) {
+        lockBanner.style.display = isLock ? 'block' : 'none';
+      }
+
+      const lockBadge = document.getElementById('speed-lock-badge');
+      if (lockBadge) {
+        lockBadge.innerHTML = isLock 
+          ? '<span style="color:#ff4757; font-weight:900; font-size:11px;">🚨 BLOQUEIO ATIVO (> 10 km/h)</span>' 
+          : '<span style="color:#00ff88; font-weight:800; font-size:11px;">🛡️ TOQUE LIVRE (<= 10 km/h)</span>';
+      }
+
+      // Desabilita botões e toques manuais nas ofertas durante movimento acima de 10 km/h
+      document.querySelectorAll('.stack-btn-row button').forEach(btn => {
+        btn.disabled = isLock;
+        btn.style.opacity = isLock ? '0.35' : '1';
+        btn.style.pointerEvents = isLock ? 'none' : 'auto';
+      });
+
+      if (!prevLock && isLock) {
+        speak("Atenção: moto em movimento acima de 10 por hora. Trava de segurança ativada. Use comandos de voz.");
+        startVoiceListening(true);
+      } else if (prevLock && !isLock) {
+        speak("Velocidade segura. Lista de pedidos liberada.");
+      }
+
+      saveState();
+    }
+
+    // Sistema de Reconhecimento de Comandos de Voz Mãos-Livres (Web Speech API)
+    let speechRecognizer = null;
+    let isListening = false;
+
+    function initVoiceRecognition() {
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRec) {
+        console.log("Reconhecimento de fala nativo não suportado neste navegador.");
+        return;
+      }
+      speechRecognizer = new SpeechRec();
+      speechRecognizer.lang = 'pt-BR';
+      speechRecognizer.continuous = true;
+      speechRecognizer.interimResults = false;
+
+      speechRecognizer.onstart = () => {
+        isListening = true;
+        updateVoiceButtonState(true);
+      };
+
+      speechRecognizer.onend = () => {
+        isListening = false;
+        updateVoiceButtonState(false);
+        // Se ainda estiver com a trava de segurança ativada e voz habilitada, reinicia escuta
+        if (window.AppState.health.isSafetyLock && window.AppState.config.voiceEnabled) {
+          try { speechRecognizer.start(); } catch (e) {}
+        }
+      };
+
+      speechRecognizer.onerror = (e) => {
+        console.log("Erro no microfone:", e.error);
+        isListening = false;
+        updateVoiceButtonState(false);
+      };
+
+      speechRecognizer.onresult = (event) => {
+        const lastResult = event.results[event.results.length - 1];
+        if (lastResult.isFinal) {
+          const transcript = lastResult[0].transcript.trim().toLowerCase();
+          console.log("Comando de voz ouvido:", transcript);
+          handleVoiceCommand(transcript);
+        }
+      };
+    }
+
+    function updateVoiceButtonState(active) {
+      const btn = document.getElementById('btn-voz');
+      if (btn) btn.classList.toggle('listening', active);
+      const btnSafe = document.getElementById('btn-mic-safety');
+      if (btnSafe) {
+        btnSafe.innerText = active ? '🔴 Ouvindo...' : '🎙️ Falar Agora';
+        btnSafe.style.background = active ? 'rgba(255, 71, 87, 0.4)' : 'rgba(255, 255, 255, 0.1)';
+      }
+    }
+
+    function startVoiceListening(auto = false) {
+      if (!window.AppState.config.voiceEnabled) return;
+      if (!speechRecognizer) initVoiceRecognition();
+      if (speechRecognizer && !isListening) {
+        try {
+          speechRecognizer.start();
+        } catch (e) {}
+      }
+    }
+
+    function toggleVoiceRecognition() {
+      if (!speechRecognizer) initVoiceRecognition();
+      if (!speechRecognizer) {
+        speak("Microfone não disponível neste navegador. Use os botões de simulação.");
+        return;
+      }
+      if (isListening) {
+        speechRecognizer.stop();
+        speak("Microfone em repouso.");
+      } else {
+        try {
+          speechRecognizer.start();
+          speak("Ouvindo no capacete. Pode dizer aceitar ou recusar.");
+        } catch (e) {
+          speak("Erro ao abrir microfone.");
+        }
+      }
+    }
+
+    // Interpretador neural de comandos em português
+    function handleVoiceCommand(cmd) {
+      const toast = document.getElementById('voice-toast');
+      const msg = document.getElementById('voice-toast-msg');
+      if (toast && msg) {
+        msg.innerText = `Comando ouvido: "${cmd}"`;
+        toast.style.display = 'block';
+        clearTimeout(window._vTimeout);
+        window._vTimeout = setTimeout(() => { toast.style.display = 'none'; }, 3000);
+      }
+
+      if (cmd.includes('ler') || cmd.includes('ouvir') || cmd.includes('falar') || cmd.includes('detalhes') || cmd.includes('anunciar')) {
+        triggerVoiceCommand('ouvir');
+      } else if (cmd.includes('aceitar') || cmd.includes('aceita') || cmd.includes('pegar') || cmd.includes('confirmar') || cmd.includes('sim')) {
+        triggerVoiceCommand('aceitar');
+      } else if (cmd.includes('recusar') || cmd.includes('recusa') || cmd.includes('rejeitar') || cmd.includes('passar') || cmd.includes('cancelar') || cmd.includes('não')) {
+        triggerVoiceCommand('recusar');
+      } else if (cmd.includes('rota') || cmd.includes('navegar') || cmd.includes('mapa') || cmd.includes('maps')) {
+        triggerVoiceCommand('rota');
+      } else if (cmd.includes('ganhos') || cmd.includes('saldo') || cmd.includes('quanto ganhei')) {
+        speak(`Seus ganhos hoje são de R$ ${window.AppState.earnings.today.toFixed(2).replace('.', ',')}.`);
+      } else if (cmd.includes('saúde') || cmd.includes('status')) {
+        speak(`Índice de saúde em 94 de 100. GPS com precisão de 4 metros.`);
+      }
+    }
+
+    function triggerVoiceCommand(action) {
+      const firstCard = document.querySelector('#dash-stacks-container .stack-card:not([style*="display: none"])');
+      if (!firstCard) {
+        speak("Não há pedidos pendentes no momento.");
+        return;
+      }
+
+      if (action === 'ouvir') {
+        const ttsBtn = firstCard.querySelector('button[onclick*="readOfferAloud"]');
+        if (ttsBtn) {
+          ttsBtn.click();
+        } else {
+          speak("Lendo melhor oferta pendente.");
+        }
+      } else if (action === 'aceitar') {
+        const acceptBtn = firstCard.querySelector('.btn-green');
+        if (acceptBtn) {
+          speak("Comando de voz reconhecido: Aceitando oferta!");
+          acceptBtn.click();
+        }
+      } else if (action === 'recusar') {
+        const recBtn = firstCard.querySelector('.btn-red');
+        if (recBtn) {
+          speak("Comando de voz reconhecido: Recusando oferta.");
+          recBtn.click();
+        }
+      } else if (action === 'rota') {
+        const mapsBtn = firstCard.querySelector('.btn-maps');
+        if (mapsBtn) {
+          mapsBtn.click();
+        }
+      }
+    }
+
+    function initGeoLocationTracking() {
+      if ('geolocation' in navigator) {
+        speak("Sintonizando satélites GPS...");
+        navigator.geolocation.watchPosition(
+          pos => {
+            let spd = 0;
+            if (pos.coords.speed !== null && pos.coords.speed >= 0) {
+              spd = pos.coords.speed * 3.6; // m/s para km/h
+            }
+            updateSpeed(spd, 'GPS Fused');
+          },
+          err => {
+            console.log("GPS local:", err.message);
+          },
+          { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }
+        );
+      } else {
+        speak("Geolocalização não suportada no navegador atual.");
+      }
+    }
+
     function updateMinGain(v) {
       window.AppState.stacks.minGainPerKm = parseFloat(v);
       const el = document.getElementById('cfg-gain-text');
@@ -1742,10 +2046,22 @@ HTML_CONTENT = """<!DOCTYPE html>
       window.open(url, '_blank');
     }
 
+    function trackAnalyticsEvent(name, params = {}) {
+      try {
+        fetch('/api/analytics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event_name: name, params: params })
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
     // acceptStack(btn, valor): destaca verde, atualiza ganhos, remove outros, chama POST /api/stacks/accept
     async function acceptStack(btn, valor, stackId, shouldOpenMaps = true) {
       const card = btn.closest('.stack-card');
       if (card) card.classList.add('accepted');
+
+      trackAnalyticsEvent('offer_accept_clicked', { stack_id: stackId, amount: valor, source: 'web_cockpit' });
 
       speak(`Stack aceito! R$ ${valor.toFixed(2).replace('.', ',')}.`);
       window.AppState.earnings.today += valor;
@@ -1936,6 +2252,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             </div>
             <div class="stack-btn-row">
               <button class="btn btn-red" onclick="declineStack(this, '${s.id}')">❌ Recusar</button>
+              <button class="btn" style="background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid #ffd700;" onclick="readOfferAloud('${s.apps}', '${s.restaurant}', ${s.total_value}, ${s.distance_km}, ${gain}, ${s.time_min})">🔊 Ouvir</button>
               <button class="btn btn-maps" onclick="openMapsRoute('${r1}, Sao Paulo', ${r2 ? `'${r2}, Sao Paulo'` : 'null'}, 'Sao Paulo, SP', '${s.id}')">🗺️ Maps Rota</button>
               <button class="btn btn-green" onclick="acceptStack(this, ${s.total_value}, '${s.id}')">✅ Aceitar</button>
             </div>
@@ -1981,6 +2298,8 @@ HTML_CONTENT = """<!DOCTYPE html>
       render();
       fetchStacks();
       loadAnalytics();
+      updateSpeed(window.AppState.health.speed || 0, 'Inicial');
+      try { initVoiceRecognition(); } catch (e) {}
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js').catch(() => {});
