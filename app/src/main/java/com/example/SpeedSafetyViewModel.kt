@@ -22,7 +22,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
- * Evento de cruzamento do limiar de segurança de velocidade (10.0 km/h).
+ * Evento de cruzamento do limiar de segurança de velocidade (20.0 km/h).
  */
 sealed class SafetyThresholdEvent {
     data class ThresholdExceeded(val speedKmh: Double) : SafetyThresholdEvent()
@@ -51,7 +51,7 @@ data class SpeedSafetyUiState(
  *
  * Principais responsabilidades:
  * 1. Observa o fluxo contínuo de [LocationSpeedState] emitido pelo serviço de localização.
- * 2. Garante atualização reativa imediata quando os limiares de segurança são ultrapassados (> 10 km/h).
+ * 2. Garante atualização reativa imediata quando os limiares de segurança são ultrapassados (> 20 km/h).
  * 3. Dispara eventos de alerta ([safetyThresholdEvents]) ao cruzar o limiar de bloqueio/desbloqueio.
  * 4. Gerencia a inicialização, bind/unbind e simulação controlada para testes.
  */
@@ -64,7 +64,7 @@ class SpeedSafetyViewModel(application: Application) : AndroidViewModel(applicat
     private val _uiState = MutableStateFlow(SpeedSafetyUiState())
     val uiState: StateFlow<SpeedSafetyUiState> = _uiState.asStateFlow()
 
-    // Stream de eventos acionados especificamente quando o limiar de 10 km/h é cruzado
+    // Stream de eventos acionados especificamente quando o limiar de 20 km/h é cruzado
     private val _safetyThresholdEvents = MutableSharedFlow<SafetyThresholdEvent>(extraBufferCapacity = 16)
     val safetyThresholdEvents: SharedFlow<SafetyThresholdEvent> = _safetyThresholdEvents.asSharedFlow()
 

@@ -34,7 +34,8 @@ enum class VoiceActionCommand {
     FOCUS_ON,
     FOCUS_OFF,
     RADAR_ON,
-    RADAR_OFF
+    RADAR_OFF,
+    SEARCH_MERGED
 }
 
 /**
@@ -259,6 +260,14 @@ class HandsFreeSpeechManager(
         }
         if (t.contains("pausar radar") || t.contains("desligar radar") || t.contains("parar radar")) {
             return VoiceActionCommand.RADAR_OFF
+        }
+
+        // Comandos de Busca de Entregas Mescladas (Multi-Stack)
+        if (t.contains("mesclada") || t.contains("mescladas") || t.contains("multi stack") ||
+            t.contains("multistack") || t.contains("varrer") || t.contains("buscar mesclada") ||
+            t.contains("entregas combinadas") || t.contains("combinar pedidos")
+        ) {
+            return VoiceActionCommand.SEARCH_MERGED
         }
 
         return null

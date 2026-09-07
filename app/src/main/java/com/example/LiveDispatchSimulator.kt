@@ -9,15 +9,20 @@ import java.util.UUID
 data class RadarOffer(
     val id: String,
     val appName: String,
-    val appColor: Color,
+    val appColor: Color = NeonGreen,
     val restaurant: String,
     val value: Double,
     val distanceKm: Double,
-    val timeMinutes: Int,
-    val pickupAddress: String,
-    val destinationAddress: String,
+    val timeMinutes: Int = 15,
+    val pickupAddress: String = "Ponto de Coleta",
+    val destinationAddress: String = "Ponto de Entrega",
     val isMultiStack: Boolean = false,
-    val neuralDecision: NeuralDecision = RadarDecisionEngine.evaluate(value, distanceKm, appName)
+    val neuralDecision: NeuralDecision = RadarDecisionEngine.evaluate(value, distanceKm, appName),
+    val subOrders: List<SubDeliveryOrder> = emptyList(),
+    val synergySavingsKm: Double = 0.0,
+    val synergyBonusPercent: Int = 0,
+    val waypointRoute: List<String> = emptyList(),
+    val itemsCount: Int = 1
 ) {
     val gainPerKm: Double
         get() = if (distanceKm > 0) value / distanceKm else value
@@ -25,8 +30,11 @@ data class RadarOffer(
     val estimatedTimeMin: Int
         get() = timeMinutes
 
+    val fuelCost: Double
+        get() = distanceKm * 0.17
+
     val netProfit: Double
-        get() = (value - (distanceKm * 0.17)).coerceAtLeast(0.0)
+        get() = (value - fuelCost).coerceAtLeast(0.0)
 }
 
 /**
@@ -75,7 +83,19 @@ object LiveDispatchSimulator {
                 timeMinutes = 18,
                 pickupAddress = "Av. Paulista, 1578",
                 destinationAddress = "R. Bela Cintra, 904",
-                isMultiStack = true
+                isMultiStack = true,
+                subOrders = listOf(
+                    SubDeliveryOrder("iFood", RedIFood, "Burger King Jardins", 15.00, 2.8, "Av. Paulista, 1578", "R. Bela Cintra, 904"),
+                    SubDeliveryOrder("Rappi", OrangeRappi, "Pizza Hut Paulista", 18.00, 2.4, "Al. Santos, 120", "Al. Lorena, 450")
+                ),
+                synergySavingsKm = 1.0,
+                synergyBonusPercent = 58,
+                waypointRoute = listOf(
+                    "● Coleta 1: Burger King (Av. Paulista)",
+                    "● Coleta 2: Pizza Hut (Al. Santos)",
+                    "🏠 Entrega 1: R. Bela Cintra, 904",
+                    "🏢 Entrega 2: Al. Lorena, 450"
+                )
             ),
             RadarOffer(
                 id = "offer_102",
@@ -162,7 +182,23 @@ object LiveDispatchSimulator {
             pickupAddress = pickup,
             destinationAddress = dest,
             isMultiStack = appConfig.third,
-            neuralDecision = RadarDecisionEngine.evaluate(computedValue, distance, appConfig.first)
+            neuralDecision = RadarDecisionEngine.evaluate(computedValue, distance, appConfig.first),
+            subOrders = if (isMulti) {
+                listOf(
+                    SubDeliveryOrder("iFood", RedIFood, restName, computedValue * 0.48, distance * 0.65, pickup, dest),
+                    SubDeliveryOrder("Rappi", OrangeRappi, "Pizza Hut Paulista", computedValue * 0.52, distance * 0.55, "Al. Santos, 120", "Al. Lorena, 450")
+                )
+            } else emptyList(),
+            synergySavingsKm = if (isMulti) (0.8..1.6).random() else 0.0,
+            synergyBonusPercent = if (isMulti) (40..70).random() else 0,
+            waypointRoute = if (isMulti) {
+                listOf(
+                    "● Coleta 1: $restName",
+                    "● Coleta 2: Pizza Hut Paulista",
+                    "🏠 Entrega 1: $dest",
+                    "🏢 Entrega 2: Al. Lorena, 450"
+                )
+            } else emptyList()
         )
     }
 }

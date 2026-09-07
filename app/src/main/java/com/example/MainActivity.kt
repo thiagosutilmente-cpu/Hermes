@@ -294,8 +294,9 @@ fun RadarDeliveryDashboard(
         }
     }
 
-    // 7. Critérios de Filtragem em Tempo Real (Valor Mínimo, Distância Máxima e Jarvis)
-    var filterCriteria by remember { mutableStateOf(OfferFilterCriteria(minValue = 0.0, maxDistanceKm = 8.0)) }
+    // 7. Critérios de Filtragem em Tempo Real (Valor Mínimo, Distância Máxima, Ganho por Km e Jarvis)
+    var filterCriteria by remember { mutableStateOf(OfferFilterCriteria(minValue = 0.0, maxDistanceKm = 8.0, minGainPerKm = 0.0)) }
+    var showFilterSettingsModal by remember { mutableStateOf(false) }
 
     // 8. Reconhecedor de Fala Nativo (SpeechRecognizer) - Mãos Livres no Capacete
     var hasMicPermission by remember {
@@ -362,16 +363,16 @@ fun RadarDeliveryDashboard(
         }
 
         val monitor = SpeedSafetyMonitor(context) { isLocked, speed ->
-            FirebaseAnalyticsManager.logSpeedSafetyAlert(speed, limit = 10.0)
+            FirebaseAnalyticsManager.logSpeedSafetyAlert(speed, limit = 20.0)
             if (isLocked) {
                 HapticFeedbackHelper.vibrateDecline(context)
                 if (isVoiceEnabled) {
-                    voiceManager?.speak("Atenção: moto em movimento acima de 10 por hora. Trava de segurança ativada. Use comandos de voz.")
+                    voiceManager?.speak("Atenção: veículo em movimento acima de 20 por hora. Trava de segurança ativada. Use comandos de voz.")
                 }
             } else {
                 HapticFeedbackHelper.vibrateTap(context)
                 if (isVoiceEnabled) {
-                    voiceManager?.speak("Velocidade segura. Lista de pedidos liberada.")
+                    voiceManager?.speak("Velocidade abaixo de 20 por hora. Lista de pedidos liberada.")
                 }
             }
         }
@@ -572,6 +573,16 @@ fun RadarDeliveryDashboard(
                     isTrackingActive = false
                     voiceManager?.announceRadarState(false)
                 }
+                VoiceActionCommand.SEARCH_MERGED -> {
+                    HapticFeedbackHelper.vibrateSuccess(context)
+                    val newMerged = MergedDeliverySearchEngine.findPairableSynergy(offersList).firstOrNull()
+                        ?: MergedDeliverySearchEngine.generateRealtimeMergedStack()
+                    if (!offersList.any { it.id == newMerged.id }) {
+                        offersList.add(0, newMerged)
+                    }
+                    filterCriteria = filterCriteria.copy(onlyMultiStack = true)
+                    voiceManager?.speak("Varredura neural concluída. Entrega mesclada com alta sinergia identificada.")
+                }
             }
         }
         speechManager = manager
@@ -747,6 +758,29 @@ fun RadarDeliveryDashboard(
                         )
                     }
 
+                    // Botão de Configuração de Filtros de Despacho
+                    IconButton(
+                        onClick = {
+                            showFilterSettingsModal = true
+                        },
+                        modifier = Modifier.testTag("action_filter_settings")
+                    ) {
+                        Box(contentAlignment = Alignment.TopEnd) {
+                            Text(
+                                text = "🎚️",
+                                fontSize = 18.sp
+                            )
+                            if (filterCriteria.isActive) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(7.dp)
+                                        .clip(CircleShape)
+                                        .background(NeonGreen)
+                                )
+                            }
+                        }
+                    }
+
                     // Botão de Telemetria e Métricas do Firebase Analytics
                     IconButton(
                         onClick = {
@@ -798,12 +832,30 @@ fun RadarDeliveryDashboard(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // PAINEL SUPERIOR COM SLIDERS EM TEMPO REAL (Valor Mínimo & Distância Máxima)
+            val mergedOffersCount = remember(offersList.toList()) {
+                offersList.count { it.isMultiStack }
+            }
+
+            // PAINEL SUPERIOR COM SLIDERS EM TEMPO REAL (Valor Mínimo, Distância Máxima, Ganho/Km e Busca Multi-Stack)
             TopFilterSlidersPanel(
                 criteria = filterCriteria,
                 totalOffersCount = offersList.size,
                 filteredOffersCount = displayedOffers.size,
-                onCriteriaChange = { filterCriteria = it }
+                mergedOffersCount = mergedOffersCount,
+                onCriteriaChange = { filterCriteria = it },
+                onTriggerMergedSearch = {
+                    HapticFeedbackHelper.vibrateSuccess(context)
+                    val newMerged = MergedDeliverySearchEngine.findPairableSynergy(offersList).firstOrNull()
+                        ?: MergedDeliverySearchEngine.generateRealtimeMergedStack()
+                    if (!offersList.any { it.id == newMerged.id }) {
+                        offersList.add(0, newMerged)
+                    }
+                    filterCriteria = filterCriteria.copy(onlyMultiStack = true)
+                    if (isVoiceEnabled && voiceManager != null) {
+                        voiceManager.speak("Varredura de entregas mescladas concluída! Nova combinação de alta sinergia identificada.")
+                    }
+                },
+                onOpenAdvancedSettings = { showFilterSettingsModal = true }
             )
 
             LazyColumn(
@@ -1101,7 +1153,7 @@ fun RadarDeliveryDashboard(
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            // Badge de Velocidade e Trava de Segurança (> 10 km/h)
+                            // Badge de Velocidade e Trava de Segurança (> 20 km/h)
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
@@ -1113,7 +1165,7 @@ fun RadarDeliveryDashboard(
                                         if (speedState.isSafetyLockActive) {
                                             speedMonitor?.setSimulatedSpeed(0.0)
                                         } else {
-                                            speedMonitor?.setSimulatedSpeed(24.0)
+                                            speedMonitor?.setSimulatedSpeed(26.0)
                                         }
                                     }
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -1174,7 +1226,7 @@ fun RadarDeliveryDashboard(
                     )
                 }
             } else if (speedState.isSafetyLockActive) {
-                // VELOCIDADE > 10 KM/H: OCULTA AUTOMATICAMENTE A LISTA DE OFERTAS PARA SEGURANÇA
+                // VELOCIDADE > 20 KM/H: BLOQUEIA E OCULTA AUTOMATICAMENTE A LISTA DE OFERTAS PARA SEGURANÇA
                 item {
                     SpeedSafetyLockCard(
                         speedKmh = speedState.currentSpeedKmh,
@@ -1193,13 +1245,72 @@ fun RadarDeliveryDashboard(
             } else if (displayedOffers.isEmpty()) {
                 item {
                     val formattedMin = String.format(Locale.GERMANY, "R$ %.2f", filterCriteria.minValue)
-                    RadarEmptyState(
-                        icon = "🎚️",
-                        title = "Nenhuma oferta nos critérios",
-                        subtitle = "Há ${offersList.size} pedidos na área, mas nenhum com valor >= $formattedMin e distância <= ${filterCriteria.maxDistanceKm} km."
-                    )
+                    val formattedGain = String.format(Locale.GERMANY, "R$ %.2f/km", filterCriteria.minGainPerKm)
+                    val filterDetails = buildList {
+                        if (filterCriteria.onlyMultiStack) add("Somente Mescladas (Multi-Stack)")
+                        if (filterCriteria.searchQuery.isNotBlank()) add("Busca \"${filterCriteria.searchQuery}\"")
+                        if (filterCriteria.minValue > 0.0) add("Valor >= $formattedMin")
+                        if (filterCriteria.maxDistanceKm < 8.0) add("Distância <= ${filterCriteria.maxDistanceKm} km")
+                        if (filterCriteria.minGainPerKm > 0.0) add("Ganho >= $formattedGain")
+                        if (filterCriteria.onlyAcceptedNeural) add("Somente Jarvis")
+                    }.joinToString(" • ")
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        RadarEmptyState(
+                            icon = if (filterCriteria.onlyMultiStack) "✨" else "🎚️",
+                            title = if (filterCriteria.onlyMultiStack) "Nenhuma entrega mesclada ativa" else "Nenhuma oferta nos critérios",
+                            subtitle = if (filterCriteria.onlyMultiStack) "Nenhum pedido agrupado no momento. Execute a varredura neural para combinar rotas isoladas." else "Há ${offersList.size} pedidos na área, mas nenhum atende: $filterDetails."
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Button(
+                            onClick = {
+                                HapticFeedbackHelper.vibrateSuccess(context)
+                                val newMerged = MergedDeliverySearchEngine.findPairableSynergy(offersList).firstOrNull()
+                                    ?: MergedDeliverySearchEngine.generateRealtimeMergedStack()
+                                if (!offersList.any { it.id == newMerged.id }) {
+                                    offersList.add(0, newMerged)
+                                }
+                                filterCriteria = filterCriteria.copy(onlyMultiStack = true, searchQuery = "")
+                                if (isVoiceEnabled && voiceManager != null) {
+                                    voiceManager.speak("Varredura de entregas mescladas concluída! Nova combinação de alta sinergia identificada.")
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = NeonGreen),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.testTag("btn_trigger_sweep_empty_state")
+                        ) {
+                            Text("⚡ VARRER MULTI-STACK AGORA", color = DarkBg, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                        }
+                    }
                 }
             } else {
+                // Banner da Ghost Sequence exibido quando há interesse ou presença de entregas mescladas
+                if (filterCriteria.onlyMultiStack || displayedOffers.any { it.isMultiStack }) {
+                    item(key = "ghost_sequence_predictor_banner") {
+                        GhostSequencePredictorBanner(
+                            onTriggerSearch = {
+                                HapticFeedbackHelper.vibrateSuccess(context)
+                                val newMerged = MergedDeliverySearchEngine.findPairableSynergy(offersList).firstOrNull()
+                                    ?: MergedDeliverySearchEngine.generateRealtimeMergedStack()
+                                if (!offersList.any { it.id == newMerged.id }) {
+                                    offersList.add(0, newMerged)
+                                }
+                                filterCriteria = filterCriteria.copy(onlyMultiStack = true)
+                                if (isVoiceEnabled && voiceManager != null) {
+                                    voiceManager.speak("Nova entrega mesclada adicionada com sucesso ao radar.")
+                                }
+                            }
+                        )
+                    }
+                }
+
                 // Card de Estimativa e Telemetria de Coleta Google Maps para a oferta em análise
                 val activePickupOffer = displayedOffers.find { it.id == selectedPickupOfferId }
                     ?: displayedOffers.firstOrNull()
@@ -1243,6 +1354,15 @@ fun RadarDeliveryDashboard(
                 }
             }
         }
+    }
+
+    // Modal de Configuração Avançada de Filtros
+    if (showFilterSettingsModal) {
+        FilterSettingsDialog(
+            criteria = filterCriteria,
+            onCriteriaChange = { filterCriteria = it },
+            onDismiss = { showFilterSettingsModal = false }
+        )
     }
 
     // Tela de Perfil do Entregador (Histórico de Decisões)
@@ -1626,6 +1746,125 @@ fun launchGoogleMapsNavigation(
 }
 
 // ----------------------------------------------------
+// COMPONENTE: BANNER DA GHOST SEQUENCE (PREVISÃO NEURAL DE MESCLAGEM MULTI-STACK)
+// ----------------------------------------------------
+@Composable
+fun GhostSequencePredictorBanner(
+    prediction: GhostSequencePrediction = MergedDeliverySearchEngine.getActiveGhostPrediction(),
+    onTriggerSearch: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onTriggerSearch() }
+            .testTag("banner_ghost_sequence"),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF12121E)),
+        border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF00D2FF).copy(alpha = 0.65f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "👻", fontSize = 18.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "GHOST SEQUENCE PREDICTOR",
+                            color = Color(0xFF00D2FF),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.8.sp
+                        )
+                        Text(
+                            text = prediction.pickupCorridor,
+                            color = TextMuted,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xFF00D2FF).copy(alpha = 0.2f))
+                        .border(1.dp, Color(0xFF00D2FF), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = "${prediction.probabilityPercent}% CHANCE",
+                        color = Color(0xFF00D2FF),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Barra animada de probabilidade neural
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(DarkBorder)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(prediction.probabilityPercent / 100f)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0xFF00D2FF), NeonGreen)
+                            )
+                        )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Previsão de ${prediction.sourceApp} em ~${prediction.etaMinutes} min (+R$ ${String.format(Locale.GERMANY, "%.2f", prediction.potentialBonus)})",
+                    color = TextLight,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(NeonGreen.copy(alpha = 0.2f))
+                        .border(0.8.dp, NeonGreen, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "VARRER ⚡",
+                        color = NeonGreen,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ----------------------------------------------------
 // COMPONENTE: CARD DA OFERTA DE ENTREGA COM DESIGN ESCURO DE ALTA LEGIBILIDADE PARA MOTOBOYS
 // ----------------------------------------------------
 @Preview(showBackground = true, showSystemUi = true)
@@ -1904,6 +2143,163 @@ fun OfferCard(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
+
+            // 4.5. PAINEL EXCLUSIVO MULTI-STACK: SINERGIA DE PLATAFORMAS, SUB-PEDIDOS E WAYPOINTS
+            if (offer.isMultiStack) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(DarkBg)
+                        .border(1.2.dp, NeonGreen.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                        .padding(12.dp)
+                ) {
+                    // Header de Sinergia com Badge de Margem
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "⚡", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "SINERGIA MULTI-APP DETECTADA",
+                                color = NeonGreen,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.6.sp
+                            )
+                        }
+                        if (offer.synergyBonusPercent > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(NeonGreen)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "+${offer.synergyBonusPercent}% MARGEM",
+                                    color = DarkBg,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                        }
+                    }
+
+                    if (offer.synergySavingsKm > 0.0) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Economia em rota compartilhada: -${String.format(Locale.GERMANY, "%.1f", offer.synergySavingsKm)} km vs corridas isoladas",
+                            color = TextLight,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // Detalhamento dos Sub-Pedidos por Plataforma
+                    if (offer.subOrders.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            offer.subOrders.forEach { sub ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(DarkCardElevated)
+                                        .border(0.8.dp, DarkBorder, RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(sub.appColor)
+                                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = sub.appName,
+                                                color = Color.White,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = sub.restaurant,
+                                            color = TextLight,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1
+                                        )
+                                    }
+                                    Text(
+                                        text = "${String.format(Locale.GERMANY, "R$ %.2f", sub.value)} • ${sub.distanceKm}km",
+                                        color = NeonGreen,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Waypoints Sequenciais (Paradas Otimizadas)
+                    if (offer.waypointRoute.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "ROTA SEQUENCIAL OTIMIZADA:",
+                            color = TextMuted,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            offer.waypointRoute.forEach { waypoint ->
+                                Text(
+                                    text = waypoint,
+                                    color = if (waypoint.contains("Coleta", ignoreCase = true)) Color(0xFFFFD700) else NeonGreen,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+
+                    // Demonstrativo Financeiro: Combustível vs Lucro Líquido
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF0F0F16))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "⛽ Gasolina: ~${String.format(Locale.GERMANY, "R$ %.2f", offer.fuelCost)}",
+                            color = TextMuted,
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = "💰 Lucro Líquido: ${String.format(Locale.GERMANY, "R$ %.2f", offer.netProfit)}",
+                            color = NeonGreen,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             // 5. BANNER NEURAL JARVIS (DECISÃO INTELIGENTE & MOTIVO COM CONTRASTE AGUDO)
             Box(

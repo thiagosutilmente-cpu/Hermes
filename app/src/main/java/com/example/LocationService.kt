@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
  */
 data class LocationSpeedState(
     val currentSpeedKmh: Double = 0.0,
-    val isSafetyLockActive: Boolean = false, // true quando > 10.0 km/h
+    val isSafetyLockActive: Boolean = false, // true quando > 20.0 km/h
     val latitude: Double = -23.561684,
     val longitude: Double = -46.655981,
     val accuracyMeters: Float = 0f,
@@ -52,7 +52,7 @@ data class LocationSpeedState(
  * Responsável por:
  * 1. Rastrear em tempo real a posição e velocidade atual do usuário (m/s convertidos para km/h).
  * 2. Operar tanto como serviço em primeiro plano (Foreground Service) quanto como Singleton / Bound Service.
- * 3. Notificar o estado da trava de segurança (Safety Lock) quando a velocidade ultrapassar o limiar de 10 km/h.
+ * 3. Notificar o estado da trava de segurança (Safety Lock) quando a velocidade ultrapassar o limiar de 20 km/h.
  */
 class LocationService : Service() {
 
@@ -73,7 +73,7 @@ class LocationService : Service() {
         const val ACTION_STOP_LOCATION_TRACKING = "com.example.action.STOP_LOCATION_TRACKING"
 
         // Limiar crítico de segurança em km/h
-        const val SAFETY_SPEED_LOCK_THRESHOLD_KMH = 10.0
+        const val SAFETY_SPEED_LOCK_THRESHOLD_KMH = 20.0
 
         // Fluxo de estado global acessível para a UI e Composables
         private val _globalLocationState = MutableStateFlow(LocationSpeedState())
@@ -243,7 +243,7 @@ class LocationService : Service() {
         )
 
         val lockStatus = if (state.isSafetyLockActive) {
-            "🚨 TRAVA ATIVA (> 10 km/h) • ${String.format(java.util.Locale.US, "%.0f", state.currentSpeedKmh)} km/h"
+            "🚨 TRAVA ATIVA (> 20 km/h) • ${String.format(java.util.Locale.US, "%.0f", state.currentSpeedKmh)} km/h"
         } else {
             "🟢 MODO SEGURO • ${String.format(java.util.Locale.US, "%.0f", state.currentSpeedKmh)} km/h"
         }

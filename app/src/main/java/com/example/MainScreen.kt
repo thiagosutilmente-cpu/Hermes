@@ -411,7 +411,7 @@ fun MainScreen(
             // SCROLLABLE LIST FOR DELIVERY OFFERS (LAZY COLUMN)
             // -------------------------------------------------------------
             if (isSafetyLockActive) {
-                // Modo Bloqueio Ativo (velocidade > 10 km/h)
+                // Modo Bloqueio Ativo (velocidade > 20 km/h)
                 SafetyLockActivePlaceholder(currentSpeedKmh = currentSpeedKmh)
             } else if (offersList.isEmpty()) {
                 // Placeholder de Lista Vazia
@@ -529,9 +529,9 @@ fun SpeedSafetyStatusBar(
 
                     Text(
                         text = if (isSafetyLockActive) {
-                            "Movement detected (> 10 km/h) • Touch blocked"
+                            "Movimento detectado (> 20 km/h) • Toques bloqueados"
                         } else {
-                            "Vehicle stopped (<= 10 km/h) • Screen unlocked"
+                            "Veículo em segurança (<= 20 km/h) • Tela liberada"
                         },
                         color = TextLight.copy(alpha = 0.8f),
                         fontSize = 10.sp
@@ -791,7 +791,7 @@ fun SafetyLockActivePlaceholder(
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "SAFETY LOCK ACTIVE",
+            text = "TRAVA DE SEGURANÇA ATIVADA",
             color = RedLock,
             fontSize = 17.sp,
             fontWeight = FontWeight.Black,
@@ -801,7 +801,7 @@ fun SafetyLockActivePlaceholder(
         Spacer(modifier = Modifier.height(4.dp))
 
         Text(
-            text = "${String.format(Locale.GERMANY, "%.0f", currentSpeedKmh)} KM/H DETECTED",
+            text = "${String.format(Locale.GERMANY, "%.0f", currentSpeedKmh)} KM/H DETECTADOS",
             color = TextLight,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold
@@ -810,7 +810,7 @@ fun SafetyLockActivePlaceholder(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Delivery offers list is locked while in motion to prevent road accidents. Use the floating voice button or helmet mic to accept calls hands-free.",
+            text = "A lista de ofertas é bloqueada automaticamente acima de 20 km/h para evitar acidentes no trânsito. Use os comandos de voz mãos-livres ou o fone Bluetooth do capacete para aceitar/recusar.",
             color = TextMuted,
             fontSize = 11.sp,
             textAlign = TextAlign.Center,
@@ -828,7 +828,7 @@ fun SafetyLockActivePlaceholder(
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Text(
-                text = "🎙️ Hands-Free Voice Commands Active",
+                text = "🎙️ Comandos por Voz Mãos-Livres Ativos",
                 color = NeonGreen,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold

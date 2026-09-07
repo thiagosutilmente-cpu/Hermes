@@ -1312,11 +1312,11 @@ HTML_CONTENT = """<!DOCTYPE html>
           <span style="font-size: 18px;">🏍️</span>
           <div>
             <div style="font-size: 12px; font-weight: 800; color: #ffffff;">TELEMETRIA DE VELOCIDADE (GPS ANDROID)</div>
-            <div style="font-size: 10px; color: var(--text-muted);">API de Localização em Tempo Real • Trava Automática > 10 km/h</div>
+            <div style="font-size: 10px; color: var(--text-muted);">API de Localização em Tempo Real • Trava Automática > 20 km/h</div>
           </div>
         </div>
         <div id="speed-lock-badge">
-          <span style="color:#00ff88; font-weight:800; font-size:11px;">🛡️ TOQUE LIVRE (<= 10 km/h)</span>
+          <span style="color:#00ff88; font-weight:800; font-size:11px;">🛡️ TOQUE LIVRE (<= 20 km/h)</span>
         </div>
       </div>
 
@@ -1326,15 +1326,15 @@ HTML_CONTENT = """<!DOCTYPE html>
           <span style="font-size: 12px; font-weight: 700; color: var(--text-muted);">km/h</span>
         </div>
         <div style="text-align: right;">
-          <div style="font-size: 11px; font-weight: 700; color: #fff;">Limite de Segurança: 10 km/h</div>
+          <div style="font-size: 11px; font-weight: 700; color: #fff;">Limite de Segurança: 20 km/h</div>
           <div style="font-size: 10px; color: var(--text-muted);" id="speed-movement-status">🟢 Moto Parada</div>
         </div>
       </div>
 
       <!-- Trava de Segurança Banner -->
       <div id="speed-safety-lock-banner" style="display:none; background: rgba(255, 71, 87, 0.15); border: 1.5px solid #ff4757; border-radius: 10px; padding: 10px; margin-bottom: 10px; text-align: center;">
-        <div style="font-size: 13px; font-weight: 800; color: #ff4757;">🚨 TRAVA DE SEGURANÇA ATIVADA (> 10 KM/H)</div>
-        <div style="font-size: 11px; color: #ffccd0; margin-top: 2px;">Moto em movimento! Toques bloqueados para evitar acidentes. Diga "Aceitar" ou "Recusar" no viva-voz.</div>
+        <div style="font-size: 13px; font-weight: 800; color: #ff4757;">🚨 TRAVA DE SEGURANÇA ATIVADA (> 20 KM/H)</div>
+        <div style="font-size: 11px; color: #ffccd0; margin-top: 2px;">Veículo em movimento! Ofertas bloqueadas para evitar acidentes. Diga "Aceitar" ou "Recusar" no viva-voz.</div>
         <div style="margin-top: 6px; display: flex; justify-content: center; gap: 8px;">
           <button class="btn" style="flex: initial; padding: 4px 10px; font-size: 10px; background: rgba(0, 255, 136, 0.2); color: #00ff88; border: 1px solid #00ff88;" onclick="triggerVoiceCommand('aceitar')">🗣️ Simular "Aceitar"</button>
           <button class="btn" style="flex: initial; padding: 4px 10px; font-size: 10px; background: rgba(255, 71, 87, 0.25); color: #ff4757; border: 1px solid #ff4757;" onclick="triggerVoiceCommand('recusar')">🗣️ Simular "Recusar"</button>
@@ -1347,7 +1347,8 @@ HTML_CONTENT = """<!DOCTYPE html>
         <span style="font-size: 10px; font-weight: 700; color: var(--text-muted);">Testar Velocidade:</span>
         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
           <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255,255,255,0.08);" onclick="updateSpeed(0, 'Simulado')">0 km/h</button>
-          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255, 71, 87, 0.2); color: #ff4757; border: 1px solid #ff4757;" onclick="updateSpeed(18, 'Simulado')">18 km/h (Trava)</button>
+          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid #00ff88;" onclick="updateSpeed(15, 'Simulado')">15 km/h (Livre)</button>
+          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255, 71, 87, 0.2); color: #ff4757; border: 1px solid #ff4757;" onclick="updateSpeed(26, 'Simulado')">26 km/h (Trava)</button>
           <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255, 71, 87, 0.25); color: #ff4757; border: 1px solid #ff4757;" onclick="updateSpeed(45, 'Simulado')">45 km/h (Trânsito)</button>
           <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid #00ff88;" onclick="initGeoLocationTracking()">🛰️ GPS Real</button>
         </div>
@@ -1389,19 +1390,22 @@ HTML_CONTENT = """<!DOCTYPE html>
     </div>
 
     <!-- Ghost Sequence: overlay com 👻, barra 83%, "83% chance de stack em 3 min" -->
-    <div class="ghost-card">
+    <div class="ghost-card" style="cursor: pointer;" onclick="triggerGhostSweep()">
       <div class="ghost-head">
         <div class="ghost-tag">
           <span class="ghost-symbol">👻</span>
           <span>GHOST SEQUENCE ATIVA</span>
         </div>
-        <span class="ghost-stat">83% Chance</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="ghost-stat">83% Chance</span>
+          <span style="background: rgba(0, 255, 136, 0.2); color: var(--primary); font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--primary);">VARRER ⚡</span>
+        </div>
       </div>
       <div class="ghost-bar-track">
         <div class="ghost-bar-fill"></div>
       </div>
       <div class="ghost-text">
-        83% chance de stack em 3 min no raio de 800m. Sugestão: prossiga até a Av. Paulista.
+        83% chance de stack em 3 min no raio de 800m. Toque para varrer o corredor viário por entregas mescladas.
       </div>
     </div>
 
@@ -1518,10 +1522,42 @@ HTML_CONTENT = """<!DOCTYPE html>
       <a href="#subscription" class="nav-pill">Plano Pro</a>
       <a href="#settings" class="nav-pill">Ajustes</a>
     </div>
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
       <h2 style="font-size: 18px; font-weight: 800; color: #ffffff;">Stacks Disponíveis na Fila</h2>
       <button class="btn btn-green" style="padding: 6px 12px; font-size: 11px;" onclick="fetchStacks()">Atualizar</button>
     </div>
+
+    <!-- Painel de Filtragem Rápida no Topo das Stacks -->
+    <div class="glass" style="padding: 14px; margin-bottom: 14px; border: 1px solid rgba(0, 255, 136, 0.3);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <span style="font-size: 11px; font-weight: 800; color: var(--primary); letter-spacing: 0.8px;">🎚️ FILTRAGEM ATIVA</span>
+        <span id="stacks-filter-badge" style="font-size: 11px; font-weight: 700; color: var(--text-muted);">Calculando...</span>
+      </div>
+
+      <!-- Presets Rápidos de Estratégia -->
+      <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 10px;">
+        <button class="btn" style="padding: 5px 10px; font-size: 10px; background: rgba(255,255,255,0.06); color: #fff; border: 1px solid var(--surface-border);" onclick="applyStrategyPreset(0, 10, 0)">⚡ Padrão</button>
+        <button class="btn" style="padding: 5px 10px; font-size: 10px; background: rgba(0,255,136,0.12); color: var(--primary); border: 1px solid var(--primary);" onclick="applyStrategyPreset(18, 5, 4.5)">🎯 Rentável</button>
+        <button class="btn" style="padding: 5px 10px; font-size: 10px; background: rgba(255,215,0,0.12); color: #ffd700; border: 1px solid #ffd700;" onclick="applyStrategyPreset(25, 6, 6)">👑 Pro Top</button>
+        <button id="btn-filter-multistack" class="btn" style="padding: 5px 10px; font-size: 10px; background: rgba(0,255,136,0.12); color: var(--primary); border: 1px solid var(--primary);" onclick="toggleFilterOnlyMultiStack()">✨ Só Mescladas</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+        <div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 2px;">Min R$: <strong id="bar-minval-txt" style="color: var(--primary);">R$ 0</strong></div>
+          <input type="range" id="bar-minval" min="0" max="40" step="1" value="0" style="width: 100%; accent-color: var(--primary);" oninput="updateFilterMinValue(this.value)">
+        </div>
+        <div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 2px;">Max Dist: <strong id="bar-maxdist-txt" style="color: #00d2ff;">8 km</strong></div>
+          <input type="range" id="bar-maxdist" min="1" max="10" step="0.5" value="8" style="width: 100%; accent-color: #00d2ff;" oninput="updateFilterMaxDist(this.value)">
+        </div>
+        <div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 2px;">Ganho/km: <strong id="bar-mingain-txt" style="color: #ffd700;">R$ 5/km</strong></div>
+          <input type="range" id="bar-mingain" min="0" max="10" step="0.5" value="5" style="width: 100%; accent-color: #ffd700;" oninput="updateMinGain(this.value)">
+        </div>
+      </div>
+    </div>
+
     <div id="full-stacks-container"></div>
   </section>
 
@@ -1604,39 +1640,97 @@ HTML_CONTENT = """<!DOCTYPE html>
     </div>
   </section>
 
-  <!-- #SETTINGS (Configurações) -->
+  <!-- #SETTINGS (Configurações & Filtros de Rentabilidade) -->
   <section id="settings" class="view-section">
     <div class="nav-pills">
       <a href="#dashboard" class="nav-pill">Cockpit</a>
-      <a href="#settings" class="nav-pill active">Ajustes</a>
+      <a href="#stacks" class="nav-pill">Stacks</a>
+      <a href="#settings" class="nav-pill active">Ajustes & Filtros</a>
       <a href="#admin" class="nav-pill">Admin</a>
     </div>
 
-    <h2 style="font-size: 18px; font-weight: 800; color: #ffffff; margin-bottom: 16px;">Configurações</h2>
+    <h2 style="font-size: 18px; font-weight: 800; color: #ffffff; margin-bottom: 16px;">Configuração de Filtros do Cockpit</h2>
 
-    <div class="glass" style="padding: 18px; display: flex; flex-direction: column; gap: 14px;">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <div style="font-size: 13px; font-weight: 700; color: #ffffff;">Voz Jarvis (pt-BR)</div>
-          <div style="font-size: 11px; color: var(--text-muted);">Alertas automáticos de voz</div>
-        </div>
-        <input type="checkbox" id="cfg-v" checked onchange="toggleVoz()" style="width: 20px; height: 20px; accent-color: var(--primary);">
+    <div class="glass" style="padding: 18px; display: flex; flex-direction: column; gap: 16px; margin-bottom: 16px;">
+      <div style="font-size: 13px; font-weight: 800; color: var(--primary); letter-spacing: 0.5px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">
+        🎯 CRITÉRIOS DE DESPACHO E RENTABILIDADE
       </div>
 
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <div style="font-size: 13px; font-weight: 700; color: #ffffff;">Modo Foco</div>
-          <div style="font-size: 11px; color: var(--text-muted);">Silencia distrações em trânsito</div>
-        </div>
-        <input type="checkbox" id="cfg-f" checked onchange="toggleModoFoco()" style="width: 20px; height: 20px; accent-color: var(--primary);">
-      </div>
-
+      <!-- 1. VALOR MÍNIMO -->
       <div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-          <span style="font-size: 13px; font-weight: 700; color: #ffffff;">Ganho Mínimo por Km</span>
-          <span style="font-size: 13px; font-weight: 700; color: var(--primary);" id="cfg-gain-text">R$ 5,00/km</span>
+          <span style="font-size: 13px; font-weight: 700; color: #ffffff;">💰 Valor Mínimo por Corrida</span>
+          <span style="font-size: 13px; font-weight: 800; color: var(--primary);" id="cfg-minval-text">R$ 0,00</span>
         </div>
-        <input type="range" id="cfg-gain" min="3" max="10" step="0.5" value="5" style="width: 100%; accent-color: var(--primary);" oninput="updateMinGain(this.value)">
+        <input type="range" id="cfg-minval" min="0" max="40" step="1" value="0" style="width: 100%; accent-color: var(--primary);" oninput="updateFilterMinValue(this.value)">
+        <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateFilterMinValue(0)">Todos</button>
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateFilterMinValue(15)">R$ 15+</button>
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateFilterMinValue(22)">R$ 22+</button>
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateFilterMinValue(30)">R$ 30+</button>
+        </div>
+      </div>
+
+      <!-- 2. DISTÂNCIA MÁXIMA -->
+      <div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="font-size: 13px; font-weight: 700; color: #ffffff;">🛵 Distância Máxima de Deslocamento</span>
+          <span style="font-size: 13px; font-weight: 800; color: #00d2ff;" id="cfg-maxdist-text">8.0 km</span>
+        </div>
+        <input type="range" id="cfg-maxdist" min="1" max="10" step="0.5" value="8" style="width: 100%; accent-color: #00d2ff;" oninput="updateFilterMaxDist(this.value)">
+        <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateFilterMaxDist(3)">Até 3 km</button>
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateFilterMaxDist(5)">Até 5 km</button>
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateFilterMaxDist(7)">Até 7 km</button>
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateFilterMaxDist(10)">Sem Limite</button>
+        </div>
+      </div>
+
+      <!-- 3. MULTIPLICADOR DE GANHO POR QUILÔMETRO -->
+      <div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="font-size: 13px; font-weight: 700; color: #ffffff;">⚡ Multiplicador Ganho por Km</span>
+          <span style="font-size: 13px; font-weight: 800; color: #ffd700;" id="cfg-gain-text">R$ 5,00/km</span>
+        </div>
+        <input type="range" id="cfg-gain" min="0" max="10" step="0.5" value="5" style="width: 100%; accent-color: #ffd700;" oninput="updateMinGain(this.value)">
+        <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateMinGain(0)">Sem Mínimo</button>
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateMinGain(4)">R$ 4/km</button>
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateMinGain(5)">R$ 5/km</button>
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateMinGain(6.5)">R$ 6,50/km</button>
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateMinGain(8)">R$ 8/km</button>
+        </div>
+      </div>
+
+      <!-- PRESETS RÁPIDOS DE ESTRATÉGIA -->
+      <div>
+        <div style="font-size: 11px; font-weight: 800; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
+          Presets Rápidos de Piloto
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+          <button class="btn" style="font-size: 11px; padding: 8px; justify-content: flex-start; text-align: left;" onclick="applyStrategyPreset(22, 5, 6)">🌧️ Chuva / Dinâmica</button>
+          <button class="btn" style="font-size: 11px; padding: 8px; justify-content: flex-start; text-align: left;" onclick="applyStrategyPreset(12, 3.5, 5)">⚡ Tiro Curto</button>
+          <button class="btn" style="font-size: 11px; padding: 8px; justify-content: flex-start; text-align: left;" onclick="applyStrategyPreset(30, 7, 7)">💎 Máximo Lucro</button>
+          <button class="btn" style="font-size: 11px; padding: 8px; justify-content: flex-start; text-align: left;" onclick="applyStrategyPreset(0, 10, 0)">🎯 Padrão Livre</button>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 13px; font-weight: 700; color: #ffffff;">Voz Jarvis (pt-BR)</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Alertas e leitura falada de corrida</div>
+          </div>
+          <input type="checkbox" id="cfg-v" checked onchange="toggleVoz()" style="width: 20px; height: 20px; accent-color: var(--primary);">
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 13px; font-weight: 700; color: #ffffff;">Modo Foco</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Silencia distrações em trânsito</div>
+          </div>
+          <input type="checkbox" id="cfg-f" checked onchange="toggleModoFoco()" style="width: 20px; height: 20px; accent-color: var(--primary);">
+        </div>
       </div>
     </div>
   </section>
@@ -1706,7 +1800,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       user: { id: 'usr_thiago_01', name: 'Thiago Sutil', email: 'thiagosutilmente@gmail.com', plan: 'pro', onboardingComplete: true },
       session: { isLoggedIn: true, token: 'token_123' },
       earnings: { today: 284.50, week: 1420.80, month: 5680.00, totalKm: 38.2, profit: 218.40 },
-      stacks: { active: [], pending: [], history: [], autoAccept: false, minGainPerKm: 5.0 },
+      stacks: { active: [], pending: [], history: [], autoAccept: false, minGainPerKm: 5.0, minValue: 0.0, maxDistance: 8.0 },
       health: { score: 94, gpsAccuracy: 4.2, latency: 12, temperature: 28, speed: 0.0, isSafetyLock: false, isMoving: false },
       config: { voiceEnabled: true, focusModeAuto: true, theme: 'dark' }
     };
@@ -1806,7 +1900,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     // Monitor de Velocidade e Trava de Segurança em Movimento (Android Location API)
     function updateSpeed(speedKmh, source = 'GPS') {
       const prevLock = window.AppState.health.isSafetyLock || false;
-      const isLock = speedKmh > 10.0;
+      const isLock = speedKmh > 20.0;
       const isMove = speedKmh > 2.0;
 
       window.AppState.health.speed = speedKmh;
@@ -1828,7 +1922,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 
       const moveStatus = document.getElementById('speed-movement-status');
       if (moveStatus) {
-        moveStatus.innerHTML = isMove ? (isLock ? '<span style="color:#ff4757; font-weight:bold;">🚨 Em Movimento (> 10 km/h)</span>' : '<span style="color:#00ff88; font-weight:bold;">🏍️ Em Movimento (Lento)</span>') : '<span style="color:#8e92a8;">🟢 Moto Parada</span>';
+        moveStatus.innerHTML = isMove ? (isLock ? '<span style="color:#ff4757; font-weight:bold;">🚨 Em Movimento (> 20 km/h)</span>' : '<span style="color:#00ff88; font-weight:bold;">🏍️ Em Movimento (Lento)</span>') : '<span style="color:#8e92a8;">🟢 Moto Parada</span>';
       }
 
       const lockBanner = document.getElementById('speed-safety-lock-banner');
@@ -1839,11 +1933,11 @@ HTML_CONTENT = """<!DOCTYPE html>
       const lockBadge = document.getElementById('speed-lock-badge');
       if (lockBadge) {
         lockBadge.innerHTML = isLock 
-          ? '<span style="color:#ff4757; font-weight:900; font-size:11px;">🚨 BLOQUEIO ATIVO (> 10 km/h)</span>' 
-          : '<span style="color:#00ff88; font-weight:800; font-size:11px;">🛡️ TOQUE LIVRE (<= 10 km/h)</span>';
+          ? '<span style="color:#ff4757; font-weight:900; font-size:11px;">🚨 BLOQUEIO ATIVO (> 20 km/h)</span>' 
+          : '<span style="color:#00ff88; font-weight:800; font-size:11px;">🛡️ TOQUE LIVRE (<= 20 km/h)</span>';
       }
 
-      // Desabilita botões e toques manuais nas ofertas durante movimento acima de 10 km/h
+      // Desabilita botões e toques manuais nas ofertas durante movimento acima de 20 km/h
       document.querySelectorAll('.stack-btn-row button').forEach(btn => {
         btn.disabled = isLock;
         btn.style.opacity = isLock ? '0.35' : '1';
@@ -1851,7 +1945,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       });
 
       if (!prevLock && isLock) {
-        speak("Atenção: moto em movimento acima de 10 por hora. Trava de segurança ativada. Use comandos de voz.");
+        speak("Atenção: moto em movimento acima de 20 por hora. Trava de segurança ativada. Use comandos de voz.");
         startVoiceListening(true);
       } else if (prevLock && !isLock) {
         speak("Velocidade segura. Lista de pedidos liberada.");
@@ -2025,11 +2119,86 @@ HTML_CONTENT = """<!DOCTYPE html>
       }
     }
 
+    function updateFilterMinValue(v) {
+      window.AppState.stacks.minValue = parseFloat(v);
+      const t = parseFloat(v) > 0 ? `R$ ${parseFloat(v).toFixed(2).replace('.', ',')}` : 'Sem Mínimo';
+      const el1 = document.getElementById('cfg-minval-text');
+      const el2 = document.getElementById('bar-minval-txt');
+      const slider1 = document.getElementById('cfg-minval');
+      const slider2 = document.getElementById('bar-minval');
+      if (el1) el1.innerText = t;
+      if (el2) el2.innerText = parseFloat(v) > 0 ? `R$ ${parseFloat(v).toFixed(0)}` : 'R$ 0';
+      if (slider1) slider1.value = v;
+      if (slider2) slider2.value = v;
+      saveState();
+      if (window.AppState.stacks.pending) renderFullStacks(window.AppState.stacks.pending);
+    }
+
+    function updateFilterMaxDist(v) {
+      window.AppState.stacks.maxDistance = parseFloat(v);
+      const t = parseFloat(v) < 10 ? `${parseFloat(v).toFixed(1)} km` : 'Sem Limite';
+      const el1 = document.getElementById('cfg-maxdist-text');
+      const el2 = document.getElementById('bar-maxdist-txt');
+      const slider1 = document.getElementById('cfg-maxdist');
+      const slider2 = document.getElementById('bar-maxdist');
+      if (el1) el1.innerText = t;
+      if (el2) el2.innerText = parseFloat(v) < 10 ? `${parseFloat(v).toFixed(1)} km` : 'Livre';
+      if (slider1) slider1.value = v;
+      if (slider2) slider2.value = v;
+      saveState();
+      if (window.AppState.stacks.pending) renderFullStacks(window.AppState.stacks.pending);
+    }
+
     function updateMinGain(v) {
       window.AppState.stacks.minGainPerKm = parseFloat(v);
-      const el = document.getElementById('cfg-gain-text');
-      if (el) el.innerText = `R$ ${parseFloat(v).toFixed(2).replace('.', ',')}/km`;
+      const t = parseFloat(v) > 0 ? `R$ ${parseFloat(v).toFixed(2).replace('.', ',')}/km` : 'Sem Mínimo';
+      const el1 = document.getElementById('cfg-gain-text');
+      const el2 = document.getElementById('bar-mingain-txt');
+      const slider1 = document.getElementById('cfg-gain');
+      const slider2 = document.getElementById('bar-mingain');
+      if (el1) el1.innerText = t;
+      if (el2) el2.innerText = parseFloat(v) > 0 ? `R$ ${parseFloat(v).toFixed(1)}/km` : 'R$ 0/km';
+      if (slider1) slider1.value = v;
+      if (slider2) slider2.value = v;
       saveState();
+      if (window.AppState.stacks.pending) renderFullStacks(window.AppState.stacks.pending);
+    }
+
+    function applyStrategyPreset(minVal, maxDist, minGain) {
+      updateFilterMinValue(minVal);
+      updateFilterMaxDist(maxDist);
+      updateMinGain(minGain);
+      speak(`Filtros de estratégia aplicados: Mínimo R$ ${minVal}, raio ${maxDist} km, ganho R$ ${minGain} por km.`);
+    }
+
+    function toggleFilterOnlyMultiStack() {
+      window.AppState.stacks.onlyMultiStack = !window.AppState.stacks.onlyMultiStack;
+      saveState();
+      const btn = document.getElementById('btn-filter-multistack');
+      if (btn) {
+        btn.style.background = window.AppState.stacks.onlyMultiStack ? 'var(--primary)' : 'rgba(0, 255, 136, 0.12)';
+        btn.style.color = window.AppState.stacks.onlyMultiStack ? '#0a0a0f' : 'var(--primary)';
+        btn.style.fontWeight = window.AppState.stacks.onlyMultiStack ? '900' : '700';
+      }
+      speak(window.AppState.stacks.onlyMultiStack ? 'Filtro ativado: exibindo apenas entregas mescladas multi-stack.' : 'Filtro de mescladas desativado.');
+      if (window.AppState.stacks.pending) renderFullStacks(window.AppState.stacks.pending);
+    }
+
+    function triggerGhostSweep() {
+      speak('Varrendo corredor viário por sequências fantasma e rotas mescladas.');
+      window.AppState.stacks.onlyMultiStack = true;
+      saveState();
+      const btn = document.getElementById('btn-filter-multistack');
+      if (btn) {
+        btn.style.background = 'var(--primary)';
+        btn.style.color = '#0a0a0f';
+        btn.style.fontWeight = '900';
+      }
+      setTimeout(() => {
+        speak('Sinergia detectada entre Burger King Paulista e Pizza Hut Jardins! R$ 33 por 4.2 km.');
+        location.hash = '#stacks';
+        fetchStacks();
+      }, 700);
     }
 
     function openMapsRoute(origin, waypoint, destination, stackId) {
@@ -2225,7 +2394,41 @@ HTML_CONTENT = """<!DOCTYPE html>
     function renderFullStacks(list) {
       const cont = document.getElementById('full-stacks-container');
       if (!cont) return;
-      cont.innerHTML = list.map(s => {
+      const minVal = window.AppState.stacks.minValue || 0.0;
+      const maxDist = window.AppState.stacks.maxDistance || 10.0;
+      const minGain = window.AppState.stacks.minGainPerKm || 0.0;
+      const onlyMulti = window.AppState.stacks.onlyMultiStack || false;
+
+      const filtered = list.filter(s => {
+        const gain = s.total_value / s.distance_km;
+        if (onlyMulti && !s.apps.includes('+')) return false;
+        if (s.total_value < minVal) return false;
+        if (s.distance_km > maxDist) return false;
+        if (gain < minGain) return false;
+        return true;
+      });
+
+      const badge = document.getElementById('stacks-filter-badge');
+      if (badge) {
+        badge.innerText = `${filtered.length} de ${list.length} disponíveis${onlyMulti ? ' (✨ Só Mescladas)' : ''}`;
+        badge.style.color = (onlyMulti || minVal > 0 || maxDist < 8.0 || minGain > 0) ? 'var(--primary)' : 'var(--text-muted)';
+      }
+
+      if (filtered.length === 0) {
+        cont.innerHTML = `
+          <div class="glass" style="padding: 24px; text-align: center;">
+            <div style="font-size: 32px; margin-bottom: 8px;">🎚️</div>
+            <div style="font-size: 15px; font-weight: 800; color: #ffffff; margin-bottom: 6px;">Nenhum stack nos critérios atuais</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">
+              Existem ${list.length} pedidos disponíveis, mas nenhum atende aos filtros de R$ ${minVal.toFixed(2)}, ${maxDist} km e R$ ${minGain.toFixed(2)}/km.
+            </div>
+            <button class="btn btn-green" style="margin: 0 auto;" onclick="applyStrategyPreset(0, 10, 0)">Redefinir Filtros</button>
+          </div>
+        `;
+        return;
+      }
+
+      cont.innerHTML = filtered.map(s => {
         const gain = (s.total_value / s.distance_km).toFixed(2);
         const isMulti = s.apps.includes('+');
         const restParts = s.restaurant.split('&');

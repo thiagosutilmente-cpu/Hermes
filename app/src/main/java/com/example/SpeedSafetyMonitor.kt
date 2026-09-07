@@ -72,7 +72,7 @@ import kotlin.math.sqrt
  */
 data class SpeedSafetyState(
     val currentSpeedKmh: Double = 0.0,
-    val isSafetyLockActive: Boolean = false, // true quando > 10.0 km/h
+    val isSafetyLockActive: Boolean = false, // true quando > 20.0 km/h
     val isMoving: Boolean = false, // true quando moto está em movimento
     val isGpsActive: Boolean = false,
     val gpsAccuracyMeters: Float = 3.8f,
@@ -81,7 +81,7 @@ data class SpeedSafetyState(
     val altitudeMeters: Double = 760.0,
     val bearingDegrees: Float = 0f,
     val isSimulating: Boolean = false,
-    val safetySpeedThresholdKmh: Double = 10.0,
+    val safetySpeedThresholdKmh: Double = 20.0,
     val sensorAccelerationMps2: Float = 0f,
     val provider: String = "Fused Location (GPS)"
 )
@@ -92,7 +92,7 @@ data class SpeedSafetyState(
  * com fallback para o [LocationManager] nativo e [SensorManager] (Acelerômetro) para detectar movimento.
  *
  * Regra Crítica:
- * Se a velocidade ultrapassar 10 km/h, ativa automaticamente a trava de segurança, ocultando a lista
+ * Se a velocidade ultrapassar 20 km/h, ativa automaticamente a trava de segurança, bloqueando e ocultando a lista
  * de ofertas para impedir distrações visuais e acidentes durante a pilotagem.
  */
 class SpeedSafetyMonitor(
@@ -115,7 +115,7 @@ class SpeedSafetyMonitor(
     private val scope = CoroutineScope(Dispatchers.Main + Job())
 
     companion object {
-        const val SAFETY_SPEED_THRESHOLD_KMH = 10.0
+        const val SAFETY_SPEED_THRESHOLD_KMH = 20.0
     }
 
     init {
@@ -316,13 +316,13 @@ class SpeedSafetyMonitor(
 }
 
 /**
- * Card Exibido quando a velocidade do entregador ultrapassa 10 km/h.
- * Oculta a lista de ofertas e instrui o uso dos comandos de voz ("Aceitar" / "Recusar").
+ * Card Exibido quando a velocidade do entregador ultrapassa 20 km/h.
+ * Bloqueia e oculta a lista de ofertas e instrui o uso dos comandos de voz ("Aceitar" / "Recusar").
  */
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun SpeedSafetyLockCard(
-    speedKmh: Double = 18.5,
+    speedKmh: Double = 24.5,
     isListeningVoice: Boolean = true,
     onTestSpeedChanged: (Double) -> Unit = {},
     modifier: Modifier = Modifier
@@ -386,7 +386,7 @@ fun SpeedSafetyLockCard(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = "> 10 KM/H",
+                        text = "> 20 KM/H",
                         color = RedDecline,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Black
@@ -424,14 +424,14 @@ fun SpeedSafetyLockCard(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Lista de ofertas oculta por segurança",
+                text = "Lista de ofertas bloqueada por segurança",
                 color = TextLight,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Para proteger sua vida no trânsito, a lista de pedidos é bloqueada enquanto a moto estiver em movimento acima de 10 km/h.",
+                text = "Para proteger sua vida no trânsito, a interface de ofertas é bloqueada automaticamente enquanto o veículo estiver em movimento acima de 20 km/h.",
                 color = TextMuted,
                 fontSize = 11.sp,
                 lineHeight = 15.sp,
@@ -483,13 +483,16 @@ fun SpeedSafetyLockCard(
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SpeedTestButton(label = "0 km/h", isSelected = speedKmh <= 10.0) {
+                    SpeedTestButton(label = "0 km/h", isSelected = speedKmh <= 5.0) {
                         onTestSpeedChanged(0.0)
                     }
-                    SpeedTestButton(label = "18 km/h", isSelected = speedKmh in 11.0..25.0) {
-                        onTestSpeedChanged(18.0)
+                    SpeedTestButton(label = "15 km/h", isSelected = speedKmh in 6.0..20.0) {
+                        onTestSpeedChanged(15.0)
                     }
-                    SpeedTestButton(label = "45 km/h", isSelected = speedKmh > 25.0) {
+                    SpeedTestButton(label = "25 km/h", isSelected = speedKmh in 20.1..35.0) {
+                        onTestSpeedChanged(25.0)
+                    }
+                    SpeedTestButton(label = "45 km/h", isSelected = speedKmh > 35.0) {
                         onTestSpeedChanged(45.0)
                     }
                 }
@@ -619,7 +622,7 @@ fun RealtimeSpeedTelemetryCard(
                         )
                     }
                     Text(
-                        text = if (isLocked) "🚨 Trava Ativa (> 10 km/h)" else "🛡️ Modo Toque Livre (<= 10 km/h)",
+                        text = if (isLocked) "🚨 Trava Ativa (> 20 km/h)" else "🛡️ Modo Toque Livre (<= 20 km/h)",
                         color = if (isLocked) RedDecline else TextLight,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold
@@ -648,14 +651,14 @@ fun RealtimeSpeedTelemetryCard(
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SpeedTestButton(label = "0 km/h", isSelected = speedState.currentSpeedKmh <= 10.0 && speedState.isSimulating) {
+                    SpeedTestButton(label = "0 km/h", isSelected = speedState.currentSpeedKmh <= 5.0 && speedState.isSimulating) {
                         onSimulateSpeed(0.0)
                     }
-                    SpeedTestButton(label = "18 km/h", isSelected = speedState.currentSpeedKmh in 11.0..25.0 && speedState.isSimulating) {
-                        onSimulateSpeed(18.0)
+                    SpeedTestButton(label = "15 km/h", isSelected = speedState.currentSpeedKmh in 6.0..20.0 && speedState.isSimulating) {
+                        onSimulateSpeed(15.0)
                     }
-                    SpeedTestButton(label = "45 km/h", isSelected = speedState.currentSpeedKmh > 25.0 && speedState.isSimulating) {
-                        onSimulateSpeed(45.0)
+                    SpeedTestButton(label = "25 km/h", isSelected = speedState.currentSpeedKmh > 20.0 && speedState.isSimulating) {
+                        onSimulateSpeed(25.0)
                     }
                     SpeedTestButton(label = "📡 GPS Real", isSelected = !speedState.isSimulating) {
                         onResetRealGps()
