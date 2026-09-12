@@ -13,6 +13,11 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -29,13 +34,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 /**
  * Estado da telemetria de localização e velocidade do condutor.
  */
 data class LocationSpeedState(
     val currentSpeedKmh: Double = 0.0,
-    val isSafetyLockActive: Boolean = false, // true quando > 20.0 km/h
+    val isSafetyLockActive: Boolean = false, // true quando > limiar de velocidade configurado
     val latitude: Double = -23.561684,
     val longitude: Double = -46.655981,
     val accuracyMeters: Float = 0f,
@@ -50,11 +56,12 @@ data class LocationSpeedState(
  * [LocationService] utilizando [FusedLocationProviderClient] da Google Play Services.
  *
  * Responsável por:
- * 1. Rastrear em tempo real a posição e velocidade atual do usuário (m/s convertidos para km/h).
- * 2. Operar tanto como serviço em primeiro plano (Foreground Service) quanto como Singleton / Bound Service.
- * 3. Notificar o estado da trava de segurança (Safety Lock) quando a velocidade ultrapassar o limiar de 20 km/h.
+ * 1. Rastrear em tempo real e em segundo plano a posição e velocidade do entregador.
+ * 2. Operar como Foreground Service com notificação contínua e wake lock parcial de proteção.
+ * 3. Ativar automaticamente a trava de segurança quando a velocidade ultrapassar o limiar configurado.
+ * 4. Emitir avisos sonoros (TTS em português) e vibrações hápticas mesmo com o app minimizado no Waze ou com a tela apagada.
  */
-class LocationService : Service() {
+class LocationService : Service(), TextToSpeech.OnInitListener {
 
     private val binder = LocalBinder()
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -63,6 +70,10 @@ class LocationService : Service() {
     private lateinit var locationCallback: LocationCallback
 
     private var lastValidLocation: Location? = null
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var vibrator: Vibrator? = null
+    private var tts: TextToSpeech? = null
+    private var isTtsReady: Boolean = false
 
     companion object {
         private const val TAG = "LocationService"
@@ -72,24 +83,128 @@ class LocationService : Service() {
         const val ACTION_START_LOCATION_TRACKING = "com.example.action.START_LOCATION_TRACKING"
         const val ACTION_STOP_LOCATION_TRACKING = "com.example.action.STOP_LOCATION_TRACKING"
 
-        // Limiar crítico de segurança em km/h
-        const val SAFETY_SPEED_LOCK_THRESHOLD_KMH = 20.0
+        // Limiar crítico de segurança em km/h padrão
+        const val SAFETY_SPEED_LOCK_THRESHOLD_KMH = 15.0
+
+        // Limiar configurado dinamicamente pelo entregador
+        @Volatile
+        var dynamicSafetySpeedThresholdKmh: Double = SAFETY_SPEED_LOCK_THRESHOLD_KMH
 
         // Fluxo de estado global acessível para a UI e Composables
         private val _globalLocationState = MutableStateFlow(LocationSpeedState())
         val globalLocationState: StateFlow<LocationSpeedState> = _globalLocationState.asStateFlow()
 
         /**
+         * Inicia o serviço de localização em segundo plano (Foreground Service).
+         */
+        fun start(context: Context) {
+            val intent = Intent(context, LocationService::class.java).apply {
+                action = ACTION_START_LOCATION_TRACKING
+            }
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Falha ao iniciar LocationService em foreground", e)
+            }
+        }
+
+        /**
+         * Interrompe o serviço de localização em segundo plano.
+         */
+        fun stop(context: Context) {
+            val intent = Intent(context, LocationService::class.java).apply {
+                action = ACTION_STOP_LOCATION_TRACKING
+            }
+            try {
+                context.startService(intent)
+            } catch (e: Exception) {
+                Log.e(TAG, "Falha ao parar LocationService", e)
+            }
+        }
+
+        /**
+         * Atualiza o limiar de velocidade para a trava de segurança.
+         */
+        fun updateSafetySpeedThreshold(thresholdKmh: Double) {
+            dynamicSafetySpeedThresholdKmh = thresholdKmh
+            val currentSpeed = _globalLocationState.value.currentSpeedKmh
+            val isLock = currentSpeed > thresholdKmh
+            if (_globalLocationState.value.isSafetyLockActive != isLock) {
+                _globalLocationState.value = _globalLocationState.value.copy(
+                    isSafetyLockActive = isLock
+                )
+            }
+        }
+
+        /**
          * Permite simular velocidade para fins de teste no emulador / modo de desenvolvimento.
          */
         fun updateSimulatedSpeed(speedKmh: Double) {
-            val isLock = speedKmh > SAFETY_SPEED_LOCK_THRESHOLD_KMH
+            val isLock = speedKmh > dynamicSafetySpeedThresholdKmh
             _globalLocationState.value = _globalLocationState.value.copy(
                 currentSpeedKmh = speedKmh,
                 isSafetyLockActive = isLock,
                 speedSource = "Simulação Manual",
                 lastUpdateTimeMillis = System.currentTimeMillis()
             )
+        }
+
+        /**
+         * Calcula a distância geodésica em linha reta (em metros) entre dois pontos de coordenadas (WGS84).
+         */
+        fun calculateDistanceMeters(
+            startLat: Double,
+            startLng: Double,
+            endLat: Double,
+            endLng: Double
+        ): Float {
+            val results = FloatArray(1)
+            Location.distanceBetween(startLat, startLng, endLat, endLng, results)
+            return results[0]
+        }
+
+        /**
+         * Calcula a distância geodésica convertida em quilômetros (com arredondamento a 2 casas decimais).
+         */
+        fun calculateDistanceKm(
+            startLat: Double,
+            startLng: Double,
+            endLat: Double,
+            endLng: Double
+        ): Double {
+            val meters = calculateDistanceMeters(startLat, startLng, endLat, endLng)
+            return Math.round((meters / 1000.0) * 100.0) / 100.0
+        }
+
+        /**
+         * Estima a distância real de condução veicular urbana (São Paulo / Corredores de Moto),
+         * aplicando o fator Manhattan/Circuidade de malha viária (fator 1.25x a 1.35x sobre a geodésica).
+         */
+        fun estimateUrbanRouteKm(
+            startLat: Double,
+            startLng: Double,
+            endLat: Double,
+            endLng: Double,
+            circuityFactor: Double = 1.28
+        ): Double {
+            val directKm = calculateDistanceKm(startLat, startLng, endLat, endLng)
+            val roadDistance = directKm * circuityFactor
+            return Math.round(roadDistance * 10.0) / 10.0
+        }
+
+        /**
+         * Calcula a distância direta da posição GPS atual do entregador até o ponto de coleta.
+         */
+        fun calculateDistanceToPickupFromCurrent(
+            pickupLat: Double,
+            pickupLng: Double
+        ): Double {
+            val current = _globalLocationState.value
+            return estimateUrbanRouteKm(current.latitude, current.longitude, pickupLat, pickupLng)
         }
     }
 
@@ -101,8 +216,72 @@ class LocationService : Service() {
         super.onCreate()
         Log.d(TAG, "LocationService onCreate: Inicializando FusedLocationProviderClient")
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        // WakeLock para garantir execução de telemetria contínua com tela desligada
+        try {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "RadarCoordinator:LocationWakeLock")
+            wakeLock?.acquire(24 * 60 * 60 * 1000L) // 24 horas max
+        } catch (e: Exception) {
+            Log.e(TAG, "Falha ao adquirir WakeLock", e)
+        }
+
+        // Inicialização do Vibrator para feedback tático de segurança
+        vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+            vibratorManager?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+
+        // Inicialização do TextToSpeech para avisos sonoros no capacete mesmo em segundo plano
+        try {
+            tts = TextToSpeech(applicationContext, this)
+        } catch (e: Exception) {
+            Log.e(TAG, "Falha ao inicializar TTS no LocationService", e)
+        }
+
         createNotificationChannel()
         setupLocationCallback()
+    }
+
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            val result = tts?.setLanguage(Locale("pt", "BR"))
+            if (result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED) {
+                isTtsReady = true
+                tts?.setSpeechRate(1.05f)
+            }
+        }
+    }
+
+    private fun speakAlert(text: String) {
+        if (isTtsReady && tts != null) {
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "loc_safety_alert_${System.currentTimeMillis()}")
+        }
+    }
+
+    private fun triggerVibrationAlert(isLock: Boolean) {
+        try {
+            if (isLock) {
+                // Alerta tático de bloqueio em movimento: 2 pulsos fortes
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 150, 100, 250), -1))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(longArrayOf(0, 150, 100, 250), -1)
+                }
+            } else {
+                // Desbloqueio e segurança: 1 pulso curto
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    vibrator?.vibrate(VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    @Suppress("DEPRECATION")
+                    vibrator?.vibrate(80)
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     override fun onBind(intent: Intent?): IBinder {
@@ -144,8 +323,9 @@ class LocationService : Service() {
      * Processa a nova localização e calcula a velocidade precisa em km/h.
      */
     private fun processNewLocation(location: Location) {
+        val previousLock = _globalLocationState.value.isSafetyLockActive
         val speedKmh = calculateSpeedKmh(location)
-        val isSafetyLockActive = speedKmh > SAFETY_SPEED_LOCK_THRESHOLD_KMH
+        val isSafetyLockActive = speedKmh > dynamicSafetySpeedThresholdKmh
 
         val newState = LocationSpeedState(
             currentSpeedKmh = speedKmh,
@@ -162,6 +342,23 @@ class LocationService : Service() {
 
         _globalLocationState.value = newState
         lastValidLocation = location
+
+        // Disparo de alertas sensoriais (Áudio TTS + Vibração Tática) quando a trava é ativada ou liberada
+        if (previousLock != isSafetyLockActive) {
+            val limit = dynamicSafetySpeedThresholdKmh.toInt()
+            triggerVibrationAlert(isSafetyLockActive)
+            if (isSafetyLockActive) {
+                speakAlert("Atenção: veículo em movimento acima de $limit por hora. Trava de segurança ativada.")
+            } else {
+                speakAlert("Velocidade reduzida abaixo de $limit por hora. Interface de pedidos liberada.")
+            }
+        }
+
+        // Avalia zonas de geofence de alta demanda
+        try {
+            GeofencingDemandManager.getInstance(applicationContext)
+                .evaluateCurrentLocation(location.latitude, location.longitude)
+        } catch (_: Exception) {}
 
         // Atualiza a notificação foreground quando houver alteração significativa
         updateNotification(newState)
@@ -242,19 +439,22 @@ class LocationService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val threshold = dynamicSafetySpeedThresholdKmh.toInt()
+        val speedStr = String.format(java.util.Locale.US, "%.0f", state.currentSpeedKmh)
         val lockStatus = if (state.isSafetyLockActive) {
-            "🚨 TRAVA ATIVA (> 20 km/h) • ${String.format(java.util.Locale.US, "%.0f", state.currentSpeedKmh)} km/h"
+            "🚨 TRAVA DE SEGURANÇA ATIVA (> $threshold km/h) • $speedStr km/h"
         } else {
-            "🟢 MODO SEGURO • ${String.format(java.util.Locale.US, "%.0f", state.currentSpeedKmh)} km/h"
+            "🟢 VELOCIDADE SEGURA (<= $threshold km/h) • $speedStr km/h"
         }
 
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("Radar Speed Safety Monitor")
+            .setContentTitle("Radar Coordinator • Proteção Ativa")
             .setContentText(lockStatus)
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build()
     }
 
@@ -280,6 +480,15 @@ class LocationService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         stopLocationUpdates()
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+            }
+        } catch (_: Exception) {}
+        try {
+            tts?.stop()
+            tts?.shutdown()
+        } catch (_: Exception) {}
         serviceScope.cancel()
         Log.d(TAG, "LocationService destruído.")
     }

@@ -294,9 +294,12 @@ fun RadarDeliveryDashboard(
         }
     }
 
-    // 7. Critérios de Filtragem em Tempo Real (Valor Mínimo, Distância Máxima, Ganho por Km e Jarvis)
-    var filterCriteria by remember { mutableStateOf(OfferFilterCriteria(minValue = 0.0, maxDistanceKm = 8.0, minGainPerKm = 0.0)) }
+    // 7. Critérios de Filtragem em Tempo Real (Valor Mínimo, Distância Máxima, Bônus por Entrega, Ganho por Km e Jarvis)
+    var filterCriteria by remember {
+        mutableStateOf(FilterPreferencesManager.loadCriteria(context))
+    }
     var showFilterSettingsModal by remember { mutableStateOf(false) }
+    var showFilterSettingsScreen by remember { mutableStateOf(false) }
 
     // 8. Reconhecedor de Fala Nativo (SpeechRecognizer) - Mãos Livres no Capacete
     var hasMicPermission by remember {
@@ -320,7 +323,7 @@ fun RadarDeliveryDashboard(
     var lastVoiceCommandText by remember { mutableStateOf("") }
     var speechManager: HandsFreeSpeechManager? by remember { mutableStateOf(null) }
 
-    // 9. Monitor de Velocidade e Segurança (LocationManager + Sensores)
+    // 9. Monitor de Velocidade e Segurança (LocationService em Background + FusedLocation)
     var hasLocationPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
@@ -328,11 +331,34 @@ fun RadarDeliveryDashboard(
         )
     }
 
+    var hasBackgroundLocationPermission by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+        )
+    }
+
+    val backgroundLocationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasBackgroundLocationPermission = granted
+        if (granted) {
+            Toast.makeText(context, "Localização contínua em segundo plano autorizada!", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { perms ->
-        hasLocationPermission = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-                                perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        val granted = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                      perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        hasLocationPermission = granted
+        if (granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !hasBackgroundLocationPermission) {
+            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -350,36 +376,59 @@ fun RadarDeliveryDashboard(
 
     DisposableEffect(hasLocationPermission) {
         if (hasLocationPermission) {
-            val serviceIntent = Intent(context, LocationService::class.java).apply {
-                action = LocationService.ACTION_START_LOCATION_TRACKING
-            }
-            try {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    context.startForegroundService(serviceIntent)
-                } else {
-                    context.startService(serviceIntent)
-                }
-            } catch (_: Exception) {}
+            LocationService.start(context)
         }
 
         val monitor = SpeedSafetyMonitor(context) { isLocked, speed ->
-            FirebaseAnalyticsManager.logSpeedSafetyAlert(speed, limit = 20.0)
+            val limit = FilterPreferencesManager.loadCriteria(context).safetySpeedThresholdKm
+            FirebaseAnalyticsManager.logSpeedSafetyAlert(speed, limit = limit)
             if (isLocked) {
                 HapticFeedbackHelper.vibrateDecline(context)
                 if (isVoiceEnabled) {
-                    voiceManager?.speak("Atenção: veículo em movimento acima de 20 por hora. Trava de segurança ativada. Use comandos de voz.")
+                    voiceManager?.speak("Atenção: veículo em movimento acima de ${limit.toInt()} por hora. Trava de segurança ativada usando GPS. Interface desativada.")
                 }
             } else {
                 HapticFeedbackHelper.vibrateTap(context)
                 if (isVoiceEnabled) {
-                    voiceManager?.speak("Velocidade abaixo de 20 por hora. Lista de pedidos liberada.")
+                    voiceManager?.speak("Velocidade abaixo de ${limit.toInt()} por hora. Interface de pedidos liberada.")
                 }
             }
         }
         speedMonitor = monitor
 
+        // Inicializa o Geofencing para zonas de alta demanda se permissão estiver concedida
+        if (hasLocationPermission) {
+            try {
+                GeofencingDemandManager.getInstance(context).registerHotspotGeofences()
+            } catch (_: Exception) {}
+        }
+
         onDispose {
             monitor.destroy()
+        }
+    }
+
+    // 4.1. Monitoramento reativo de Geofencing para Zonas de Alta Demanda (Hotspots)
+    val geofenceManager = remember { GeofencingDemandManager.getInstance(context) }
+    val activeGeofenceZone by GeofencingDemandManager.currentActiveZone.collectAsState()
+    val registeredGeofenceZones by GeofencingDemandManager.registeredZones.collectAsState()
+    val isGeofencingActive by GeofencingDemandManager.isGeofencingActive.collectAsState()
+
+    // Ouve eventos de transição de Geofence para falar ao entregador e dar feedback tátil
+    LaunchedEffect(Unit) {
+        GeofencingDemandManager.zoneTransitions.collect { event ->
+            if (event.transitionType == com.google.android.gms.location.Geofence.GEOFENCE_TRANSITION_ENTER ||
+                event.transitionType == com.google.android.gms.location.Geofence.GEOFENCE_TRANSITION_DWELL) {
+                HapticFeedbackHelper.vibrateAccept(context)
+                if (isVoiceEnabled) {
+                    voiceManager?.speak("Atenção: você entrou na zona de alta demanda ${event.zone.name}. Tarifa dinâmica ativa com potencial de pedidos acumulados.")
+                }
+            } else if (event.transitionType == com.google.android.gms.location.Geofence.GEOFENCE_TRANSITION_EXIT) {
+                HapticFeedbackHelper.vibrateTap(context)
+                if (isVoiceEnabled) {
+                    voiceManager?.speak("Você saiu da zona de alta demanda ${event.zone.name}.")
+                }
+            }
         }
     }
 
@@ -553,6 +602,62 @@ fun RadarDeliveryDashboard(
                 VoiceActionCommand.DECLINE -> {
                     onDeclineCurrentBestOffer()
                 }
+                VoiceActionCommand.READ_OFFER -> {
+                    HapticFeedbackHelper.vibrateTap(context)
+                    val targetOffer = offersList.firstOrNull { filterCriteria.matches(it) } ?: offersList.firstOrNull()
+                    if (targetOffer != null) {
+                        voiceManager?.readOfferAloud(
+                            appName = targetOffer.appName,
+                            restaurant = targetOffer.restaurant,
+                            value = targetOffer.value,
+                            distanceKm = targetOffer.distanceKm,
+                            gainPerKm = targetOffer.gainPerKm,
+                            pickupAddress = targetOffer.pickupAddress,
+                            estimatedMinutes = targetOffer.estimatedTimeMin,
+                            neuralDecision = targetOffer.neuralDecision.decision,
+                            neuralReason = targetOffer.neuralDecision.reason
+                        )
+                    } else {
+                        voiceManager?.speak("Nenhuma oferta disponível no radar no momento.")
+                    }
+                }
+                VoiceActionCommand.READ_EARNINGS -> {
+                    HapticFeedbackHelper.vibrateTap(context)
+                    val netProfit = completedDeliveriesList.sumOf { it.netProfit }
+                    voiceManager?.announceEarnings(
+                        todayGross = todayEarnings,
+                        netProfit = if (netProfit > 0) netProfit else (todayEarnings * 0.78),
+                        totalKm = totalKmDriven,
+                        deliveryCount = completedDeliveries
+                    )
+                }
+                VoiceActionCommand.OPEN_NAVIGATION -> {
+                    HapticFeedbackHelper.vibrateSuccess(context)
+                    val targetOffer = offersList.firstOrNull { filterCriteria.matches(it) } ?: offersList.firstOrNull()
+                    if (targetOffer != null) {
+                        voiceManager?.announceNavigation(targetOffer.restaurant, targetOffer.pickupAddress)
+                        launchGoogleMapsNavigation(
+                            context = context,
+                            origin = null,
+                            destination = "${targetOffer.restaurant}, ${targetOffer.pickupAddress}"
+                        )
+                    } else {
+                        voiceManager?.speak("Nenhuma corrida pendente para abrir no mapa.")
+                    }
+                }
+                VoiceActionCommand.READ_HEALTH -> {
+                    HapticFeedbackHelper.vibrateTap(context)
+                    val acc = speedState.currentAccuracyMeters.let { if (it > 0) it else 4.2f }
+                    voiceManager?.announceSystemHealth(
+                        score = systemHealth.score,
+                        gpsAccuracyMeters = acc,
+                        latencyMs = systemHealth.latencyMs
+                    )
+                }
+                VoiceActionCommand.HELP -> {
+                    HapticFeedbackHelper.vibrateTap(context)
+                    voiceManager?.announceHelp()
+                }
                 VoiceActionCommand.FOCUS_ON -> {
                     HapticFeedbackHelper.vibrateTap(context)
                     isFocusModeActive = true
@@ -581,17 +686,99 @@ fun RadarDeliveryDashboard(
                         offersList.add(0, newMerged)
                     }
                     filterCriteria = filterCriteria.copy(onlyMultiStack = true)
+                    FilterPreferencesManager.saveCriteria(context, filterCriteria)
                     voiceManager?.speak("Varredura neural concluída. Entrega mesclada com alta sinergia identificada.")
+                }
+                VoiceActionCommand.FILTER_RAIN_PRESET -> {
+                    HapticFeedbackHelper.vibrateSuccess(context)
+                    filterCriteria = OfferFilterCriteria(
+                        minValue = 22.0,
+                        maxDistanceKm = 5.0,
+                        minGainPerKm = 6.0,
+                        minDeliveryBonus = 5.0,
+                        onlyAcceptedNeural = true
+                    )
+                    FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                    voiceManager?.speak("Filtro chuva e alta demanda ativado. Mínimo vinte e dois reais.")
+                }
+                VoiceActionCommand.FILTER_SHORT_PRESET -> {
+                    HapticFeedbackHelper.vibrateSuccess(context)
+                    filterCriteria = OfferFilterCriteria(
+                        minValue = 12.0,
+                        maxDistanceKm = 3.5,
+                        minGainPerKm = 5.0,
+                        minDeliveryBonus = 0.0,
+                        onlyAcceptedNeural = false
+                    )
+                    FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                    voiceManager?.speak("Filtro tiro curto ativado. Raio máximo de três quilômetros e meio.")
+                }
+                VoiceActionCommand.FILTER_MAX_PROFIT_PRESET -> {
+                    HapticFeedbackHelper.vibrateSuccess(context)
+                    filterCriteria = OfferFilterCriteria(
+                        minValue = 30.0,
+                        maxDistanceKm = 7.0,
+                        minGainPerKm = 7.0,
+                        minDeliveryBonus = 8.0,
+                        onlyAcceptedNeural = true
+                    )
+                    FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                    voiceManager?.speak("Filtro máximo lucro ativado. Mínimo trinta reais e sete por quilômetro.")
+                }
+                VoiceActionCommand.FILTER_RESET -> {
+                    HapticFeedbackHelper.vibrateTap(context)
+                    filterCriteria = OfferFilterCriteria()
+                    FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                    voiceManager?.speak("Filtros redefinidos. Exibindo todas as entregas disponíveis.")
+                }
+                VoiceActionCommand.FILTER_ONLY_MERGED -> {
+                    HapticFeedbackHelper.vibrateTap(context)
+                    filterCriteria = filterCriteria.copy(onlyMultiStack = true)
+                    FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                    voiceManager?.speak("Filtro ativado: exibindo apenas entregas mescladas.")
+                }
+                VoiceActionCommand.FILTER_ONLY_JARVIS -> {
+                    HapticFeedbackHelper.vibrateTap(context)
+                    filterCriteria = filterCriteria.copy(onlyAcceptedNeural = true)
+                    FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                    voiceManager?.speak("Filtro ativado: somente recomendações aprovadas pelo Jarvis.")
+                }
+                VoiceActionCommand.FILTER_MIN_15 -> {
+                    HapticFeedbackHelper.vibrateTap(context)
+                    filterCriteria = filterCriteria.copy(minValue = 15.0)
+                    FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                    voiceManager?.speak("Filtro alterado: valor mínimo quinze reais.")
+                }
+                VoiceActionCommand.FILTER_MIN_20 -> {
+                    HapticFeedbackHelper.vibrateTap(context)
+                    filterCriteria = filterCriteria.copy(minValue = 20.0)
+                    FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                    voiceManager?.speak("Filtro alterado: valor mínimo vinte reais.")
+                }
+                VoiceActionCommand.FILTER_MIN_30 -> {
+                    HapticFeedbackHelper.vibrateTap(context)
+                    filterCriteria = filterCriteria.copy(minValue = 30.0)
+                    FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                    voiceManager?.speak("Filtro alterado: valor mínimo trinta reais.")
                 }
             }
         }
         speechManager = manager
+
+        voiceManager?.onSpeechStarted = {
+            manager.pauseForTts()
+        }
+        voiceManager?.onSpeechFinished = {
+            manager.resumeAfterTts()
+        }
 
         if (hasMicPermission) {
             manager.startListening()
         }
 
         onDispose {
+            voiceManager?.onSpeechStarted = null
+            voiceManager?.onSpeechFinished = null
             manager.destroy()
         }
     }
@@ -629,9 +816,9 @@ fun RadarDeliveryDashboard(
                     distanceKm = newOffer.distanceKm,
                     timeMinutes = newOffer.estimatedTimeMin,
                     gainPerKm = newOffer.gainPerKm,
-                    pickupAddress = newOffer.pickupLocation?.address ?: "${newOffer.restaurant}, São Paulo",
-                    deliveryAddress = "Destino Cliente, SP",
-                    neuralDecision = newOffer.neuralDecision.decision.name,
+                    pickupAddress = newOffer.pickupAddress.ifEmpty { "${newOffer.restaurant}, São Paulo" },
+                    deliveryAddress = newOffer.destinationAddress.ifEmpty { "Destino Cliente, SP" },
+                    neuralDecision = newOffer.neuralDecision.decision,
                     neuralReason = newOffer.neuralDecision.reason,
                     confidence = newOffer.neuralDecision.confidence,
                     status = "PENDING",
@@ -656,7 +843,7 @@ fun RadarDeliveryDashboard(
                 }
 
                 // Disparo de Notificação Local em Segundo Plano para Ofertas de Alta Prioridade
-                val isHighPriority = newOffer.gainPerKm >= 5.0 || newOffer.neuralDecision.decision == RadarDecision.ACCEPT
+                val isHighPriority = newOffer.gainPerKm >= 5.0 || newOffer.neuralDecision.decisionEnum == RadarDecision.ACCEPT
                 if (isAppInBackground && isHighPriority && filterCriteria.matches(newOffer)) {
                     localNotificationManager.showHighPriorityOfferNotification(newOffer)
                 }
@@ -667,6 +854,19 @@ fun RadarDeliveryDashboard(
     if (showProfileScreen) {
         DeliveryProfileScreen(
             onNavigateBack = { showProfileScreen = false }
+        )
+        return
+    }
+
+    if (showFilterSettingsScreen) {
+        FilterSettingsScreen(
+            currentCriteria = filterCriteria,
+            onSaveCriteria = { newCriteria ->
+                filterCriteria = newCriteria
+                speedMonitor?.updateSpeedThreshold(newCriteria.safetySpeedThresholdKm)
+                LocationService.updateSafetySpeedThreshold(newCriteria.safetySpeedThresholdKm)
+            },
+            onNavigateBack = { showFilterSettingsScreen = false }
         )
         return
     }
@@ -758,10 +958,11 @@ fun RadarDeliveryDashboard(
                         )
                     }
 
-                    // Botão de Configuração de Filtros de Despacho
+                    // Botão de Configuração de Filtros de Despacho (Abre tela completa de filtros)
                     IconButton(
                         onClick = {
-                            showFilterSettingsModal = true
+                            FirebaseAnalyticsManager.logScreenView("FilterSettingsScreen", "Dashboard")
+                            showFilterSettingsScreen = true
                         },
                         modifier = Modifier.testTag("action_filter_settings")
                     ) {
@@ -795,21 +996,56 @@ fun RadarDeliveryDashboard(
                         )
                     }
 
-                    // Botão Manual de Despacho / Varredura Imediata
+                    // Botão Manual de Despacho / Varredura Imediata nos Apps e API REST
                     IconButton(
                         onClick = {
-                            val newOffer = LiveDispatchSimulator.generateNextOffer()
-                            offersList.add(0, newOffer)
-                            scannedOffersCount++
-                            if (isVoiceEnabled && voiceManager != null) {
-                                voiceManager.announceNewOffer(
-                                    appName = newOffer.appName,
-                                    restaurant = newOffer.restaurant,
-                                    value = newOffer.value,
-                                    distanceKm = newOffer.distanceKm,
-                                    gainPerKm = newOffer.gainPerKm,
-                                    neuralDecision = newOffer.neuralDecision.decision
-                                )
+                            coroutineScope.launch {
+                                HapticFeedbackHelper.vibrateSuccess(context)
+                                Toast.makeText(context, "Varrendo entregas nos apps parceiros...", Toast.LENGTH_SHORT).show()
+                                
+                                // 1. Tenta buscar entregas reais interceptadas na API REST (/api/stacks)
+                                val apiStacks = RadarDecisionEngine.fetchPendingStacks()
+                                if (apiStacks.isNotEmpty()) {
+                                    var addedCount = 0
+                                    apiStacks.forEach { jsonStack ->
+                                        val offer = MergedDeliverySearchEngine.mapBackendStackToRadarOffer(jsonStack)
+                                        if (!offersList.any { it.id == offer.id }) {
+                                            offersList.add(0, offer)
+                                            scannedOffersCount++
+                                            addedCount++
+                                        }
+                                    }
+                                    if (addedCount > 0) {
+                                        Toast.makeText(context, "$addedCount novas entregas sincronizadas dos apps!", Toast.LENGTH_SHORT).show()
+                                        val first = offersList.firstOrNull()
+                                        if (first != null && isVoiceEnabled && voiceManager != null) {
+                                            voiceManager.announceNewOffer(
+                                                appName = first.appName,
+                                                restaurant = first.restaurant,
+                                                value = first.value,
+                                                distanceKm = first.distanceKm,
+                                                gainPerKm = first.gainPerKm,
+                                                neuralDecision = first.neuralDecision.decision
+                                            )
+                                        }
+                                        return@launch
+                                    }
+                                }
+
+                                // 2. Fallback: gera nova oferta com cálculo de distância ajustado à malha viária
+                                val newOffer = LiveDispatchSimulator.generateNextOffer()
+                                offersList.add(0, newOffer)
+                                scannedOffersCount++
+                                if (isVoiceEnabled && voiceManager != null) {
+                                    voiceManager.announceNewOffer(
+                                        appName = newOffer.appName,
+                                        restaurant = newOffer.restaurant,
+                                        value = newOffer.value,
+                                        distanceKm = newOffer.distanceKm,
+                                        gainPerKm = newOffer.gainPerKm,
+                                        neuralDecision = newOffer.neuralDecision.decision
+                                    )
+                                }
                             }
                         },
                         modifier = Modifier.testTag("action_refresh")
@@ -842,7 +1078,12 @@ fun RadarDeliveryDashboard(
                 totalOffersCount = offersList.size,
                 filteredOffersCount = displayedOffers.size,
                 mergedOffersCount = mergedOffersCount,
-                onCriteriaChange = { filterCriteria = it },
+                onCriteriaChange = { 
+                    filterCriteria = it 
+                    FilterPreferencesManager.saveCriteria(context, it)
+                    speedMonitor?.updateSpeedThreshold(it.safetySpeedThresholdKm)
+                    LocationService.updateSafetySpeedThreshold(it.safetySpeedThresholdKm)
+                },
                 onTriggerMergedSearch = {
                     HapticFeedbackHelper.vibrateSuccess(context)
                     val newMerged = MergedDeliverySearchEngine.findPairableSynergy(offersList).firstOrNull()
@@ -855,7 +1096,7 @@ fun RadarDeliveryDashboard(
                         voiceManager.speak("Varredura de entregas mescladas concluída! Nova combinação de alta sinergia identificada.")
                     }
                 },
-                onOpenAdvancedSettings = { showFilterSettingsModal = true }
+                onOpenAdvancedSettings = { showFilterSettingsScreen = true }
             )
 
             LazyColumn(
@@ -971,6 +1212,7 @@ fun RadarDeliveryDashboard(
                 item {
                     VoiceCommandLiveBanner(
                         voiceState = currentVoiceState,
+                        isSpeaking = voiceManager?.isSpeaking == true,
                         onToggleListening = {
                             if (currentVoiceState.isListening) {
                                 speechManager?.stopListening()
@@ -991,8 +1233,42 @@ fun RadarDeliveryDashboard(
                 item {
                     RealtimeSpeedTelemetryCard(
                         speedState = speedState,
+                        isBackgroundLocationGranted = hasBackgroundLocationPermission,
+                        onRequestBackgroundLocation = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                            }
+                        },
                         onSimulateSpeed = { speedMonitor?.setSimulatedSpeed(it) },
                         onResetRealGps = { speedMonitor?.disableSimulation() }
+                    )
+                }
+
+                // 6.1. GEOFENCING • ZONAS DE ALTA DEMANDA (HOTSPOTS GASTRONÔMICOS)
+                item {
+                    GeofenceHotspotCard(
+                        activeZone = activeGeofenceZone,
+                        registeredZones = registeredGeofenceZones,
+                        userLatitude = speedState.latitude,
+                        userLongitude = speedState.longitude,
+                        isGeofencingActive = isGeofencingActive,
+                        onSimulateEnterZone = { zoneId ->
+                            geofenceManager.simulateEnterZone(zoneId)
+                            HapticFeedbackHelper.vibrateAccept(context)
+                            Toast.makeText(context, "Entrou no raio da Geofence!", Toast.LENGTH_SHORT).show()
+                        },
+                        onSimulateExitZone = {
+                            geofenceManager.simulateExitZone()
+                            HapticFeedbackHelper.vibrateTap(context)
+                            Toast.makeText(context, "Saiu do raio da Geofence.", Toast.LENGTH_SHORT).show()
+                        },
+                        onNavigateToZone = { zone ->
+                            launchGoogleMapsNavigation(
+                                context = context,
+                                origin = null,
+                                destination = "${zone.name} (${zone.latitude},${zone.longitude})"
+                            )
+                        }
                     )
                 }
 
@@ -1153,7 +1429,7 @@ fun RadarDeliveryDashboard(
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            // Badge de Velocidade e Trava de Segurança (> 20 km/h)
+                            // Badge de Velocidade e Trava de Segurança (> 10 km/h)
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
@@ -1161,11 +1437,11 @@ fun RadarDeliveryDashboard(
                                     .background(if (speedState.isSafetyLockActive) RedDecline.copy(alpha = 0.2f) else DarkCardElevated)
                                     .border(1.dp, if (speedState.isSafetyLockActive) RedDecline else DarkBorder, RoundedCornerShape(8.dp))
                                     .clickable {
-                                        // Alterna simulação de velocidade para teste prático do entregador
+                                        // Alterna simulação de velocidade para teste prático do entregador (> 10 km/h)
                                         if (speedState.isSafetyLockActive) {
                                             speedMonitor?.setSimulatedSpeed(0.0)
                                         } else {
-                                            speedMonitor?.setSimulatedSpeed(26.0)
+                                            speedMonitor?.setSimulatedSpeed(15.0)
                                         }
                                     }
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -1226,11 +1502,14 @@ fun RadarDeliveryDashboard(
                     )
                 }
             } else if (speedState.isSafetyLockActive) {
-                // VELOCIDADE > 20 KM/H: BLOQUEIA E OCULTA AUTOMATICAMENTE A LISTA DE OFERTAS PARA SEGURANÇA
+                // VELOCIDADE > LIMITE CONFIGURADO (GPS): DESATIVA E BLOQUEIA AUTOMATICAMENTE A INTERFACE PARA SEGURANÇA
                 item {
                     SpeedSafetyLockCard(
                         speedKmh = speedState.currentSpeedKmh,
+                        thresholdKmh = speedState.safetySpeedThresholdKmh,
                         isListeningVoice = currentVoiceState.isListening,
+                        lastVoiceCommand = currentVoiceState.lastRecognizedText,
+                        onSimulateVoiceCommand = { speechManager?.simulateVoiceCommand(it) },
                         onTestSpeedChanged = { speedMonitor?.setSimulatedSpeed(it) }
                     )
                 }
@@ -1244,14 +1523,16 @@ fun RadarDeliveryDashboard(
                 }
             } else if (displayedOffers.isEmpty()) {
                 item {
-                    val formattedMin = String.format(Locale.GERMANY, "R$ %.2f", filterCriteria.minValue)
-                    val formattedGain = String.format(Locale.GERMANY, "R$ %.2f/km", filterCriteria.minGainPerKm)
+                    val formattedMin = String.format(Locale("pt", "BR"), "R$ %.2f", filterCriteria.minValue)
+                    val formattedGain = String.format(Locale("pt", "BR"), "R$ %.2f/km", filterCriteria.minGainPerKm)
+                    val formattedBonus = String.format(Locale("pt", "BR"), "+R$ %.2f", filterCriteria.minDeliveryBonus)
                     val filterDetails = buildList {
                         if (filterCriteria.onlyMultiStack) add("Somente Mescladas (Multi-Stack)")
                         if (filterCriteria.searchQuery.isNotBlank()) add("Busca \"${filterCriteria.searchQuery}\"")
                         if (filterCriteria.minValue > 0.0) add("Valor >= $formattedMin")
                         if (filterCriteria.maxDistanceKm < 8.0) add("Distância <= ${filterCriteria.maxDistanceKm} km")
                         if (filterCriteria.minGainPerKm > 0.0) add("Ganho >= $formattedGain")
+                        if (filterCriteria.minDeliveryBonus > 0.0) add("Bônus >= $formattedBonus")
                         if (filterCriteria.onlyAcceptedNeural) add("Somente Jarvis")
                     }.joinToString(" • ")
 
@@ -1345,7 +1626,7 @@ fun RadarDeliveryDashboard(
                                     gainPerKm = offer.gainPerKm,
                                     pickupAddress = offer.pickupAddress,
                                     estimatedMinutes = offer.timeMinutes,
-                                    neuralDecision = offer.neuralDecision.decision.name,
+                                    neuralDecision = offer.neuralDecision.decision,
                                     neuralReason = offer.neuralDecision.reason
                                 )
                             }
@@ -1356,11 +1637,29 @@ fun RadarDeliveryDashboard(
         }
     }
 
-    // Modal de Configuração Avançada de Filtros
+    // Tela Dedicada de Configuração de Filtros de Corrida (Valor Mínimo, Distância Máxima, Bônus e Rentabilidade)
+    if (showFilterSettingsScreen) {
+        FilterSettingsScreen(
+            currentCriteria = filterCriteria,
+            onSaveCriteria = { newCriteria ->
+                filterCriteria = newCriteria
+                speedMonitor?.updateSpeedThreshold(newCriteria.safetySpeedThresholdKm)
+                LocationService.updateSafetySpeedThreshold(newCriteria.safetySpeedThresholdKm)
+            },
+            onNavigateBack = { showFilterSettingsScreen = false }
+        )
+    }
+
+    // Modal de Configuração Rápida de Filtros
     if (showFilterSettingsModal) {
         FilterSettingsDialog(
             criteria = filterCriteria,
-            onCriteriaChange = { filterCriteria = it },
+            onCriteriaChange = { 
+                filterCriteria = it 
+                FilterPreferencesManager.saveCriteria(context, it)
+                speedMonitor?.updateSpeedThreshold(it.safetySpeedThresholdKm)
+                LocationService.updateSafetySpeedThreshold(it.safetySpeedThresholdKm)
+            },
             onDismiss = { showFilterSettingsModal = false }
         )
     }
@@ -2240,7 +2539,7 @@ fun OfferCard(
                                         )
                                     }
                                     Text(
-                                        text = "${String.format(Locale.GERMANY, "R$ %.2f", sub.value)} • ${sub.distanceKm}km",
+                                        text = "${String.format(Locale("pt", "BR"), "R$ %.2f", sub.value)} • ${sub.distanceKm}km",
                                         color = NeonGreen,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
@@ -2285,12 +2584,12 @@ fun OfferCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "⛽ Gasolina: ~${String.format(Locale.GERMANY, "R$ %.2f", offer.fuelCost)}",
+                            text = "⛽ Gasolina: ~${String.format(Locale("pt", "BR"), "R$ %.2f", offer.fuelCost)}",
                             color = TextMuted,
                             fontSize = 10.sp
                         )
                         Text(
-                            text = "💰 Lucro Líquido: ${String.format(Locale.GERMANY, "R$ %.2f", offer.netProfit)}",
+                            text = "💰 Lucro Líquido: ${String.format(Locale("pt", "BR"), "R$ %.2f", offer.netProfit)}",
                             color = NeonGreen,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Black

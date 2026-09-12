@@ -74,20 +74,45 @@ import java.util.Locale
 data class OfferFilterCriteria(
     val minValue: Double = 0.0,
     val maxDistanceKm: Double = 8.0,
+    val minDeliveryBonus: Double = 0.0,
     val minGainPerKm: Double = 0.0,
+    val minHourlyMultiplier: Double = 1.0,
     val onlyAcceptedNeural: Boolean = false,
     val onlyMultiStack: Boolean = false,
-    val searchQuery: String = ""
+    val searchQuery: String = "",
+    val safetySpeedThresholdKm: Double = 15.0
 ) {
     val isActive: Boolean
-        get() = minValue > 0.0 || maxDistanceKm < 8.0 || minGainPerKm > 0.0 || onlyAcceptedNeural || onlyMultiStack || searchQuery.isNotBlank()
+        get() = minValue > 0.0 ||
+                maxDistanceKm < 8.0 ||
+                minDeliveryBonus > 0.0 ||
+                minGainPerKm > 0.0 ||
+                minHourlyMultiplier > 1.0 ||
+                onlyAcceptedNeural ||
+                onlyMultiStack ||
+                searchQuery.isNotBlank() ||
+                safetySpeedThresholdKm != 15.0
 
     fun matches(offer: RadarOffer): Boolean {
         if (onlyMultiStack && !offer.isMultiStack) return false
         if (offer.value < minValue) return false
         if (offer.distanceKm > maxDistanceKm) return false
         if (minGainPerKm > 0.0 && offer.gainPerKm < minGainPerKm) return false
+        if (minHourlyMultiplier > 1.0) {
+            val estimatedMin = if (offer.estimatedTimeMin > 0) offer.estimatedTimeMin else 15
+            val projectedHourlyRate = (offer.value / estimatedMin) * 60.0
+            val targetHourlyRate = 35.0 * minHourlyMultiplier
+            if (projectedHourlyRate < targetHourlyRate) return false
+        }
         if (onlyAcceptedNeural && !offer.neuralDecision.isAccept) return false
+        if (minDeliveryBonus > 0.0) {
+            val estimatedBonus = if (offer.isMultiStack) {
+                (offer.value * (offer.synergyBonusPercent / 100.0)).coerceAtLeast(offer.synergySavingsKm * 3.5)
+            } else {
+                (offer.value - (offer.distanceKm * 3.0)).coerceAtLeast(0.0)
+            }
+            if (estimatedBonus < minDeliveryBonus) return false
+        }
         if (searchQuery.isNotBlank()) {
             val q = searchQuery.trim().lowercase(Locale.getDefault())
             val matchApp = offer.appName.lowercase(Locale.getDefault()).contains(q)
@@ -104,6 +129,49 @@ data class OfferFilterCriteria(
             if (!matchApp && !matchRest && !matchPickup && !matchDest && !matchSub && !matchWaypoints && !matchKeyword) return false
         }
         return true
+    }
+}
+
+/**
+ * Gerenciador de persistência local para as configurações de filtro do entregador.
+ */
+object FilterPreferencesManager {
+    private const val PREFS_NAME = "radar_filter_preferences"
+    private const val KEY_MIN_VALUE = "key_min_value"
+    private const val KEY_MAX_DISTANCE = "key_max_distance"
+    private const val KEY_MIN_BONUS = "key_min_bonus"
+    private const val KEY_MIN_GAIN_PER_KM = "key_min_gain_per_km"
+    private const val KEY_MIN_HOURLY_MULTIPLIER = "key_min_hourly_multiplier"
+    private const val KEY_ONLY_ACCEPTED_NEURAL = "key_only_accepted_neural"
+    private const val KEY_ONLY_MULTI_STACK = "key_only_multi_stack"
+    private const val KEY_SAFETY_SPEED_THRESHOLD = "key_safety_speed_threshold"
+
+    fun loadCriteria(context: android.content.Context): OfferFilterCriteria {
+        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        return OfferFilterCriteria(
+            minValue = prefs.getFloat(KEY_MIN_VALUE, 0.0f).toDouble(),
+            maxDistanceKm = prefs.getFloat(KEY_MAX_DISTANCE, 8.0f).toDouble(),
+            minDeliveryBonus = prefs.getFloat(KEY_MIN_BONUS, 0.0f).toDouble(),
+            minGainPerKm = prefs.getFloat(KEY_MIN_GAIN_PER_KM, 0.0f).toDouble(),
+            minHourlyMultiplier = prefs.getFloat(KEY_MIN_HOURLY_MULTIPLIER, 1.0f).toDouble(),
+            onlyAcceptedNeural = prefs.getBoolean(KEY_ONLY_ACCEPTED_NEURAL, false),
+            onlyMultiStack = prefs.getBoolean(KEY_ONLY_MULTI_STACK, false),
+            safetySpeedThresholdKm = prefs.getFloat(KEY_SAFETY_SPEED_THRESHOLD, 15.0f).toDouble()
+        )
+    }
+
+    fun saveCriteria(context: android.content.Context, criteria: OfferFilterCriteria) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        prefs.edit()
+            .putFloat(KEY_MIN_VALUE, criteria.minValue.toFloat())
+            .putFloat(KEY_MAX_DISTANCE, criteria.maxDistanceKm.toFloat())
+            .putFloat(KEY_MIN_BONUS, criteria.minDeliveryBonus.toFloat())
+            .putFloat(KEY_MIN_GAIN_PER_KM, criteria.minGainPerKm.toFloat())
+            .putFloat(KEY_MIN_HOURLY_MULTIPLIER, criteria.minHourlyMultiplier.toFloat())
+            .putBoolean(KEY_ONLY_ACCEPTED_NEURAL, criteria.onlyAcceptedNeural)
+            .putBoolean(KEY_ONLY_MULTI_STACK, criteria.onlyMultiStack)
+            .putFloat(KEY_SAFETY_SPEED_THRESHOLD, criteria.safetySpeedThresholdKm.toFloat())
+            .apply()
     }
 }
 
@@ -130,21 +198,33 @@ fun TopFilterSlidersPanel(
     var isCollapsed by remember { mutableStateOf(false) }
 
     val formattedMinVal = if (criteria.minValue > 0.0) {
-        String.format(Locale.GERMANY, "R$ %.2f", criteria.minValue)
+        String.format(Locale("pt", "BR"), "R$ %.2f", criteria.minValue)
     } else {
         "Sem Mínimo"
     }
 
     val formattedMaxDist = if (criteria.maxDistanceKm < 10.0) {
-        String.format(Locale.GERMANY, "%.1f km", criteria.maxDistanceKm)
+        String.format(Locale("pt", "BR"), "%.1f km", criteria.maxDistanceKm)
     } else {
         "Sem Limite"
     }
 
     val formattedMinGain = if (criteria.minGainPerKm > 0.0) {
-        String.format(Locale.GERMANY, "R$ %.2f/km", criteria.minGainPerKm)
+        String.format(Locale("pt", "BR"), "R$ %.2f/km", criteria.minGainPerKm)
     } else {
         "Sem Mínimo"
+    }
+
+    val formattedMinBonus = if (criteria.minDeliveryBonus > 0.0) {
+        String.format(Locale("pt", "BR"), "+R$ %.2f", criteria.minDeliveryBonus)
+    } else {
+        "Sem Bônus"
+    }
+
+    val formattedHourlyMult = if (criteria.minHourlyMultiplier > 1.0) {
+        String.format(Locale("pt", "BR"), "%.1fx (~R$ %.0f/h)", criteria.minHourlyMultiplier, 35.0 * criteria.minHourlyMultiplier)
+    } else {
+        "1.0x (Padrão)"
     }
 
     Card(
@@ -286,10 +366,17 @@ fun TopFilterSlidersPanel(
                     }
                     FilterSummaryChip(label = "Mín: $formattedMinVal", isActive = criteria.minValue > 0)
                     FilterSummaryChip(label = "Máx: $formattedMaxDist", isActive = criteria.maxDistanceKm < 8.0)
-                    FilterSummaryChip(label = "Mult: $formattedMinGain", isActive = criteria.minGainPerKm > 0)
+                    FilterSummaryChip(label = "Mult/Km: $formattedMinGain", isActive = criteria.minGainPerKm > 0)
+                    if (criteria.minHourlyMultiplier > 1.0) {
+                        FilterSummaryChip(label = "Hora: $formattedHourlyMult", isActive = true)
+                    }
+                    if (criteria.minDeliveryBonus > 0) {
+                        FilterSummaryChip(label = "Bônus: $formattedMinBonus", isActive = true)
+                    }
                     if (criteria.onlyAcceptedNeural) {
                         FilterSummaryChip(label = "🧠 Só Jarvis", isActive = true)
                     }
+                    FilterSummaryChip(label = "Trava: ${criteria.safetySpeedThresholdKm.toInt()}km/h", isActive = criteria.safetySpeedThresholdKm != 15.0)
                 }
             }
 
@@ -626,6 +713,73 @@ fun TopFilterSlidersPanel(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    // ========================================================
+                    // 3.5. SLIDER: MULTIPLICADOR DE GANHO POR HORA (R$/H)
+                    // ========================================================
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "⏱️", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Multiplicador Ganho/Hora:",
+                                color = TextLight,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Text(
+                            text = formattedHourlyMult,
+                            color = Color(0xFF00E5FF),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+
+                    Slider(
+                        value = criteria.minHourlyMultiplier.toFloat(),
+                        onValueChange = { newMult ->
+                            val rounded = (newMult.toDouble() * 10).toInt() / 10.0
+                            onCriteriaChange(criteria.copy(minHourlyMultiplier = rounded))
+                        },
+                        valueRange = 1.0f..3.0f,
+                        steps = 19,
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFF00E5FF),
+                            activeTrackColor = Color(0xFF00E5FF),
+                            inactiveTrackColor = DarkBorder
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(32.dp)
+                            .testTag("slider_min_hourly_multiplier")
+                    )
+
+                    // Chips Rápidos de Multiplicador Ganho/Hora
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        QuickValueChip(label = "1.0x (Padrão)", isSelected = criteria.minHourlyMultiplier == 1.0) {
+                            onCriteriaChange(criteria.copy(minHourlyMultiplier = 1.0))
+                        }
+                        QuickValueChip(label = "1.25x (~R$44/h)", isSelected = criteria.minHourlyMultiplier == 1.25 || criteria.minHourlyMultiplier == 1.3) {
+                            onCriteriaChange(criteria.copy(minHourlyMultiplier = 1.25))
+                        }
+                        QuickValueChip(label = "1.5x (~R$52/h)", isSelected = criteria.minHourlyMultiplier == 1.5) {
+                            onCriteriaChange(criteria.copy(minHourlyMultiplier = 1.5))
+                        }
+                        QuickValueChip(label = "2.0x (~R$70/h)", isSelected = criteria.minHourlyMultiplier == 2.0) {
+                            onCriteriaChange(criteria.copy(minHourlyMultiplier = 2.0))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     // ==========================================
                     // 4. FILTRO ADICIONAL: SOMENTE JARVIS RECOMENDADO
                     // ==========================================
@@ -672,7 +826,74 @@ fun TopFilterSlidersPanel(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     // ==========================================
-                    // 5. PRESETS DE ESTRATÉGIA DO PILOTO
+                    // 5. SLIDER: LIMITE DE VELOCIDADE PARA TRAVA (KM/H)
+                    // ==========================================
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "🛡️", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Trava de Segurança:",
+                                color = TextLight,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Text(
+                            text = "${criteria.safetySpeedThresholdKm.toInt()} km/h",
+                            color = RedDecline,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+
+                    Slider(
+                        value = criteria.safetySpeedThresholdKm.toFloat(),
+                        onValueChange = { newThreshold ->
+                            val rounded = newThreshold.toInt().toDouble()
+                            onCriteriaChange(criteria.copy(safetySpeedThresholdKm = rounded))
+                        },
+                        valueRange = 5f..35f,
+                        steps = 29,
+                        colors = SliderDefaults.colors(
+                            thumbColor = RedDecline,
+                            activeTrackColor = RedDecline,
+                            inactiveTrackColor = DarkBorder
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(32.dp)
+                            .testTag("slider_safety_speed_limit")
+                    )
+
+                    // Chips Rápidos de Limite de Velocidade
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        QuickValueChip(label = "10 km/h", isSelected = criteria.safetySpeedThresholdKm == 10.0) {
+                            onCriteriaChange(criteria.copy(safetySpeedThresholdKm = 10.0))
+                        }
+                        QuickValueChip(label = "15 km/h", isSelected = criteria.safetySpeedThresholdKm == 15.0) {
+                            onCriteriaChange(criteria.copy(safetySpeedThresholdKm = 15.0))
+                        }
+                        QuickValueChip(label = "20 km/h", isSelected = criteria.safetySpeedThresholdKm == 20.0) {
+                            onCriteriaChange(criteria.copy(safetySpeedThresholdKm = 20.0))
+                        }
+                        QuickValueChip(label = "25 km/h", isSelected = criteria.safetySpeedThresholdKm == 25.0) {
+                            onCriteriaChange(criteria.copy(safetySpeedThresholdKm = 25.0))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // ==========================================
+                    // 6. PRESETS DE ESTRATÉGIA DO PILOTO
                     // ==========================================
                     Text(
                         text = "PRESETS RÁPIDOS DE ESTRATÉGIA",
@@ -973,7 +1194,7 @@ fun FilterSettingsDialog(
                         )
                     }
                     Text(
-                        text = if (tempCriteria.minValue > 0) String.format(Locale.GERMANY, "R$ %.2f", tempCriteria.minValue) else "Sem Mínimo",
+                        text = if (tempCriteria.minValue > 0) String.format(Locale("pt", "BR"), "R$ %.2f", tempCriteria.minValue) else "Sem Mínimo",
                         color = NeonGreen,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Black
@@ -1018,7 +1239,7 @@ fun FilterSettingsDialog(
                         )
                     }
                     Text(
-                        text = if (tempCriteria.maxDistanceKm < 10.0) String.format(Locale.GERMANY, "%.1f km", tempCriteria.maxDistanceKm) else "Sem Limite",
+                        text = if (tempCriteria.maxDistanceKm < 10.0) String.format(Locale("pt", "BR"), "%.1f km", tempCriteria.maxDistanceKm) else "Sem Limite",
                         color = Color(0xFF00D2FF),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Black
@@ -1036,6 +1257,51 @@ fun FilterSettingsDialog(
                     colors = SliderDefaults.colors(
                         thumbColor = Color(0xFF00D2FF),
                         activeTrackColor = Color(0xFF00D2FF),
+                        inactiveTrackColor = DarkBorder
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // 2.1. BÔNUS POR ENTREGA / GORJETA MÍNIMA (R$)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Bônus Mínimo por Entrega",
+                            color = TextLight,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Incentivos adicionais, gorjeta ou sinergia de Multi-Stack",
+                            color = TextMuted,
+                            fontSize = 10.sp
+                        )
+                    }
+                    Text(
+                        text = if (tempCriteria.minDeliveryBonus > 0) String.format(Locale("pt", "BR"), "R$ %.2f", tempCriteria.minDeliveryBonus) else "Sem Bônus",
+                        color = Color(0xFFFF80AB),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+
+                Slider(
+                    value = tempCriteria.minDeliveryBonus.toFloat(),
+                    onValueChange = {
+                        val rounded = (it.toDouble() * 2).toInt() / 2.0
+                        tempCriteria = tempCriteria.copy(minDeliveryBonus = rounded)
+                    },
+                    valueRange = 0f..20f,
+                    steps = 19,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color(0xFFFF80AB),
+                        activeTrackColor = Color(0xFFFF80AB),
                         inactiveTrackColor = DarkBorder
                     ),
                     modifier = Modifier.fillMaxWidth()
@@ -1063,7 +1329,7 @@ fun FilterSettingsDialog(
                         )
                     }
                     Text(
-                        text = if (tempCriteria.minGainPerKm > 0) String.format(Locale.GERMANY, "R$ %.2f/km", tempCriteria.minGainPerKm) else "Sem Mínimo",
+                        text = if (tempCriteria.minGainPerKm > 0) String.format(Locale("pt", "BR"), "R$ %.2f/km", tempCriteria.minGainPerKm) else "Sem Mínimo",
                         color = Color(0xFFFFD700),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Black
@@ -1185,6 +1451,7 @@ fun FilterSettingsDialog(
 
                     Button(
                         onClick = {
+                            FilterPreferencesManager.saveCriteria(context, tempCriteria)
                             onCriteriaChange(tempCriteria)
                             onDismiss()
                         },

@@ -53,6 +53,7 @@ import androidx.compose.ui.tooling.preview.Preview
 @Composable
 fun VoiceCommandLiveBanner(
     voiceState: VoiceCommandState = VoiceCommandState(isListening = true, isPermissionGranted = true),
+    isSpeaking: Boolean = false,
     onToggleListening: () -> Unit = {},
     onRequestMicPermission: () -> Unit = {},
     onSimulateCommand: ((String) -> Unit)? = null,
@@ -69,17 +70,35 @@ fun VoiceCommandLiveBanner(
         label = "mic_pulse_scale"
     )
 
+    val speakingPulse by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "speaking_pulse"
+    )
+
     Card(
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (voiceState.isListening) Color(0xFF0D1F18) else DarkCard
+            containerColor = when {
+                isSpeaking -> Color(0xFF0B192C)
+                voiceState.isListening -> Color(0xFF0D1F18)
+                else -> DarkCard
+            }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         modifier = modifier
             .fillMaxWidth()
             .border(
-                width = if (voiceState.isListening) 1.5.dp else 1.dp,
-                color = if (voiceState.isListening) NeonGreen else DarkBorder,
+                width = if (isSpeaking || voiceState.isListening) 1.5.dp else 1.dp,
+                color = when {
+                    isSpeaking -> NeonBlue
+                    voiceState.isListening -> NeonGreen
+                    else -> DarkBorder
+                },
                 shape = RoundedCornerShape(18.dp)
             )
             .testTag("voice_command_banner")
@@ -95,20 +114,28 @@ fun VoiceCommandLiveBanner(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Indicador Visual do Microfone
+                    // Indicador Visual do Microfone / Alto-falante
                     Box(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
                             .background(
-                                if (voiceState.isListening) NeonGreen.copy(alpha = 0.2f) else DarkBg
+                                when {
+                                    isSpeaking -> NeonBlue.copy(alpha = 0.25f)
+                                    voiceState.isListening -> NeonGreen.copy(alpha = 0.2f)
+                                    else -> DarkBg
+                                }
                             )
                             .border(
                                 width = 1.dp,
-                                color = if (voiceState.isListening) NeonGreen else DarkBorder,
+                                color = when {
+                                    isSpeaking -> NeonBlue
+                                    voiceState.isListening -> NeonGreen
+                                    else -> DarkBorder
+                                },
                                 shape = CircleShape
                             )
-                            .scale(if (voiceState.isListening) micScale else 1f)
+                            .scale(if (isSpeaking) speakingPulse else if (voiceState.isListening) micScale else 1f)
                             .clickable {
                                 if (voiceState.isPermissionGranted) {
                                     onToggleListening()
@@ -119,7 +146,11 @@ fun VoiceCommandLiveBanner(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (voiceState.isListening) "🎙️" else "🔇",
+                            text = when {
+                                isSpeaking -> "🔊"
+                                voiceState.isListening -> "🎙️"
+                                else -> "🔇"
+                            },
                             fontSize = 16.sp
                         )
                     }
@@ -129,22 +160,29 @@ fun VoiceCommandLiveBanner(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "COMANDOS DE VOZ (SPEECH RECOGNIZER)",
-                                color = if (voiceState.isListening) NeonGreen else TextLight,
+                                text = if (isSpeaking) "JARVIS FALANDO (TEXT-TO-SPEECH)" else "COMANDOS DE VOZ (SPEECH-TO-TEXT)",
+                                color = when {
+                                    isSpeaking -> NeonBlue
+                                    voiceState.isListening -> NeonGreen
+                                    else -> TextLight
+                                },
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 0.6.sp
                             )
                         }
                         Text(
-                            text = if (voiceState.isListening) {
-                                "Ouvindo capacete/fone • Diga 'Aceitar' ou 'Cancelar'"
-                            } else if (!voiceState.isPermissionGranted) {
-                                "Permissão de microfone necessária • Toque para autorizar"
-                            } else {
-                                "Reconhecimento pausado • Toque no microfone para ativar"
+                            text = when {
+                                isSpeaking -> "Anunciando no capacete/fone Bluetooth..."
+                                voiceState.isListening -> "Ouvindo capacete • Diga 'Aceitar', 'Cancelar', 'Ler oferta' ou 'Saldo'"
+                                !voiceState.isPermissionGranted -> "Permissão de microfone necessária • Toque para autorizar"
+                                else -> "Reconhecimento pausado • Toque no microfone para ativar"
                             },
-                            color = if (voiceState.isListening) NeonGreen.copy(alpha = 0.85f) else TextMuted,
+                            color = when {
+                                isSpeaking -> NeonBlue.copy(alpha = 0.9f)
+                                voiceState.isListening -> NeonGreen.copy(alpha = 0.85f)
+                                else -> TextMuted
+                            },
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium
                         )
@@ -155,7 +193,13 @@ fun VoiceCommandLiveBanner(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (voiceState.isListening) NeonGreen else DarkCardElevated)
+                        .background(
+                            when {
+                                isSpeaking -> NeonBlue
+                                voiceState.isListening -> NeonGreen
+                                else -> DarkCardElevated
+                            }
+                        )
                         .clickable {
                             if (voiceState.isPermissionGranted) {
                                 onToggleListening()
@@ -167,8 +211,12 @@ fun VoiceCommandLiveBanner(
                         .testTag("btn_toggle_voice_recognition")
                 ) {
                     Text(
-                        text = if (voiceState.isListening) "AO VIVO" else "LIGAR VOZ",
-                        color = if (voiceState.isListening) DarkBg else TextLight,
+                        text = when {
+                            isSpeaking -> "FALANDO"
+                            voiceState.isListening -> "AO VIVO"
+                            else -> "LIGAR VOZ"
+                        },
+                        color = DarkBg,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Black
                     )
@@ -177,7 +225,7 @@ fun VoiceCommandLiveBanner(
 
             // Exibição da última fala detectada ou dicas de comando
             AnimatedVisibility(
-                visible = voiceState.isListening || voiceState.lastRecognizedText.isNotEmpty(),
+                visible = isSpeaking || voiceState.isListening || voiceState.lastRecognizedText.isNotEmpty(),
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
@@ -191,7 +239,7 @@ fun VoiceCommandLiveBanner(
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(text = "🗣️ Comando: ", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "🗣️ Comando ouvido: ", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             Text(
                                 text = "\"${voiceState.lastRecognizedText}\"",
                                 color = if (voiceState.detectedCommand != null) NeonGreen else TextLight,
@@ -202,23 +250,59 @@ fun VoiceCommandLiveBanner(
                         Spacer(modifier = Modifier.height(6.dp))
                     }
 
-                    // Chips táteis com os comandos por voz aceitos
+                    // Chips táteis com os comandos por voz suportados
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         VoiceCommandBadge(
                             label = "🗣️ \"Aceitar\"",
-                            desc = "aceita melhor oferta",
+                            desc = "aceita corrida",
                             color = NeonGreen,
                             onClick = { onSimulateCommand?.invoke("aceitar") },
                             modifier = Modifier.weight(1f)
                         )
                         VoiceCommandBadge(
                             label = "🗣️ \"Cancelar\"",
-                            desc = "rejeita/descarta chamada",
+                            desc = "recusa pedido",
                             color = RedDecline,
                             onClick = { onSimulateCommand?.invoke("cancelar") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        VoiceCommandBadge(
+                            label = "🗣️ \"Ler Oferta\"",
+                            desc = "detalhes em áudio",
+                            color = NeonBlue,
+                            onClick = { onSimulateCommand?.invoke("ler oferta") },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(5.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        VoiceCommandBadge(
+                            label = "🗣️ \"Saldo\"",
+                            desc = "faturamento hoje",
+                            color = Color(0xFFFFB800),
+                            onClick = { onSimulateCommand?.invoke("saldo") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        VoiceCommandBadge(
+                            label = "🗣️ \"Rota\"",
+                            desc = "inicia no mapa",
+                            color = Color(0xFFFF6B6B),
+                            onClick = { onSimulateCommand?.invoke("rota") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        VoiceCommandBadge(
+                            label = "🗣️ \"Ajuda\"",
+                            desc = "listar comandos",
+                            color = TextLight,
+                            onClick = { onSimulateCommand?.invoke("ajuda") },
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -235,7 +319,7 @@ fun VoiceCommandLiveBanner(
                     ) {
                         Text(text = "📳 ", fontSize = 9.sp)
                         Text(
-                            text = "Fale no microfone do capacete ou toque nos comandos acima para acionar instantaneamente.",
+                            text = "Fale no microfone do capacete ou toque nos botões para testar os comandos viva-voz.",
                             color = TextMuted,
                             fontSize = 8.5.sp,
                             fontWeight = FontWeight.Medium

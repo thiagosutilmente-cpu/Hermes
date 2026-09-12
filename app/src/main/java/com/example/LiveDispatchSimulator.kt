@@ -134,7 +134,7 @@ object LiveDispatchSimulator {
     }
 
     /**
-     * Gera uma nova oferta aleatória realista em tempo real
+     * Gera uma nova oferta aleatória realista em tempo real calculando a distância viária real
      */
     fun generateNextOffer(): RadarOffer {
         val (restName, pickup) = restaurants.random()
@@ -152,10 +152,25 @@ object LiveDispatchSimulator {
             }
         }
 
+        // Simula pequenos deslocamentos de coordenadas em torno de São Paulo
+        val baseLat = -23.561684
+        val baseLng = -46.655981
+        val pickupOffsetLat = ((-25..25).random()) / 1000.0
+        val pickupOffsetLng = ((-25..25).random()) / 1000.0
+        val destOffsetLat = ((-35..35).random()) / 1000.0
+        val destOffsetLng = ((-35..35).random()) / 1000.0
+
+        val pickupLat = baseLat + pickupOffsetLat
+        val pickupLng = baseLng + pickupOffsetLng
+        val destLat = baseLat + destOffsetLat
+        val destLng = baseLng + destOffsetLng
+
+        // Cálculo viário realista usando Haversine + Fator de circuidade urbana (1.28x)
+        val calculatedDistance = LocationService.estimateUrbanRouteKm(pickupLat, pickupLng, destLat, destLng)
         val distance = if (isMulti) {
-            (35..65).random() / 10.0
+            (calculatedDistance * 1.35).let { Math.round(it * 10.0) / 10.0 }.coerceIn(3.2, 7.5)
         } else {
-            (18..58).random() / 10.0
+            calculatedDistance.coerceIn(1.5, 6.5)
         }
 
         // Gera valores proporcionais com alguns casos excelentes (>= R$ 5/km) e outros médios

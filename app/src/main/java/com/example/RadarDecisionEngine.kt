@@ -3,6 +3,7 @@ package com.example
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -12,6 +13,17 @@ import java.net.URL
 import java.util.Locale
 
 /**
+ * Enum de decisão estruturada do Radar
+ */
+enum class RadarDecision {
+    ACCEPT,
+    DECLINE;
+
+    val serializedName: String
+        get() = name.lowercase(Locale.ROOT)
+}
+
+/**
  * Resultado da análise neural do Jarvis Decision Core
  */
 data class NeuralDecision(
@@ -19,8 +31,24 @@ data class NeuralDecision(
     val confidence: Double, // Ex: 0.95
     val reason: String // Ex: "Ganho/km acima da média"
 ) {
+    constructor(
+        enumDecision: RadarDecision,
+        reason: String,
+        confidence: Double = 0.95
+    ) : this(
+        decision = enumDecision.serializedName,
+        confidence = confidence,
+        reason = reason
+    )
+
     val isAccept: Boolean
         get() = decision.equals("accept", ignoreCase = true)
+
+    val decisionEnum: RadarDecision
+        get() = if (isAccept) RadarDecision.ACCEPT else RadarDecision.DECLINE
+
+    val name: String
+        get() = decision
 
     val confidencePercent: Int
         get() = (confidence * 100).toInt()
@@ -50,7 +78,7 @@ object RadarDecisionEngine {
      */
     fun evaluate(value: Double, distanceKm: Double, appName: String): NeuralDecision {
         val gainPerKm = if (distanceKm > 0) value / distanceKm else value
-        val formattedGain = String.format(Locale.GERMANY, "R$ %.2f", gainPerKm)
+        val formattedGain = String.format(Locale("pt", "BR"), "R$ %.2f", gainPerKm)
 
         return when {
             gainPerKm >= 5.0 -> {
@@ -212,5 +240,36 @@ object RadarDecisionEngine {
                 }
             } catch (_: Exception) {}
         }
+    }
+
+    /**
+     * Busca os pedidos pendentes diretamente na API REST (/api/stacks)
+     * Retorna uma lista de dados estruturados com as ofertas interceptadas no backend.
+     */
+    suspend fun fetchPendingStacks(): List<JSONObject> = withContext(Dispatchers.IO) {
+        val endpoints = listOf(
+            "$API_BASE_URL_LOCAL/api/stacks",
+            "$API_BASE_URL_EMULATOR/api/stacks"
+        )
+        val result = mutableListOf<JSONObject>()
+        for (endpoint in endpoints) {
+            try {
+                val url = URL(endpoint)
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 1200
+                    readTimeout = 1200
+                }
+                if (conn.responseCode == 200) {
+                    val responseStr = BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+                    val jsonArray = JSONArray(responseStr)
+                    for (i in 0 until jsonArray.length()) {
+                        result.add(jsonArray.getJSONObject(i))
+                    }
+                    return@withContext result
+                }
+            } catch (_: Exception) {}
+        }
+        return@withContext result
     }
 }

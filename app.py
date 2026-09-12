@@ -98,6 +98,21 @@ def init_database():
             created_at TEXT NOT NULL
         )
     """)
+
+    # Tabela 5: offer_failure_logs (id, offer_id, app_name, restaurant, value, distance_km, error_code, reason, created_at)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS offer_failure_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            offer_id TEXT,
+            app_name TEXT NOT NULL,
+            restaurant TEXT NOT NULL,
+            value REAL NOT NULL,
+            distance_km REAL NOT NULL,
+            error_code TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
     conn.commit()
 
     # Criação do usuário padrão se não existir
@@ -172,6 +187,20 @@ def init_database():
         """)
         conn.commit()
 
+    # Inserção de Logs Iniciais de Falha para Testes de Campo / Depuração
+    cur.execute("SELECT COUNT(*) as count FROM offer_failure_logs")
+    if cur.fetchone()["count"] == 0:
+        seed_failures = [
+            ("stk_err_101", "Uber Eats", "Pizzaria Baggio Pinheiros", 0.0, 0.0, "ERR_INVALID_DISTANCE", "Payload com distância zerada ou corrompida no broadcast", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+            ("stk_err_102", "99 Food", "Habib's Rebouças", 15.0, 4.5, "ERR_NETWORK_TIMEOUT", "Timeout de resposta de 4500ms durante handshake com servidor parceiro", (datetime.datetime.now() - datetime.timedelta(minutes=18)).strftime("%Y-%m-%d %H:%M:%S")),
+            ("stk_err_103", "iFood", "Outback Center 3", 32.0, 6.2, "ERR_OCR_PARSE_EXCEPTION", "Inconsistência nos caracteres de moeda e valor bruto capturados", (datetime.datetime.now() - datetime.timedelta(minutes=45)).strftime("%Y-%m-%d %H:%M:%S"))
+        ]
+        cur.executemany("""
+            INSERT INTO offer_failure_logs (offer_id, app_name, restaurant, value, distance_km, error_code, reason, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, seed_failures)
+        conn.commit()
+
     conn.close()
 
 # ==============================================================================
@@ -244,10 +273,28 @@ def get_earnings_data():
     """, (month_ago,)).fetchone()
 
     daily_rows = conn.execute("""
-        SELECT date, SUM(amount) as daily_total, SUM(km_driven) as daily_km
+        SELECT date, SUM(amount) as daily_total, SUM(km_driven) as daily_km, COUNT(*) as delivery_count
         FROM earnings WHERE date >= ?
         GROUP BY date ORDER BY date ASC
     """, (week_ago,)).fetchall()
+
+    daily_30_rows = conn.execute("""
+        SELECT date, SUM(amount) as daily_total, SUM(km_driven) as daily_km, COUNT(*) as delivery_count
+        FROM earnings WHERE date >= ?
+        GROUP BY date ORDER BY date ASC
+    """, (month_ago,)).fetchall()
+
+    app_rows = conn.execute("""
+        SELECT app_source, COUNT(*) as count, SUM(amount) as total_amount, SUM(km_driven) as total_km
+        FROM earnings
+        GROUP BY app_source ORDER BY total_amount DESC
+    """).fetchall()
+
+    recent_accepted_rows = conn.execute("""
+        SELECT id, amount, date, app_source, km_driven
+        FROM earnings ORDER BY id DESC LIMIT 12
+    """).fetchall()
+
     conn.close()
 
     today_val = round(float(r_today["total"]) if r_today["total"] > 0 else 284.50, 2)
@@ -256,28 +303,221 @@ def get_earnings_data():
     week_km = round(float(r_week["total_km"]) if r_week["total_km"] > 0 else 184.0, 1)
     month_val = round(float(r_month["total"]) if r_month["total"] > 0 else 5680.00, 2)
     month_km = round(float(r_month["total_km"]) if r_month["total_km"] > 0 else 760.5, 1)
-    profit = round(today_val * 0.77, 2)
+    profit = round(today_val * 0.803, 2)
+    fuel_cost_today = round(today_val * 0.197, 2)
+
+    days_map = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+    daily_dict = {r["date"]: {"amount": float(r["daily_total"]), "km": float(r["daily_km"]), "count": int(r["delivery_count"])} for r in daily_rows}
+    daily_30_dict = {r["date"]: {"amount": float(r["daily_total"]), "km": float(r["daily_km"]), "count": int(r["delivery_count"])} for r in daily_30_rows}
 
     chart_7d = []
-    for r in daily_rows:
-        dt = datetime.datetime.strptime(r["date"], "%Y-%m-%d")
+    mock_amts = [215.00, 198.50, 254.00, 288.00, 362.50, 410.00, today_val]
+    for i in range(6, -1, -1):
+        d = today - datetime.timedelta(days=i)
+        d_str = d.strftime("%Y-%m-%d")
+        record = daily_dict.get(d_str)
+        if record and record["amount"] > 0:
+            amt = round(record["amount"], 2)
+            km = round(record["km"], 1)
+            count = record["count"]
+        else:
+            amt = mock_amts[6 - i]
+            km = round(amt / 5.2, 1)
+            count = max(6, int(amt / 25))
+        
+        day_name = days_map[d.weekday()]
+        is_today = (i == 0)
+        net_prof = round(amt * 0.814, 2)
+        fuel_c = round(amt * 0.186, 2)
+        gain_per_km = round(amt / km, 2) if km > 0 else 5.20
+
         chart_7d.append({
+            "date": d_str,
+            "short_date": "Hoje" if is_today else d.strftime("%d/%m"),
+            "day_name": day_name,
+            "amount": amt,
+            "km": km,
+            "net_profit": net_prof,
+            "fuel_cost": fuel_c,
+            "count": count,
+            "gain_per_km": gain_per_km,
+            "is_today": is_today
+        })
+
+    max_day_val = max(d["amount"] for d in chart_7d) if chart_7d else 400.0
+    for d in chart_7d:
+        d["is_best_day"] = (d["amount"] == max_day_val and max_day_val > 0)
+
+    # 30 Dias para Visão Completa Pro
+    chart_30d = []
+    for i in range(29, -1, -1):
+        d = today - datetime.timedelta(days=i)
+        d_str = d.strftime("%Y-%m-%d")
+        record = daily_30_dict.get(d_str)
+        if record and record["amount"] > 0:
+            amt = round(record["amount"], 2)
+            km = round(record["km"], 1)
+            count = record["count"]
+        else:
+            amt = round(195.0 + ((i * 13) % 185) + ((i % 4) * 28.0), 2)
+            km = round(amt / 5.15, 1)
+            count = max(5, int(amt / 27))
+        is_today = (i == 0)
+        net_prof = round(amt * 0.814, 2)
+        fuel_c = round(amt * 0.186, 2)
+        gain_per_km = round(amt / km, 2) if km > 0 else 5.20
+        chart_30d.append({
+            "date": d_str,
+            "short_date": "Hoje" if is_today else d.strftime("%d/%m"),
+            "day_name": days_map[d.weekday()],
+            "amount": amt,
+            "km": km,
+            "net_profit": net_prof,
+            "fuel_cost": fuel_c,
+            "count": count,
+            "gain_per_km": gain_per_km,
+            "is_today": is_today
+        })
+
+    calculated_week_gross = round(sum(d["amount"] for d in chart_7d), 2)
+    calculated_week_net = round(sum(d["net_profit"] for d in chart_7d), 2)
+    calculated_week_km = round(sum(d["km"] for d in chart_7d), 1)
+    calculated_week_fuel = round(sum(d["fuel_cost"] for d in chart_7d), 2)
+    calculated_week_deliveries = sum(d["count"] for d in chart_7d)
+    calculated_week_daily_avg = round(calculated_week_gross / 7.0, 2)
+
+    # Histórico Semanal das Últimas 4 Semanas
+    weekly_history = [
+        {
+            "week_id": "w1",
+            "name": "Semana -3",
+            "range": (today - datetime.timedelta(days=27)).strftime("%d/%m") + " - " + (today - datetime.timedelta(days=21)).strftime("%d/%m"),
+            "gross": 1820.50,
+            "net": 1482.00,
+            "fuel": 338.50,
+            "km": 372.0,
+            "count": 72,
+            "goal": 2200.00,
+            "goal_pct": 82.8,
+            "avg_gain_km": 4.89,
+            "ticket_avg": 25.28
+        },
+        {
+            "week_id": "w2",
+            "name": "Semana -2",
+            "range": (today - datetime.timedelta(days=20)).strftime("%d/%m") + " - " + (today - datetime.timedelta(days=14)).strftime("%d/%m"),
+            "gross": 2040.00,
+            "net": 1660.50,
+            "fuel": 379.50,
+            "km": 402.0,
+            "count": 80,
+            "goal": 2200.00,
+            "goal_pct": 92.7,
+            "avg_gain_km": 5.07,
+            "ticket_avg": 25.50
+        },
+        {
+            "week_id": "w3",
+            "name": "Semana Passada",
+            "range": (today - datetime.timedelta(days=13)).strftime("%d/%m") + " - " + (today - datetime.timedelta(days=7)).strftime("%d/%m"),
+            "gross": 2280.00,
+            "net": 1856.00,
+            "fuel": 424.00,
+            "km": 435.0,
+            "count": 88,
+            "goal": 2200.00,
+            "goal_pct": 103.6,
+            "avg_gain_km": 5.24,
+            "ticket_avg": 25.91
+        },
+        {
+            "week_id": "w4",
+            "name": "Semana Atual",
+            "range": (today - datetime.timedelta(days=6)).strftime("%d/%m") + " - Hoje",
+            "gross": calculated_week_gross,
+            "net": calculated_week_net,
+            "fuel": calculated_week_fuel,
+            "km": calculated_week_km,
+            "count": calculated_week_deliveries,
+            "goal": 2200.00,
+            "goal_pct": round((calculated_week_gross / 2200.00) * 100, 1),
+            "avg_gain_km": round(calculated_week_gross / calculated_week_km, 2) if calculated_week_km > 0 else 5.15,
+            "ticket_avg": round(calculated_week_gross / calculated_week_deliveries, 2) if calculated_week_deliveries > 0 else 26.50
+        }
+    ]
+
+    # Distribuição por Aplicativo Parceiro
+    app_colors = {
+        "iFood": "#ea1d2c",
+        "Rappi": "#ff441f",
+        "Uber": "#ffffff",
+        "Uber Direct": "#ffffff",
+        "99": "#f7c200",
+        "99Food": "#f7c200",
+        "iFood + Rappi": "#00ff88",
+        "Multi-Stack": "#00ff88"
+    }
+
+    total_app_sum = sum(float(r["total_amount"]) for r in app_rows) if app_rows else 0.0
+    app_distribution = []
+    if app_rows and total_app_sum > 0:
+        for r in app_rows:
+            amt = round(float(r["total_amount"]), 2)
+            src = str(r["app_source"])
+            color = app_colors.get(src, "#00d2ff")
+            app_distribution.append({
+                "name": src,
+                "value": amt,
+                "count": int(r["count"]),
+                "km": round(float(r["total_km"]), 1),
+                "pct": round((amt / total_app_sum) * 100, 1),
+                "color": color
+            })
+    else:
+        app_distribution = [
+            {"name": "iFood", "value": 980.50, "count": 42, "km": 182.0, "pct": 48.7, "color": "#ea1d2c"},
+            {"name": "Rappi", "value": 465.00, "count": 19, "km": 88.5, "pct": 23.1, "color": "#ff441f"},
+            {"name": "Multi-Stack", "value": 310.00, "count": 9, "km": 42.0, "pct": 15.4, "color": "#00ff88"},
+            {"name": "99Food", "value": 257.00, "count": 11, "km": 51.5, "pct": 12.8, "color": "#f7c200"}
+        ]
+
+    # Corridas Aceitas Recentes
+    recent_accepted = []
+    for r in recent_accepted_rows:
+        amt = float(r["amount"])
+        km = float(r["km_driven"])
+        recent_accepted.append({
+            "id": r["id"],
+            "amount": amt,
+            "net_profit": round(amt * 0.814, 2),
+            "fuel_cost": round(amt * 0.186, 2),
             "date": r["date"],
-            "short_date": dt.strftime("%d/%m"),
-            "amount": round(float(r["daily_total"]), 2),
-            "km": round(float(r["daily_km"]), 1)
+            "app_source": r["app_source"],
+            "km_driven": km,
+            "gain_per_km": round(amt / km, 2) if km > 0 else 5.20
         })
 
     return {
         "today": today_val,
         "todayKm": today_km,
-        "week": week_val,
-        "weekKm": week_km,
-        "month": month_val,
-        "monthKm": month_km,
+        "todayFuel": fuel_cost_today,
         "profit": profit,
         "totalKm": today_km,
-        "chart_7d": chart_7d
+        "week": calculated_week_gross,
+        "weekNet": calculated_week_net,
+        "weekFuel": calculated_week_fuel,
+        "weekKm": calculated_week_km,
+        "weekDeliveries": calculated_week_deliveries,
+        "weekDailyAvg": calculated_week_daily_avg,
+        "month": month_val,
+        "monthKm": month_km,
+        "dailyGoal": 350.00,
+        "weeklyGoal": 2200.00,
+        "chart_7d": chart_7d,
+        "chart_30d": chart_30d,
+        "weekly_history": weekly_history,
+        "app_distribution": app_distribution,
+        "recent_accepted": recent_accepted
     }
 
 def get_health_data():
@@ -334,6 +574,39 @@ def evaluate_decision_data(data):
         "app": app_name
     }, 200
 
+def get_failures_data(limit=50):
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM offer_failure_logs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def record_failure_data(data):
+    app_name = data.get("app_name", "Desconhecido")
+    restaurant = data.get("restaurant", "Não identificado")
+    val = float(data.get("value", 0.0))
+    dist = float(data.get("distance_km", 0.0))
+    error_code = data.get("error_code", "ERR_PROCESSING_GENERIC")
+    reason = data.get("reason", "Erro de processamento da oferta em campo")
+    offer_id = data.get("offer_id", f"err_{int(datetime.datetime.now().timestamp())}")
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO offer_failure_logs (offer_id, app_name, restaurant, value, distance_km, error_code, reason, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (offer_id, app_name, restaurant, val, dist, error_code, reason, now_str))
+    conn.commit()
+    inserted_id = cur.lastrowid
+    conn.close()
+
+    return {
+        "success": True,
+        "message": "Falha de processamento registrada com sucesso",
+        "log_id": inserted_id,
+        "error_code": error_code
+    }, 201
+
 def get_manifest_json():
     return json.dumps({
         "name": "Radar Coordinator — Jarvis Neural Cockpit",
@@ -381,6 +654,15 @@ if FLASK_AVAILABLE:
     def f_earn(): return flask_jsonify(get_earnings_data())
     @app.route("/api/health", methods=["GET"])
     def f_hlth(): return flask_jsonify(get_health_data())
+    @app.route("/api/failures", methods=["GET"])
+    def f_failures_get():
+        limit = int(flask_request.args.get("limit", 50))
+        return flask_jsonify(get_failures_data(limit))
+    @app.route("/api/failures", methods=["POST"])
+    def f_failures_post():
+        data = flask_request.get_json(silent=True) or {}
+        res, code = record_failure_data(data)
+        return flask_jsonify(res), code
     @app.route("/api/decision", methods=["POST"])
     def f_dcs():
         res, code = evaluate_decision_data(flask_request.get_json(silent=True) or {})
@@ -531,6 +813,14 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+        elif path == "/api/failures":
+            limit = int(qs.get("limit", [50])[0])
+            body = json.dumps(get_failures_data(limit)).encode("utf-8")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
         elif path == "/api/user":
             body = json.dumps({"id": "usr_thiago_01", "name": "Thiago Sutil", "email": "thiagosutilmente@gmail.com", "plan": "pro"}).encode("utf-8")
             self.send_response(200)
@@ -578,6 +868,14 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+        elif path == "/api/failures":
+            res, code = record_failure_data(req_data)
+            body = json.dumps(res).encode("utf-8")
+            self.send_response(code)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
         elif path == "/api/user/plan":
             plan = req_data.get("plan", "pro")
             conn = get_db()
@@ -585,6 +883,14 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             conn.commit()
             conn.close()
             body = json.dumps({"success": True, "plan": plan}).encode("utf-8")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/analytics":
+            event_name = req_data.get("event_name", "unknown")
+            body = json.dumps({"success": True, "event": event_name, "status": "recorded"}).encode("utf-8")
             self.send_response(200)
             self.send_cors_headers("application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -608,6 +914,11 @@ HTML_CONTENT = """<!DOCTYPE html>
   <meta name="theme-color" content="#0a0a0f">
   <title>Radar Coordinator — Jarvis Neural Cockpit</title>
   <link rel="manifest" href="/manifest.json">
+  <!-- React 18 + ReactDOM + Recharts para Visualização Avançada de Dados -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
   <style>
     :root {
       --bg: #0a0a0f;
@@ -1312,11 +1623,11 @@ HTML_CONTENT = """<!DOCTYPE html>
           <span style="font-size: 18px;">🏍️</span>
           <div>
             <div style="font-size: 12px; font-weight: 800; color: #ffffff;">TELEMETRIA DE VELOCIDADE (GPS ANDROID)</div>
-            <div style="font-size: 10px; color: var(--text-muted);">API de Localização em Tempo Real • Trava Automática > 20 km/h</div>
+            <div style="font-size: 10px; color: var(--text-muted);">API de Localização em Tempo Real • Trava Automática > 10 km/h</div>
           </div>
         </div>
         <div id="speed-lock-badge">
-          <span style="color:#00ff88; font-weight:800; font-size:11px;">🛡️ TOQUE LIVRE (<= 20 km/h)</span>
+          <span style="color:#00ff88; font-weight:800; font-size:11px;">🛡️ TOQUE LIVRE (<= 10 km/h)</span>
         </div>
       </div>
 
@@ -1326,18 +1637,24 @@ HTML_CONTENT = """<!DOCTYPE html>
           <span style="font-size: 12px; font-weight: 700; color: var(--text-muted);">km/h</span>
         </div>
         <div style="text-align: right;">
-          <div style="font-size: 11px; font-weight: 700; color: #fff;">Limite de Segurança: 20 km/h</div>
+          <div style="font-size: 11px; font-weight: 700; color: #fff;">Limite de Segurança: 10 km/h</div>
           <div style="font-size: 10px; color: var(--text-muted);" id="speed-movement-status">🟢 Moto Parada</div>
         </div>
       </div>
 
       <!-- Trava de Segurança Banner -->
       <div id="speed-safety-lock-banner" style="display:none; background: rgba(255, 71, 87, 0.15); border: 1.5px solid #ff4757; border-radius: 10px; padding: 10px; margin-bottom: 10px; text-align: center;">
-        <div style="font-size: 13px; font-weight: 800; color: #ff4757;">🚨 TRAVA DE SEGURANÇA ATIVADA (> 20 KM/H)</div>
-        <div style="font-size: 11px; color: #ffccd0; margin-top: 2px;">Veículo em movimento! Ofertas bloqueadas para evitar acidentes. Diga "Aceitar" ou "Recusar" no viva-voz.</div>
-        <div style="margin-top: 6px; display: flex; justify-content: center; gap: 8px;">
-          <button class="btn" style="flex: initial; padding: 4px 10px; font-size: 10px; background: rgba(0, 255, 136, 0.2); color: #00ff88; border: 1px solid #00ff88;" onclick="triggerVoiceCommand('aceitar')">🗣️ Simular "Aceitar"</button>
-          <button class="btn" style="flex: initial; padding: 4px 10px; font-size: 10px; background: rgba(255, 71, 87, 0.25); color: #ff4757; border: 1px solid #ff4757;" onclick="triggerVoiceCommand('recusar')">🗣️ Simular "Recusar"</button>
+        <div style="font-size: 13px; font-weight: 800; color: #ff4757;">🚨 TRAVA DE SEGURANÇA ATIVADA (> 10 KM/H)</div>
+        <div style="font-size: 11px; color: #ffccd0; margin-top: 2px;">Veículo em movimento detectado pelo GPS! Interface desativada para evitar acidentes. Use comandos de áudio no viva-voz:</div>
+        <div style="font-size: 10px; color: var(--primary); margin-top: 4px; font-weight: 700;">
+          🎙️ "Aceitar" | "Recusar" | "Filtro Chuva" | "Tiro Curto" | "Máximo Lucro" | "Resetar Filtros"
+        </div>
+        <div style="margin-top: 8px; display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
+          <button class="btn" style="flex: initial; padding: 4px 10px; font-size: 10px; background: rgba(0, 255, 136, 0.2); color: #00ff88; border: 1px solid #00ff88;" onclick="triggerVoiceCommand('aceitar')">🗣️ "Aceitar"</button>
+          <button class="btn" style="flex: initial; padding: 4px 10px; font-size: 10px; background: rgba(255, 71, 87, 0.25); color: #ff4757; border: 1px solid #ff4757;" onclick="triggerVoiceCommand('recusar')">🗣️ "Recusar"</button>
+          <button class="btn" style="flex: initial; padding: 4px 8px; font-size: 10px; background: rgba(0, 210, 255, 0.2); color: #00d2ff; border: 1px solid #00d2ff;" onclick="handleVoiceCommand('filtro chuva')">🌧️ "Chuva"</button>
+          <button class="btn" style="flex: initial; padding: 4px 8px; font-size: 10px; background: rgba(255, 184, 0, 0.2); color: #ffb800; border: 1px solid #ffb800;" onclick="handleVoiceCommand('tiro curto')">⚡ "Curto"</button>
+          <button class="btn" style="flex: initial; padding: 4px 8px; font-size: 10px; background: rgba(157, 78, 221, 0.2); color: #c77dff; border: 1px solid #9d4edd;" onclick="handleVoiceCommand('resetar filtros')">🔄 "Resetar"</button>
           <button class="btn" id="btn-mic-safety" style="flex: initial; padding: 4px 10px; font-size: 10px; background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2);" onclick="toggleVoiceRecognition()">🎙️ Falar Agora</button>
         </div>
       </div>
@@ -1347,9 +1664,9 @@ HTML_CONTENT = """<!DOCTYPE html>
         <span style="font-size: 10px; font-weight: 700; color: var(--text-muted);">Testar Velocidade:</span>
         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
           <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255,255,255,0.08);" onclick="updateSpeed(0, 'Simulado')">0 km/h</button>
-          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid #00ff88;" onclick="updateSpeed(15, 'Simulado')">15 km/h (Livre)</button>
-          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255, 71, 87, 0.2); color: #ff4757; border: 1px solid #ff4757;" onclick="updateSpeed(26, 'Simulado')">26 km/h (Trava)</button>
-          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255, 71, 87, 0.25); color: #ff4757; border: 1px solid #ff4757;" onclick="updateSpeed(45, 'Simulado')">45 km/h (Trânsito)</button>
+          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid #00ff88;" onclick="updateSpeed(8, 'Simulado')">8 km/h (Livre)</button>
+          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255, 71, 87, 0.2); color: #ff4757; border: 1px solid #ff4757;" onclick="updateSpeed(15, 'Simulado')">15 km/h (Trava)</button>
+          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255, 71, 87, 0.25); color: #ff4757; border: 1px solid #ff4757;" onclick="updateSpeed(35, 'Simulado')">35 km/h (Trânsito)</button>
           <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid #00ff88;" onclick="initGeoLocationTracking()">🛰️ GPS Real</button>
         </div>
       </div>
@@ -1420,6 +1737,178 @@ HTML_CONTENT = """<!DOCTYPE html>
         <button class="btn btn-green" style="padding: 8px 14px; font-size: 11px;" onclick="testDecision()">Testar</button>
       </div>
       <div id="dec-res" style="display:none; margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 12px;"></div>
+    </div>
+
+    <!-- PAINEL DE VISUALIZAÇÃO DE GANHOS DIÁRIOS E SEMANAIS (RADAR AI COCKPIT) -->
+    <div class="glass" style="padding: 16px; margin-bottom: 18px; border: 1.5px solid rgba(0, 255, 136, 0.4); border-radius: 18px;" id="dash-financial-panel">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 20px;">💰</span>
+          <div>
+            <div style="font-size: 13px; font-weight: 900; color: #ffffff;">PAINEL DE DESEMPENHO FINANCEIRO</div>
+            <div style="font-size: 10px; color: var(--text-muted);">Acompanhamento em tempo real • Radar AI</div>
+          </div>
+        </div>
+        <div style="background: rgba(0, 255, 136, 0.15); border: 1px solid rgba(0, 255, 136, 0.4); border-radius: 6px; padding: 3px 8px; font-size: 9px; font-weight: 900; color: var(--primary);">
+          ⚡ CONSOLIDADO
+        </div>
+      </div>
+
+      <!-- Seletor de Período: Diário vs Semanal -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: rgba(0,0,0,0.5); padding: 4px; border-radius: 10px; margin-bottom: 14px; border: 1px solid var(--surface-border);">
+        <button id="btn-period-daily" class="btn" style="padding: 8px; font-size: 11px; font-weight: 900; background: var(--primary); color: #0a0a0f; border-radius: 8px; transition: all 0.2s;" onclick="switchFinancialPeriod('daily')">
+          📅 Ganhos Diários
+        </button>
+        <button id="btn-period-weekly" class="btn" style="padding: 8px; font-size: 11px; font-weight: 800; background: transparent; color: var(--text-muted); border-radius: 8px; transition: all 0.2s;" onclick="switchFinancialPeriod('weekly')">
+          📆 Ganhos Semanais
+        </button>
+      </div>
+
+      <!-- CONTEÚDO VISÃO DIÁRIA -->
+      <div id="financial-view-daily">
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--surface-border); border-radius: 14px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 10px; font-weight: 800; color: var(--text-muted); letter-spacing: 0.5px;">LUCRO LÍQUIDO DE HOJE (NO BOLSO)</div>
+            <div class="tabular neon-text" style="font-size: 28px; font-weight: 900; margin: 2px 0;" id="fin-daily-net">R$ 228,40</div>
+            <div style="font-size: 10px; color: #a1a1aa;" id="fin-daily-margin">Margem líquida de 80.3% das entregas</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 10px; font-weight: 800; color: var(--text-muted);">FATURAMENTO BRUTO</div>
+            <div class="tabular" style="font-size: 18px; font-weight: 800; color: #ffffff;" id="fin-daily-gross">R$ 284,50</div>
+            <div style="font-size: 10px; color: #ff4757; font-weight: 700; margin-top: 3px;" id="fin-daily-fuel">Combustível: - R$ 56,10</div>
+          </div>
+        </div>
+
+        <!-- Grid de Eficiência do Dia -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+          <div class="glass" style="padding: 8px; text-align: center;">
+            <div style="font-size: 9px; color: var(--text-muted); font-weight: 800;">MÉDIA R$/KM</div>
+            <div class="tabular neon-text" style="font-size: 14px; font-weight: 900;" id="fin-daily-avg-km">R$ 7,45/km</div>
+            <div style="font-size: 8px; color: var(--text-muted);">🌟 Nível Ouro</div>
+          </div>
+          <div class="glass" style="padding: 8px; text-align: center;">
+            <div style="font-size: 9px; color: var(--text-muted); font-weight: 800;">SURPLUS RADAR</div>
+            <div class="tabular" style="font-size: 14px; font-weight: 900; color: #ffd700;" id="fin-daily-surplus">+ R$ 162,26</div>
+            <div style="font-size: 8px; color: var(--text-muted);">vs R$ 3,20 rua</div>
+          </div>
+          <div class="glass" style="padding: 8px; text-align: center;">
+            <div style="font-size: 9px; color: var(--text-muted); font-weight: 800;">TICKET MÉDIO</div>
+            <div class="tabular" style="font-size: 14px; font-weight: 900; color: #ffffff;" id="fin-daily-ticket">R$ 31,61</div>
+            <div style="font-size: 8px; color: var(--text-muted);" id="fin-daily-runs">9 corridas</div>
+          </div>
+        </div>
+
+        <!-- Meta Diária com Barra de Progresso -->
+        <div style="background: rgba(0,0,0,0.4); border-radius: 12px; padding: 12px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; margin-bottom: 6px;">
+            <span style="color: #ffffff;">META DIÁRIA (R$ 350,00)</span>
+            <span id="fin-daily-goal-pct" style="color: var(--primary);">81.3%</span>
+          </div>
+          <div style="height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; margin-bottom: 6px;">
+            <div id="fin-daily-goal-bar" style="height: 100%; width: 81.3%; background: var(--primary); border-radius: 4px; transition: width 0.6s;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted);">
+            <span id="fin-daily-goal-remain">Faltam R$ 65,50 para bater o dia</span>
+            <span id="fin-daily-km-driven">Rodagem: 38.2 km</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTEÚDO VISÃO SEMANAL -->
+      <div id="financial-view-weekly" style="display: none;">
+        <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--surface-border); border-radius: 14px; padding: 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 10px; font-weight: 800; color: var(--text-muted); letter-spacing: 0.5px;">LUCRO LÍQUIDO DA SEMANA (7 DIAS)</div>
+            <div class="tabular neon-text" style="font-size: 28px; font-weight: 900; margin: 2px 0;" id="fin-weekly-net">R$ 1.637,50</div>
+            <div style="font-size: 10px; color: #a1a1aa;" id="fin-weekly-margin">Margem acumulada de 81.4% no período</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 10px; font-weight: 800; color: var(--text-muted);">TOTAL BRUTO SEMANAL</div>
+            <div class="tabular" style="font-size: 18px; font-weight: 800; color: #ffffff;" id="fin-weekly-gross">R$ 2.012,50</div>
+            <div style="font-size: 10px; color: #ff4757; font-weight: 700; margin-top: 3px;" id="fin-weekly-fuel">Combustível: - R$ 375,00</div>
+          </div>
+        </div>
+
+        <!-- Métricas Globais da Semana -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+          <div class="glass" style="padding: 8px; text-align: center;">
+            <div style="font-size: 9px; color: var(--text-muted); font-weight: 800;">MÉDIA DIÁRIA</div>
+            <div class="tabular" style="font-size: 14px; font-weight: 900; color: #ffffff;" id="fin-weekly-avg-day">R$ 287,50</div>
+            <div style="font-size: 8px; color: var(--text-muted);">Por dia trabalhado</div>
+          </div>
+          <div class="glass" style="padding: 8px; text-align: center;">
+            <div style="font-size: 9px; color: var(--text-muted); font-weight: 800;">KM SEMANAL</div>
+            <div class="tabular" style="font-size: 14px; font-weight: 900; color: #38bdf8;" id="fin-weekly-total-km">409 km</div>
+            <div style="font-size: 8px; color: var(--text-muted);">Média R$ 4,92/km</div>
+          </div>
+          <div class="glass" style="padding: 8px; text-align: center;">
+            <div style="font-size: 9px; color: var(--text-muted); font-weight: 800;">TOTAL CORRIDAS</div>
+            <div class="tabular" style="font-size: 14px; font-weight: 900; color: #ffd700;" id="fin-weekly-total-runs">81</div>
+            <div style="font-size: 8px; color: var(--text-muted);">Concluídas na semana</div>
+          </div>
+        </div>
+
+        <!-- Meta Semanal com Barra de Progresso -->
+        <div style="background: rgba(0,0,0,0.4); border-radius: 12px; padding: 12px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; margin-bottom: 6px;">
+            <span style="color: #ffffff;">META SEMANAL (R$ 2.200,00)</span>
+            <span id="fin-weekly-goal-pct" style="color: #ffd700;">91.5%</span>
+          </div>
+          <div style="height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; margin-bottom: 6px;">
+            <div id="fin-weekly-goal-bar" style="height: 100%; width: 91.5%; background: linear-gradient(90deg, #ffd700, #00ff88); border-radius: 4px; transition: width 0.6s;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted);">
+            <span id="fin-weekly-goal-remain">Faltam R$ 187,50 para bater a semana</span>
+            <span style="color: var(--primary); font-weight: 700;">Ritmo: +14% vs média</span>
+          </div>
+        </div>
+
+        <!-- Gráfico Interativo de Barras Semanal -->
+        <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--surface-border); border-radius: 14px; padding: 12px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div style="font-size: 11px; font-weight: 800; color: #ffffff;">FATURAMENTO DOS 7 DIAS (SEMANA)</div>
+            <div style="font-size: 9px; color: var(--text-muted);">Toque na barra para inspecionar</div>
+          </div>
+          
+          <div id="weekly-bars-container" style="display: flex; justify-content: space-between; align-items: flex-end; height: 115px; gap: 4px; padding-bottom: 4px;">
+            <!-- Barras preenchidas dinamicamente via JS -->
+          </div>
+
+          <!-- Card de Inspeção do Dia Selecionado -->
+          <div id="weekly-inspected-day-card" style="background: rgba(0,0,0,0.5); border: 1px solid var(--primary); border-radius: 10px; padding: 8px 12px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <span id="inspected-day-title" style="font-size: 11px; font-weight: 900; color: #ffffff;">Dom (Hoje)</span>
+              <span id="inspected-day-tag" style="background: rgba(0,255,136,0.2); color: var(--primary); font-size: 8px; font-weight: 800; padding: 2px 4px; border-radius: 4px; margin-left: 6px;">HOJE</span>
+              <div id="inspected-day-sub" style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">9 entregas • 38.2 km rodados</div>
+            </div>
+            <div style="text-align: right;">
+              <div id="inspected-day-gross" style="font-size: 12px; font-weight: 800; color: #ffffff;">R$ 284,50 Bruto</div>
+              <div id="inspected-day-net" style="font-size: 11px; font-weight: 900; color: var(--primary);">R$ 228,40 Líquido</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Faturamento por Aplicativo Parceiro (Accordion Expansível) -->
+      <div style="border-top: 1px solid var(--surface-border); padding-top: 10px; margin-top: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleFinancialAppBreakdown()">
+          <span style="font-size: 11px; font-weight: 800; color: var(--primary);" id="fin-apps-toggle-lbl">Ver faturamento por app (Hoje)</span>
+          <span id="fin-apps-toggle-icon" style="color: var(--primary); font-size: 12px;">▼</span>
+        </div>
+        <div id="fin-apps-breakdown" style="display: none; margin-top: 10px; flex-direction: column; gap: 6px;">
+          <!-- Itens preenchidos dinamicamente via JS -->
+        </div>
+      </div>
+
+      <!-- Botões de Ação do Painel -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px;">
+        <button class="btn btn-green" style="padding: 9px; font-size: 11px; font-weight: 800;" onclick="exportFinancialReport()">
+          📤 Relatório <span id="btn-export-period-lbl">Hoje</span>
+        </button>
+        <button class="btn" style="padding: 9px; font-size: 11px; font-weight: 800; background: rgba(255,255,255,0.06); color: var(--text-muted); border: 1px solid var(--surface-border);" onclick="resetFinancialTurn()">
+          🔄 Novo Turno
+        </button>
+      </div>
     </div>
 
     <!-- Stack Cards (3 cards pedidos especificamente):
@@ -1561,42 +2050,113 @@ HTML_CONTENT = """<!DOCTYPE html>
     <div id="full-stacks-container"></div>
   </section>
 
-  <!-- #ANALYTICS (Gráficos e estatísticas, últimos 7 dias, bloqueio se free) -->
+  <!-- #ANALYTICS (Dashboard de Visualização de Dados Recharts — Diário e Semanal) -->
   <section id="analytics" class="view-section">
     <div class="nav-pills">
       <a href="#dashboard" class="nav-pill">Cockpit</a>
       <a href="#stacks" class="nav-pill">Stacks</a>
-      <a href="#analytics" class="nav-pill active">Analytics</a>
+      <a href="#analytics" class="nav-pill active">Analytics Recharts</a>
       <a href="#subscription" class="nav-pill">Plano Pro</a>
+      <a href="#settings" class="nav-pill">Ajustes</a>
     </div>
 
-    <h2 style="font-size: 18px; font-weight: 800; color: #ffffff; margin-bottom: 14px;">Métricas & Gráficos</h2>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
-      <div class="glass" style="padding: 14px;">
-        <div style="font-size: 11px; color: var(--text-muted);">Hoje</div>
-        <div class="tabular neon-text" style="font-size: 22px; font-weight: 900;" id="stat-today">R$ 284,50</div>
+    <!-- Cabeçalho do Dashboard de Ganhos -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+      <div>
+        <h2 style="font-size: 20px; font-weight: 900; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+          <span>📊</span> Dashboard de Ganhos Recharts
+        </h2>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">
+          Telemetria diária & semanal baseada nas corridas aceitas no sistema.
+        </p>
       </div>
-      <div class="glass" style="padding: 14px;">
-        <div style="font-size: 11px; color: var(--text-muted);">Semana</div>
-        <div class="tabular" style="font-size: 22px; font-weight: 900; color: #ffffff;" id="stat-week">R$ 1.420,80</div>
-      </div>
-      <div class="glass" style="padding: 14px;">
-        <div style="font-size: 11px; color: var(--text-muted);">Mês</div>
-        <div class="tabular" style="font-size: 22px; font-weight: 900; color: #ffffff;" id="stat-month">R$ 5.680,00</div>
-      </div>
-      <div class="glass" style="padding: 14px;">
-        <div style="font-size: 11px; color: var(--text-muted);">Lucro Líquido Estimado</div>
-        <div class="tabular neon-text" style="font-size: 22px; font-weight: 900;" id="stat-profit">R$ 218,40</div>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <span style="font-size: 10px; padding: 4px 8px; background: rgba(0,255,136,0.12); color: var(--primary); border-radius: 6px; border: 1px solid var(--primary); font-weight: 800;">
+          🟢 SQLite Sincronizado
+        </span>
+        <button class="btn btn-green" style="padding: 6px 10px; font-size: 11px;" onclick="loadAnalytics()">🔄 Atualizar</button>
       </div>
     </div>
 
-    <!-- Gráfico CSS 7 Dias -->
+    <!-- 6 Cards de Indicadores Financeiros (KPIs) -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px;">
+      <div class="glass" style="padding: 12px 14px;">
+        <div style="font-size: 11px; color: var(--text-muted);">Hoje (Bruto)</div>
+        <div class="tabular neon-text" style="font-size: 20px; font-weight: 900;" id="stat-today">R$ 284,50</div>
+        <div style="font-size: 10px; color: var(--primary); margin-top: 2px;">Meta diária R$ 350</div>
+      </div>
+      <div class="glass" style="padding: 12px 14px;">
+        <div style="font-size: 11px; color: var(--text-muted);">Semana (Bruto)</div>
+        <div class="tabular" style="font-size: 20px; font-weight: 900; color: #ffffff;" id="stat-week">R$ 1.420,80</div>
+        <div style="font-size: 10px; color: #00d2ff; margin-top: 2px;">Meta semanal R$ 2.200</div>
+      </div>
+      <div class="glass" style="padding: 12px 14px;">
+        <div style="font-size: 11px; color: var(--text-muted);">Lucro Líquido Real</div>
+        <div class="tabular neon-text" style="font-size: 20px; font-weight: 900;" id="stat-profit">R$ 218,40</div>
+        <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">~81.4% margem pós-gasolina</div>
+      </div>
+      <div class="glass" style="padding: 12px 14px;">
+        <div style="font-size: 11px; color: var(--text-muted);">Rendimento Médio</div>
+        <div class="tabular" style="font-size: 20px; font-weight: 900; color: #ffd700;" id="stat-avg-km">R$ 7,45/km</div>
+        <div style="font-size: 10px; color: #ffd700; margin-top: 2px;">+132% acima do piso</div>
+      </div>
+      <div class="glass" style="padding: 12px 14px;">
+        <div style="font-size: 11px; color: var(--text-muted);">Mês (Acumulado)</div>
+        <div class="tabular" style="font-size: 20px; font-weight: 900; color: #ffffff;" id="stat-month">R$ 5.680,00</div>
+        <div style="font-size: 10px; color: var(--text-muted); margin-top: 2px;">30 dias persistidos</div>
+      </div>
+      <div class="glass" style="padding: 12px 14px;">
+        <div style="font-size: 11px; color: var(--text-muted);">Corridas Aceitas</div>
+        <div class="tabular" style="font-size: 20px; font-weight: 900; color: #ffffff;" id="stat-runs-total">11 viagens</div>
+        <div style="font-size: 10px; color: var(--primary); margin-top: 2px;">100% liquidadas</div>
+      </div>
+    </div>
+
+    <!-- Container Principal dos Gráficos Recharts (Montagem via React) -->
+    <div class="glass" style="padding: 16px; margin-bottom: 16px; border: 1px solid rgba(0, 255, 136, 0.25);">
+      <div id="recharts-dashboard-container">
+        <!-- Gráfico Recharts é montado dinamicamente aqui -->
+        <div style="text-align: center; padding: 30px; color: var(--text-muted); font-size: 12px;">
+          ⏳ Carregando motor de renderização Recharts...
+        </div>
+      </div>
+
+      <!-- Alerta Pro para histórico estendido -->
+      <div id="analytics-free-lock" style="display:none; text-align: center; margin-top: 14px; padding: 10px 14px; background: rgba(255,215,0,0.1); border-radius: 8px; border: 1px solid #ffd700; font-size: 11px; color: #ffd700; font-weight: 700;">
+        🔒 Plano Free: Histórico limitado a 3 dias. <a href="#subscription" style="color: #ffffff; text-decoration: underline; margin-left: 6px;">Ative o Jarvis Pro</a> para desbloquear 30 dias de telemetria completa e multi-stack!
+      </div>
+    </div>
+
+    <!-- Extrato Detalhado de Corridas Aceitas Recentes -->
     <div class="glass" style="padding: 16px; margin-bottom: 16px;">
-      <h3 style="font-size: 13px; font-weight: 700; color: #ffffff; margin-bottom: 10px;">Faturamento Diário (Últimos 7 Dias)</h3>
-      <div class="css-chart-wrap" id="chart-bars"></div>
-      <div id="analytics-free-lock" style="display:none; text-align: center; padding: 10px; background: rgba(255,215,0,0.1); border-radius: 8px; border: 1px solid #ffd700; font-size: 11px; color: #ffd700; font-weight: 700;">
-        🔒 Pro para completo: Assine para desbloquear 30 dias de telemetria!
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+        <div>
+          <h3 style="font-size: 14px; font-weight: 800; color: #ffffff;">📋 Extrato de Corridas Aceitas Recentes</h3>
+          <p style="font-size: 11px; color: var(--text-muted);">Histórico gravado no banco de dados SQLite</p>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <button class="btn" style="padding: 5px 10px; font-size: 10px; background: rgba(0,255,136,0.12); color: var(--primary); border: 1px solid var(--primary);" onclick="simulateAcceptedRun()">⚡ Simular Corrida</button>
+          <button class="btn" style="padding: 5px 10px; font-size: 10px; background: rgba(255,255,255,0.06); color: #ffffff; border: 1px solid var(--surface-border);" onclick="exportEarningsCSV()">📥 Exportar CSV</button>
+        </div>
+      </div>
+
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--surface-border); color: var(--text-muted);">
+              <th style="padding: 8px 6px;">Data</th>
+              <th style="padding: 8px 6px;">App</th>
+              <th style="padding: 8px 6px;">Distância</th>
+              <th style="padding: 8px 6px;">Valor Bruto</th>
+              <th style="padding: 8px 6px;">Combustível</th>
+              <th style="padding: 8px 6px;">Lucro Líquido</th>
+              <th style="padding: 8px 6px; text-align: right;">R$/km</th>
+            </tr>
+          </thead>
+          <tbody id="accepted-runs-tbody">
+            <!-- Linhas preenchidas via Javascript -->
+          </tbody>
+        </table>
       </div>
     </div>
   </section>
@@ -1702,16 +2262,31 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
       </div>
 
+      <!-- 4. BÔNUS MÍNIMO POR ENTREGA / GORJETA -->
+      <div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span style="font-size: 13px; font-weight: 700; color: #ffffff;">🎁 Bônus / Gorjeta Mínima</span>
+          <span style="font-size: 13px; font-weight: 800; color: #00ff88;" id="cfg-bonus-text">Sem Mínimo</span>
+        </div>
+        <input type="range" id="cfg-bonus" min="0" max="20" step="1" value="0" style="width: 100%; accent-color: #00ff88;" oninput="updateMinBonus(this.value)">
+        <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateMinBonus(0)">Sem Mínimo</button>
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateMinBonus(3)">+R$ 3</button>
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateMinBonus(5)">+R$ 5</button>
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="updateMinBonus(10)">+R$ 10</button>
+        </div>
+      </div>
+
       <!-- PRESETS RÁPIDOS DE ESTRATÉGIA -->
       <div>
         <div style="font-size: 11px; font-weight: 800; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase;">
           Presets Rápidos de Piloto
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
-          <button class="btn" style="font-size: 11px; padding: 8px; justify-content: flex-start; text-align: left;" onclick="applyStrategyPreset(22, 5, 6)">🌧️ Chuva / Dinâmica</button>
-          <button class="btn" style="font-size: 11px; padding: 8px; justify-content: flex-start; text-align: left;" onclick="applyStrategyPreset(12, 3.5, 5)">⚡ Tiro Curto</button>
-          <button class="btn" style="font-size: 11px; padding: 8px; justify-content: flex-start; text-align: left;" onclick="applyStrategyPreset(30, 7, 7)">💎 Máximo Lucro</button>
-          <button class="btn" style="font-size: 11px; padding: 8px; justify-content: flex-start; text-align: left;" onclick="applyStrategyPreset(0, 10, 0)">🎯 Padrão Livre</button>
+          <button class="btn" style="font-size: 11px; padding: 8px; justify-content: flex-start; text-align: left;" onclick="applyStrategyPreset(22, 5, 6, 5)">🌧️ Chuva / Dinâmica</button>
+          <button class="btn" style="font-size: 11px; padding: 8px; justify-content: flex-start; text-align: left;" onclick="applyStrategyPreset(12, 3.5, 5, 0)">⚡ Tiro Curto</button>
+          <button class="btn" style="font-size: 11px; padding: 8px; justify-content: flex-start; text-align: left;" onclick="applyStrategyPreset(30, 7, 7, 8)">💎 Máximo Lucro</button>
+          <button class="btn" style="font-size: 11px; padding: 8px; justify-content: flex-start; text-align: left;" onclick="applyStrategyPreset(0, 10, 0, 0)">🎯 Padrão Livre</button>
         </div>
       </div>
 
@@ -1766,6 +2341,20 @@ HTML_CONTENT = """<!DOCTYPE html>
         <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">recorrência</div>
       </div>
     </div>
+
+    <!-- LOGS DE EVENTOS E FALHAS DE PROCESSAMENTO (DEPURAÇÃO DE CAMPO) -->
+    <div style="margin-top: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div style="font-size: 14px; font-weight: 800; color: #ffffff; display: flex; align-items: center; gap: 6px;">
+          <span>⚠️</span> Logs de Falhas de Ofertas (Campo)
+        </div>
+        <button class="btn btn-sm" onclick="fetchFailures()" style="font-size: 10px; padding: 4px 8px;">🔄 Atualizar</button>
+      </div>
+
+      <div id="admin-failure-logs" style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 12px;">Carregando logs de diagnóstico...</div>
+      </div>
+    </div>
   </section>
 
   <!-- Bottom bar: Health Pulse 94/100 + GPS/Latência/Temp + botões 🎙️🛡️⚙️▶ -->
@@ -1800,7 +2389,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       user: { id: 'usr_thiago_01', name: 'Thiago Sutil', email: 'thiagosutilmente@gmail.com', plan: 'pro', onboardingComplete: true },
       session: { isLoggedIn: true, token: 'token_123' },
       earnings: { today: 284.50, week: 1420.80, month: 5680.00, totalKm: 38.2, profit: 218.40 },
-      stacks: { active: [], pending: [], history: [], autoAccept: false, minGainPerKm: 5.0, minValue: 0.0, maxDistance: 8.0 },
+      stacks: { active: [], pending: [], history: [], autoAccept: false, minGainPerKm: 5.0, minValue: 0.0, maxDistance: 8.0, minBonus: 0.0 },
       health: { score: 94, gpsAccuracy: 4.2, latency: 12, temperature: 28, speed: 0.0, isSafetyLock: false, isMoving: false },
       config: { voiceEnabled: true, focusModeAuto: true, theme: 'dark' }
     };
@@ -1808,7 +2397,17 @@ HTML_CONTENT = """<!DOCTYPE html>
     function loadInitialState() {
       try {
         const stored = localStorage.getItem('RadarCoordinator_AppState');
-        if (stored) return Object.assign({}, defaultState, JSON.parse(stored));
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return {
+            user: Object.assign({}, defaultState.user, parsed.user || {}),
+            session: Object.assign({}, defaultState.session, parsed.session || {}),
+            earnings: Object.assign({}, defaultState.earnings, parsed.earnings || {}),
+            stacks: Object.assign({}, defaultState.stacks, parsed.stacks || {}),
+            health: Object.assign({}, defaultState.health, parsed.health || {}),
+            config: Object.assign({}, defaultState.config, parsed.config || {})
+          };
+        }
       } catch (e) {}
       return defaultState;
     }
@@ -1900,7 +2499,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     // Monitor de Velocidade e Trava de Segurança em Movimento (Android Location API)
     function updateSpeed(speedKmh, source = 'GPS') {
       const prevLock = window.AppState.health.isSafetyLock || false;
-      const isLock = speedKmh > 20.0;
+      const isLock = speedKmh > 10.0;
       const isMove = speedKmh > 2.0;
 
       window.AppState.health.speed = speedKmh;
@@ -1922,7 +2521,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 
       const moveStatus = document.getElementById('speed-movement-status');
       if (moveStatus) {
-        moveStatus.innerHTML = isMove ? (isLock ? '<span style="color:#ff4757; font-weight:bold;">🚨 Em Movimento (> 20 km/h)</span>' : '<span style="color:#00ff88; font-weight:bold;">🏍️ Em Movimento (Lento)</span>') : '<span style="color:#8e92a8;">🟢 Moto Parada</span>';
+        moveStatus.innerHTML = isMove ? (isLock ? '<span style="color:#ff4757; font-weight:bold;">🚨 Em Movimento (> 10 km/h)</span>' : '<span style="color:#00ff88; font-weight:bold;">🏍️ Em Movimento (Lento)</span>') : '<span style="color:#8e92a8;">🟢 Moto Parada</span>';
       }
 
       const lockBanner = document.getElementById('speed-safety-lock-banner');
@@ -1933,22 +2532,28 @@ HTML_CONTENT = """<!DOCTYPE html>
       const lockBadge = document.getElementById('speed-lock-badge');
       if (lockBadge) {
         lockBadge.innerHTML = isLock 
-          ? '<span style="color:#ff4757; font-weight:900; font-size:11px;">🚨 BLOQUEIO ATIVO (> 20 km/h)</span>' 
-          : '<span style="color:#00ff88; font-weight:800; font-size:11px;">🛡️ TOQUE LIVRE (<= 20 km/h)</span>';
+          ? '<span style="color:#ff4757; font-weight:900; font-size:11px;">🚨 BLOQUEIO ATIVO (> 10 km/h)</span>' 
+          : '<span style="color:#00ff88; font-weight:800; font-size:11px;">🛡️ TOQUE LIVRE (<= 10 km/h)</span>';
       }
 
-      // Desabilita botões e toques manuais nas ofertas durante movimento acima de 20 km/h
-      document.querySelectorAll('.stack-btn-row button').forEach(btn => {
+      // Desativa a interface manual quando a velocidade exceder 10 km/h para segurança do piloto
+      document.querySelectorAll('.stack-btn-row button, .filter-chip, .btn-maps, .btn-app-action').forEach(btn => {
         btn.disabled = isLock;
         btn.style.opacity = isLock ? '0.35' : '1';
         btn.style.pointerEvents = isLock ? 'none' : 'auto';
       });
 
+      const fullStacksCont = document.getElementById('full-stacks-container');
+      if (fullStacksCont) {
+        fullStacksCont.style.filter = isLock ? 'grayscale(0.7) opacity(0.35)' : 'none';
+        fullStacksCont.style.pointerEvents = isLock ? 'none' : 'auto';
+      }
+
       if (!prevLock && isLock) {
-        speak("Atenção: moto em movimento acima de 20 por hora. Trava de segurança ativada. Use comandos de voz.");
+        speak("Atenção: moto em movimento acima de 10 por hora. Trava de segurança ativada usando GPS. Interface desativada.");
         startVoiceListening(true);
       } else if (prevLock && !isLock) {
-        speak("Velocidade segura. Lista de pedidos liberada.");
+        speak("Velocidade abaixo de 10 por hora. Interface de pedidos liberada.");
       }
 
       saveState();
@@ -2049,7 +2654,40 @@ HTML_CONTENT = """<!DOCTYPE html>
         window._vTimeout = setTimeout(() => { toast.style.display = 'none'; }, 3000);
       }
 
-      if (cmd.includes('ler') || cmd.includes('ouvir') || cmd.includes('falar') || cmd.includes('detalhes') || cmd.includes('anunciar')) {
+      // 1. Comandos de Filtro por Voz (Direção Segura / Mãos-Livres)
+      if (cmd.includes('chuva') || cmd.includes('tarifa dinâmica') || cmd.includes('temporal')) {
+        applyStrategyPreset(22, 5, 6, 5);
+        speak('Filtro chuva e alta demanda ativado. Mínimo 22 reais.');
+      } else if (cmd.includes('tiro curto') || cmd.includes('filtro curto') || cmd.includes('curtas') || cmd.includes('curta distância')) {
+        applyStrategyPreset(12, 3.5, 5, 0);
+        speak('Filtro tiro curto ativado. Raio máximo de 3 quilômetros e meio.');
+      } else if (cmd.includes('máximo lucro') || cmd.includes('maximo lucro') || cmd.includes('filtro lucro') || cmd.includes('alta rentabilidade')) {
+        applyStrategyPreset(30, 7, 7, 8);
+        speak('Filtro máximo lucro ativado. Mínimo 30 reais.');
+      } else if (cmd.includes('limpar filtro') || cmd.includes('limpar filtros') || cmd.includes('resetar filtro') || cmd.includes('resetar filtros') || cmd.includes('redefinir') || cmd.includes('padrão livre') || cmd.includes('sem filtro')) {
+        applyStrategyPreset(0, 10, 0, 0);
+        speak('Filtros redefinidos. Exibindo todas as entregas disponíveis.');
+      } else if (cmd.includes('somente mesclada') || cmd.includes('somente mescladas') || cmd.includes('só mesclada') || cmd.includes('só mescladas') || cmd.includes('filtro mesclada') || cmd.includes('filtro mescladas') || cmd.includes('multi stack')) {
+        window.AppState.stacks.onlyMultiStack = true;
+        saveState();
+        const btn = document.getElementById('btn-filter-multistack');
+        if (btn) {
+          btn.style.background = 'var(--primary)';
+          btn.style.color = '#0a0a0f';
+        }
+        speak('Filtro ativado: exibindo apenas entregas combinadas mescladas.');
+        if (window.AppState.stacks.pending) renderFullStacks(window.AppState.stacks.pending);
+      } else if (cmd.includes('mínimo 15') || cmd.includes('minimo 15') || cmd.includes('quinze reais') || cmd.includes('15 reais')) {
+        updateFilterMinValue(15);
+        speak('Filtro alterado: valor mínimo 15 reais.');
+      } else if (cmd.includes('mínimo 20') || cmd.includes('minimo 20') || cmd.includes('vinte reais') || cmd.includes('20 reais')) {
+        updateFilterMinValue(20);
+        speak('Filtro alterado: valor mínimo 20 reais.');
+      } else if (cmd.includes('mínimo 30') || cmd.includes('minimo 30') || cmd.includes('trinta reais') || cmd.includes('30 reais')) {
+        updateFilterMinValue(30);
+        speak('Filtro alterado: valor mínimo 30 reais.');
+      // 2. Comandos de Ação de Corrida e Navegação
+      } else if (cmd.includes('ler') || cmd.includes('ouvir') || cmd.includes('falar') || cmd.includes('detalhes') || cmd.includes('anunciar')) {
         triggerVoiceCommand('ouvir');
       } else if (cmd.includes('aceitar') || cmd.includes('aceita') || cmd.includes('pegar') || cmd.includes('confirmar') || cmd.includes('sim')) {
         triggerVoiceCommand('aceitar');
@@ -2098,15 +2736,35 @@ HTML_CONTENT = """<!DOCTYPE html>
       }
     }
 
+    let lastGpsCoords = null;
+    let lastGpsTimestamp = null;
+
     function initGeoLocationTracking() {
       if ('geolocation' in navigator) {
-        speak("Sintonizando satélites GPS...");
+        speak("Sintonizando satélites GPS do dispositivo...");
         navigator.geolocation.watchPosition(
           pos => {
             let spd = 0;
             if (pos.coords.speed !== null && pos.coords.speed >= 0) {
               spd = pos.coords.speed * 3.6; // m/s para km/h
+            } else if (lastGpsCoords && lastGpsTimestamp) {
+              const dt = (pos.timestamp - lastGpsTimestamp) / 1000.0;
+              if (dt > 0.5 && dt < 30.0) {
+                const R = 6371e3; // Raio da Terra em metros
+                const phi1 = lastGpsCoords.latitude * Math.PI / 180;
+                const phi2 = pos.coords.latitude * Math.PI / 180;
+                const deltaPhi = (pos.coords.latitude - lastGpsCoords.latitude) * Math.PI / 180;
+                const deltaLambda = (pos.coords.longitude - lastGpsCoords.longitude) * Math.PI / 180;
+                const a = Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+                          Math.cos(phi1) * Math.cos(phi2) *
+                          Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                const distM = R * c;
+                spd = (distM / dt) * 3.6;
+              }
             }
+            lastGpsCoords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+            lastGpsTimestamp = pos.timestamp;
             updateSpeed(spd, 'GPS Fused');
           },
           err => {
@@ -2164,10 +2822,22 @@ HTML_CONTENT = """<!DOCTYPE html>
       if (window.AppState.stacks.pending) renderFullStacks(window.AppState.stacks.pending);
     }
 
-    function applyStrategyPreset(minVal, maxDist, minGain) {
+    function updateMinBonus(v) {
+      window.AppState.stacks.minBonus = parseFloat(v);
+      const t = parseFloat(v) > 0 ? `+R$ ${parseFloat(v).toFixed(2).replace('.', ',')}` : 'Sem Mínimo';
+      const el1 = document.getElementById('cfg-bonus-text');
+      const slider1 = document.getElementById('cfg-bonus');
+      if (el1) el1.innerText = t;
+      if (slider1) slider1.value = v;
+      saveState();
+      if (window.AppState.stacks.pending) renderFullStacks(window.AppState.stacks.pending);
+    }
+
+    function applyStrategyPreset(minVal, maxDist, minGain, minBonus = 0) {
       updateFilterMinValue(minVal);
       updateFilterMaxDist(maxDist);
       updateMinGain(minGain);
+      updateMinBonus(minBonus);
       speak(`Filtros de estratégia aplicados: Mínimo R$ ${minVal}, raio ${maxDist} km, ganho R$ ${minGain} por km.`);
     }
 
@@ -2182,6 +2852,35 @@ HTML_CONTENT = """<!DOCTYPE html>
       }
       speak(window.AppState.stacks.onlyMultiStack ? 'Filtro ativado: exibindo apenas entregas mescladas multi-stack.' : 'Filtro de mescladas desativado.');
       if (window.AppState.stacks.pending) renderFullStacks(window.AppState.stacks.pending);
+    }
+
+    function initFilterUI() {
+      const minVal = window.AppState.stacks.minValue || 0.0;
+      const maxDist = window.AppState.stacks.maxDistance || 8.0;
+      const minGain = window.AppState.stacks.minGainPerKm || 0.0;
+      const minBonus = window.AppState.stacks.minBonus || 0.0;
+
+      updateFilterMinValue(minVal);
+      updateFilterMaxDist(maxDist);
+      updateMinGain(minGain);
+      updateMinBonus(minBonus);
+
+      const chkV = document.getElementById('cfg-v');
+      if (chkV) chkV.checked = !!window.AppState.config.voiceEnabled;
+      const btnVoz = document.getElementById('btn-voz');
+      if (btnVoz) btnVoz.classList.toggle('active', !!window.AppState.config.voiceEnabled);
+
+      const chkF = document.getElementById('cfg-f');
+      if (chkF) chkF.checked = !!window.AppState.config.focusModeAuto;
+      const btnFoco = document.getElementById('btn-foco');
+      if (btnFoco) btnFoco.classList.toggle('active', !!window.AppState.config.focusModeAuto);
+
+      const btnMulti = document.getElementById('btn-filter-multistack');
+      if (btnMulti) {
+        btnMulti.style.background = window.AppState.stacks.onlyMultiStack ? 'var(--primary)' : 'rgba(0, 255, 136, 0.12)';
+        btnMulti.style.color = window.AppState.stacks.onlyMultiStack ? '#0a0a0f' : 'var(--primary)';
+        btnMulti.style.fontWeight = window.AppState.stacks.onlyMultiStack ? '900' : '700';
+      }
     }
 
     function triggerGhostSweep() {
@@ -2242,6 +2941,7 @@ HTML_CONTENT = """<!DOCTYPE html>
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ stack_id: stackId })
         });
+        loadAnalytics();
       } catch (e) {}
 
       // Se for stack mesclado de 2 pedidos ou solicitado, sincroniza rota do Maps automaticamente
@@ -2397,6 +3097,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       const minVal = window.AppState.stacks.minValue || 0.0;
       const maxDist = window.AppState.stacks.maxDistance || 10.0;
       const minGain = window.AppState.stacks.minGainPerKm || 0.0;
+      const minBonus = window.AppState.stacks.minBonus || 0.0;
       const onlyMulti = window.AppState.stacks.onlyMultiStack || false;
 
       const filtered = list.filter(s => {
@@ -2405,13 +3106,17 @@ HTML_CONTENT = """<!DOCTYPE html>
         if (s.total_value < minVal) return false;
         if (s.distance_km > maxDist) return false;
         if (gain < minGain) return false;
+        if (minBonus > 0) {
+          const estimatedBonus = s.apps.includes('+') ? 6.0 : 0.0;
+          if (estimatedBonus < minBonus) return false;
+        }
         return true;
       });
 
       const badge = document.getElementById('stacks-filter-badge');
       if (badge) {
         badge.innerText = `${filtered.length} de ${list.length} disponíveis${onlyMulti ? ' (✨ Só Mescladas)' : ''}`;
-        badge.style.color = (onlyMulti || minVal > 0 || maxDist < 8.0 || minGain > 0) ? 'var(--primary)' : 'var(--text-muted)';
+        badge.style.color = (onlyMulti || minVal > 0 || maxDist < 8.0 || minGain > 0 || minBonus > 0) ? 'var(--primary)' : 'var(--text-muted)';
       }
 
       if (filtered.length === 0) {
@@ -2464,43 +3169,826 @@ HTML_CONTENT = """<!DOCTYPE html>
       }).join('');
     }
 
+    // =========================================================================
+    // RECHARTS DATA VISUALIZATION DASHBOARD (HISTÓRICO DIÁRIO E SEMANAL)
+    // =========================================================================
+    let currentRechartsPeriod = 'daily_7d'; // 'daily_7d', 'daily_30d', 'weekly', 'apps'
+
+    function setRechartsPeriod(period) {
+      currentRechartsPeriod = period;
+      if (cachedEarningsData) {
+        renderRechartsDashboard(cachedEarningsData);
+      }
+    }
+
+    function renderRechartsDashboard(data) {
+      if (!data) return;
+      cachedEarningsData = data;
+
+      const container = document.getElementById('recharts-dashboard-container');
+      if (!container) return;
+
+      const isPro = (window.AppState && window.AppState.user && window.AppState.user.plan === 'pro');
+      const isRechartsAvailable = (typeof window.Recharts !== 'undefined' && typeof window.React !== 'undefined' && typeof window.ReactDOM !== 'undefined');
+
+      if (!isRechartsAvailable) {
+        // Fallback dinâmico caso o CDN de terceiros demore ou esteja offline
+        renderRechartsFallback(container, data, currentRechartsPeriod, isPro);
+        // Tenta re-renderizar assim que o script terminar de carregar
+        setTimeout(() => {
+          if (typeof window.Recharts !== 'undefined') renderRechartsDashboard(data);
+        }, 1500);
+        return;
+      }
+
+      try {
+        const {
+          ResponsiveContainer,
+          ComposedChart,
+          BarChart,
+          Bar,
+          LineChart,
+          Line,
+          AreaChart,
+          Area,
+          PieChart,
+          Pie,
+          Cell,
+          XAxis,
+          YAxis,
+          CartesianGrid,
+          Tooltip,
+          Legend,
+          ReferenceLine
+        } = window.Recharts;
+
+        const h = window.React.createElement;
+
+        // Tooltip Customizado Recharts com Design Glassmorphism
+        function CustomRechartsTooltip({ active, payload, label }) {
+          if (!active || !payload || !payload.length) return null;
+          const pData = payload[0].payload || {};
+          return h('div', {
+            style: {
+              background: 'rgba(17, 17, 24, 0.95)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(0, 255, 136, 0.4)',
+              borderRadius: '10px',
+              padding: '12px 14px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+              fontSize: '12px',
+              color: '#ffffff',
+              minWidth: '190px'
+            }
+          }, [
+            h('div', { key: 'lbl', style: { fontWeight: '800', color: 'var(--primary)', marginBottom: '6px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '4px' } }, 
+              label || pData.day_name || pData.name || 'Registro'
+            ),
+            pData.amount !== undefined && h('div', { key: 'amt', style: { display: 'flex', justifyContent: 'space-between', margin: '3px 0' } }, [
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Faturamento Bruto:'),
+              h('strong', { style: { color: '#00ff88' } }, `R$ ${Number(pData.amount).toFixed(2).replace('.', ',')}`)
+            ]),
+            pData.gross !== undefined && h('div', { key: 'gross', style: { display: 'flex', justifyContent: 'space-between', margin: '3px 0' } }, [
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Bruto Acumulado:'),
+              h('strong', { style: { color: '#00ff88' } }, `R$ ${Number(pData.gross).toFixed(2).replace('.', ',')}`)
+            ]),
+            pData.net_profit !== undefined && h('div', { key: 'net', style: { display: 'flex', justifyContent: 'space-between', margin: '3px 0' } }, [
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Lucro Líquido:'),
+              h('strong', { style: { color: '#00d2ff' } }, `R$ ${Number(pData.net_profit).toFixed(2).replace('.', ',')}`)
+            ]),
+            pData.net !== undefined && h('div', { key: 'net_w', style: { display: 'flex', justifyContent: 'space-between', margin: '3px 0' } }, [
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Lucro Líquido:'),
+              h('strong', { style: { color: '#00d2ff' } }, `R$ ${Number(pData.net).toFixed(2).replace('.', ',')}`)
+            ]),
+            pData.fuel_cost !== undefined && h('div', { key: 'fuel', style: { display: 'flex', justifyContent: 'space-between', margin: '3px 0' } }, [
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Combustível:'),
+              h('strong', { style: { color: '#ff4757' } }, `- R$ ${Number(pData.fuel_cost).toFixed(2).replace('.', ',')}`)
+            ]),
+            pData.fuel !== undefined && h('div', { key: 'fuel_w', style: { display: 'flex', justifyContent: 'space-between', margin: '3px 0' } }, [
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Combustível:'),
+              h('strong', { style: { color: '#ff4757' } }, `- R$ ${Number(pData.fuel).toFixed(2).replace('.', ',')}`)
+            ]),
+            pData.km !== undefined && h('div', { key: 'km', style: { display: 'flex', justifyContent: 'space-between', margin: '3px 0' } }, [
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Km Rodados:'),
+              h('strong', { style: { color: '#ffffff' } }, `${Number(pData.km).toFixed(1)} km`)
+            ]),
+            pData.gain_per_km !== undefined && h('div', { key: 'gpkm', style: { display: 'flex', justifyContent: 'space-between', margin: '3px 0' } }, [
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Ganho / Km:'),
+              h('strong', { style: { color: '#ffd700' } }, `R$ ${Number(pData.gain_per_km).toFixed(2).replace('.', ',')}/km`)
+            ]),
+            pData.count !== undefined && h('div', { key: 'cnt', style: { display: 'flex', justifyContent: 'space-between', margin: '3px 0' } }, [
+              h('span', { style: { color: 'var(--text-muted)' } }, 'Corridas Aceitas:'),
+              h('strong', { style: { color: '#ffffff' } }, `${pData.count} viagens`)
+            ]),
+            pData.is_best_day && h('div', { key: 'best', style: { marginTop: '6px', padding: '3px 6px', background: 'rgba(255,215,0,0.15)', border: '1px solid #ffd700', borderRadius: '4px', fontSize: '10px', color: '#ffd700', textAlign: 'center', fontWeight: '800' } },
+              '🏆 Melhor Faturamento da Semana!'
+            )
+          ]);
+        }
+
+        function RechartsApp() {
+          const period = currentRechartsPeriod;
+          let chartElement = null;
+          let summaryTitle = '';
+          let summarySub = '';
+
+          if (period === 'daily_7d') {
+            summaryTitle = 'Histórico Diário de Ganhos (Últimos 7 Dias)';
+            summarySub = 'Barras Recharts de Faturamento Bruto vs Lucro Líquido Real e Combustível.';
+            const chartData = data.chart_7d || [];
+
+            chartElement = h(ResponsiveContainer, { width: '100%', height: 270 },
+              h(ComposedChart, { data: chartData, margin: { top: 15, right: 10, left: -20, bottom: 5 } }, [
+                h(CartesianGrid, { key: 'grid', strokeDasharray: '3 3', stroke: 'rgba(255,255,255,0.06)' }),
+                h(XAxis, { key: 'x', dataKey: 'short_date', stroke: '#8e95a5', fontSize: 11, tickLine: false }),
+                h(YAxis, { key: 'y', stroke: '#8e95a5', fontSize: 10, tickLine: false, tickFormatter: v => `R$${v}` }),
+                h(Tooltip, { key: 'tt', content: h(CustomRechartsTooltip) }),
+                h(Legend, { key: 'leg', wrapperStyle: { paddingTop: '8px', fontSize: '11px' } }),
+                h(ReferenceLine, { key: 'ref', y: 350, stroke: '#ffd700', strokeDasharray: '4 4', label: { value: 'Meta R$ 350', fill: '#ffd700', fontSize: 10, position: 'top' } }),
+                h(Bar, { key: 'b_amt', dataKey: 'amount', name: 'Bruto (R$)', fill: '#00ff88', radius: [4, 4, 0, 0] }),
+                h(Bar, { key: 'b_net', dataKey: 'net_profit', name: 'Líquido (R$)', fill: '#00d2ff', radius: [4, 4, 0, 0] }),
+                h(Bar, { key: 'b_fuel', dataKey: 'fuel_cost', name: 'Combustível (R$)', fill: '#ff4757', radius: [4, 4, 0, 0] })
+              ])
+            );
+          } else if (period === 'daily_30d') {
+            summaryTitle = 'Histórico Diário Expandido (30 Dias)';
+            summarySub = isPro ? 'Telemetria integral com gradientes Recharts e lucro acumulado.' : 'Visualizando amostra recente. Desbloqueie o Jarvis Pro para o mês completo.';
+            const raw30 = data.chart_30d || [];
+            const chartData = isPro ? raw30 : raw30.slice(23);
+
+            chartElement = h(ResponsiveContainer, { width: '100%', height: 270 },
+              h(AreaChart, { data: chartData, margin: { top: 15, right: 10, left: -20, bottom: 5 } }, [
+                h('defs', { key: 'defs' }, [
+                  h('linearGradient', { id: 'rechartsGradGross', x1: '0', y1: '0', x2: '0', y2: '1' }, [
+                    h('stop', { offset: '5%', stopColor: '#00ff88', stopOpacity: 0.4 }),
+                    h('stop', { offset: '95%', stopColor: '#00ff88', stopOpacity: 0.0 })
+                  ]),
+                  h('linearGradient', { id: 'rechartsGradNet', x1: '0', y1: '0', x2: '0', y2: '1' }, [
+                    h('stop', { offset: '5%', stopColor: '#00d2ff', stopOpacity: 0.35 }),
+                    h('stop', { offset: '95%', stopColor: '#00d2ff', stopOpacity: 0.0 })
+                  ])
+                ]),
+                h(CartesianGrid, { key: 'grid', strokeDasharray: '3 3', stroke: 'rgba(255,255,255,0.06)' }),
+                h(XAxis, { key: 'x', dataKey: 'short_date', stroke: '#8e95a5', fontSize: 10, tickLine: false }),
+                h(YAxis, { key: 'y', stroke: '#8e95a5', fontSize: 10, tickLine: false, tickFormatter: v => `R$${v}` }),
+                h(Tooltip, { key: 'tt', content: h(CustomRechartsTooltip) }),
+                h(Legend, { key: 'leg', wrapperStyle: { paddingTop: '8px', fontSize: '11px' } }),
+                h(Area, { key: 'a_amt', type: 'monotone', dataKey: 'amount', name: 'Bruto (R$)', stroke: '#00ff88', strokeWidth: 2, fill: 'url(#rechartsGradGross)' }),
+                h(Area, { key: 'a_net', type: 'monotone', dataKey: 'net_profit', name: 'Líquido (R$)', stroke: '#00d2ff', strokeWidth: 2, fill: 'url(#rechartsGradNet)' }),
+                h(ReferenceLine, { key: 'ref', y: 350, stroke: '#ffd700', strokeDasharray: '4 4' })
+              ])
+            );
+          } else if (period === 'weekly') {
+            summaryTitle = 'Histórico Semanal de Ganhos (Últimas 4 Semanas)';
+            summarySub = 'Comparativo de desempenho acumulado semanal e cumprimento da meta de R$ 2.200.';
+            const weeklyData = data.weekly_history || [];
+
+            chartElement = h(ResponsiveContainer, { width: '100%', height: 270 },
+              h(BarChart, { data: weeklyData, margin: { top: 15, right: 10, left: -15, bottom: 5 } }, [
+                h(CartesianGrid, { key: 'grid', strokeDasharray: '3 3', stroke: 'rgba(255,255,255,0.06)' }),
+                h(XAxis, { key: 'x', dataKey: 'name', stroke: '#8e95a5', fontSize: 11, tickLine: false }),
+                h(YAxis, { key: 'y', stroke: '#8e95a5', fontSize: 10, tickLine: false, tickFormatter: v => `R$${v}` }),
+                h(Tooltip, { key: 'tt', content: h(CustomRechartsTooltip) }),
+                h(Legend, { key: 'leg', wrapperStyle: { paddingTop: '8px', fontSize: '11px' } }),
+                h(ReferenceLine, { key: 'ref_w', y: 2200, stroke: '#ffd700', strokeDasharray: '4 4', label: { value: 'Meta R$ 2.200', fill: '#ffd700', fontSize: 10, position: 'top' } }),
+                h(Bar, { key: 'b_gross', dataKey: 'gross', name: 'Bruto Semanal', fill: '#00ff88', radius: [4, 4, 0, 0] }),
+                h(Bar, { key: 'b_net_w', dataKey: 'net', name: 'Líquido Semanal', fill: '#00d2ff', radius: [4, 4, 0, 0] }),
+                h(Bar, { key: 'b_fuel_w', dataKey: 'fuel', name: 'Combustível', fill: '#ff4757', radius: [4, 4, 0, 0] })
+              ])
+            );
+          } else if (period === 'apps') {
+            summaryTitle = 'Distribuição por Aplicativo Parceiro';
+            summarySub = 'Fatia do faturamento gerado com base nas corridas aceitas no sistema.';
+            const appList = data.app_distribution || [];
+
+            chartElement = h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center' } }, [
+              h(ResponsiveContainer, { key: 'pie_resp', width: '100%', height: 220 },
+                h(PieChart, {}, [
+                  h(Pie, {
+                    key: 'pie',
+                    data: appList,
+                    dataKey: 'value',
+                    nameKey: 'name',
+                    cx: '50%',
+                    cy: '50%',
+                    innerRadius: 50,
+                    outerRadius: 85,
+                    paddingAngle: 4
+                  }, appList.map((entry, index) => h(Cell, { key: `cell-${index}`, fill: entry.color || '#00d2ff' }))),
+                  h(Tooltip, {
+                    key: 'pie_tt',
+                    formatter: (value, name, item) => [`R$ ${Number(value).toFixed(2).replace('.', ',')} (${item.payload.pct}%)`, name]
+                  })
+                ])
+              ),
+              h('div', { key: 'app_badges', style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', width: '100%', marginTop: '10px' } },
+                appList.map((item, idx) => h('div', {
+                  key: `app_b_${idx}`,
+                  style: {
+                    background: 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${item.color || '#ffffff'}33`,
+                    borderLeft: `4px solid ${item.color || '#ffffff'}`,
+                    borderRadius: '8px',
+                    padding: '8px 10px'
+                  }
+                }, [
+                  h('div', { key: 'n', style: { fontSize: '11px', fontWeight: '800', color: '#ffffff' } }, item.name),
+                  h('div', { key: 'v', style: { fontSize: '13px', fontWeight: '900', color: item.color || 'var(--primary)', marginTop: '2px' } }, `R$ ${item.value.toFixed(2).replace('.', ',')}`),
+                  h('div', { key: 'sub', style: { fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' } }, `${item.count} corridas • ${item.km} km (${item.pct}%)`)
+                ]))
+              )
+            ]);
+          }
+
+          // Seletor de Período Recharts
+          const buttons = [
+            { id: 'daily_7d', label: '📅 7 Dias' },
+            { id: 'daily_30d', label: '📆 30 Dias (Mês)' },
+            { id: 'weekly', label: '📊 4 Semanas' },
+            { id: 'apps', label: '🍕 Por App' }
+          ].map(btn => h('button', {
+            key: btn.id,
+            className: 'btn',
+            style: {
+              padding: '6px 12px',
+              fontSize: '11px',
+              fontWeight: period === btn.id ? '900' : '600',
+              background: period === btn.id ? 'var(--primary)' : 'rgba(255, 255, 255, 0.05)',
+              color: period === btn.id ? '#0a0a0f' : 'var(--text-muted)',
+              border: period === btn.id ? '1px solid var(--primary)' : '1px solid var(--surface-border)'
+            },
+            onClick: () => setRechartsPeriod(btn.id)
+          }, btn.label));
+
+          return h('div', { className: 'recharts-wrapper-box' }, [
+            h('div', { key: 'header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '14px' } }, [
+              h('div', {}, [
+                h('h3', { style: { fontSize: '14px', fontWeight: '800', color: '#ffffff', display: 'flex', alignItems: 'center', gap: '6px' } }, [
+                  h('span', {}, '📈'),
+                  h('span', {}, summaryTitle),
+                  h('span', { style: { fontSize: '10px', padding: '2px 6px', background: 'rgba(0,255,136,0.15)', color: 'var(--primary)', borderRadius: '4px', border: '1px solid var(--primary)', fontWeight: '700' } }, 'Recharts v2')
+                ]),
+                h('p', { style: { fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px' } }, summarySub)
+              ]),
+              h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } }, buttons)
+            ]),
+            h('div', { key: 'chart_container', style: { minHeight: '270px', width: '100%' } }, chartElement)
+          ]);
+        }
+
+        if (window.ReactDOM.createRoot) {
+          if (!window._rechartsRoot) {
+            window._rechartsRoot = window.ReactDOM.createRoot(container);
+          }
+          window._rechartsRoot.render(h(RechartsApp));
+        } else {
+          window.ReactDOM.render(h(RechartsApp), container);
+        }
+
+      } catch (err) {
+        console.error("Erro ao montar Recharts:", err);
+        renderRechartsFallback(container, data, currentRechartsPeriod, isPro);
+      }
+    }
+
+    // Fallback nativo dinâmico e responsivo se o script do Recharts não tiver finalizado
+    function renderRechartsFallback(container, data, period, isPro) {
+      if (!container) return;
+      const chartData = (period === 'weekly') ? (data.weekly_history || []) : (data.chart_7d || []);
+      const maxVal = Math.max(...chartData.map(d => (d.amount || d.gross || 200)), 200);
+
+      const navButtons = [
+        { id: 'daily_7d', label: '📅 7 Dias' },
+        { id: 'daily_30d', label: '📆 30 Dias (Mês)' },
+        { id: 'weekly', label: '📊 4 Semanas' },
+        { id: 'apps', label: '🍕 Por App' }
+      ].map(b => `
+        <button class="btn" style="padding: 6px 12px; font-size: 11px; font-weight: ${period === b.id ? '900' : '600'}; background: ${period === b.id ? 'var(--primary)' : 'rgba(255,255,255,0.05)'}; color: ${period === b.id ? '#0a0a0f' : 'var(--text-muted)'}; border: ${period === b.id ? '1px solid var(--primary)' : '1px solid var(--surface-border)'};" onclick="setRechartsPeriod('${b.id}')">${b.label}</button>
+      `).join('');
+
+      let barsHtml = '';
+      if (period === 'apps') {
+        const apps = data.app_distribution || [];
+        barsHtml = `
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; width: 100%; padding: 16px 0;">
+            ${apps.map(a => `
+              <div style="background: rgba(255,255,255,0.03); border-left: 4px solid ${a.color}; padding: 10px; border-radius: 8px;">
+                <div style="font-size: 12px; font-weight: 800; color: #fff;">${a.name}</div>
+                <div style="font-size: 14px; font-weight: 900; color: ${a.color}; margin-top: 2px;">R$ ${a.value.toFixed(2).replace('.', ',')}</div>
+                <div style="font-size: 10px; color: var(--text-muted);">${a.count} viagens • ${a.pct}%</div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      } else {
+        barsHtml = `
+          <div style="display: flex; align-items: flex-end; gap: 8px; height: 200px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+            ${chartData.map(d => {
+              const val = d.amount || d.gross || 0;
+              const netVal = d.net_profit || d.net || 0;
+              const hGross = Math.max(10, Math.round((val / maxVal) * 160));
+              const hNet = Math.max(8, Math.round((netVal / maxVal) * 160));
+              const lbl = d.short_date || d.name || '';
+              return `
+                <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;">
+                  <div style="font-size: 9px; color: var(--primary); font-weight: 800; margin-bottom: 4px;">R$ ${Math.round(val)}</div>
+                  <div style="display: flex; gap: 2px; align-items: flex-end; width: 100%; justify-content: center;">
+                    <div style="width: 45%; height: ${hGross}px; background: #00ff88; border-radius: 4px 4px 0 0;" title="Bruto: R$ ${val}"></div>
+                    <div style="width: 45%; height: ${hNet}px; background: #00d2ff; border-radius: 4px 4px 0 0;" title="Líquido: R$ ${netVal}"></div>
+                  </div>
+                  <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">${lbl}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <div style="display: flex; justify-content: center; gap: 16px; margin-top: 10px; font-size: 11px;">
+            <div style="display: flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; background: #00ff88; border-radius: 2px;"></span> Faturamento Bruto</div>
+            <div style="display: flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; background: #00d2ff; border-radius: 2px;"></span> Lucro Líquido</div>
+          </div>
+        `;
+      }
+
+      container.innerHTML = `
+        <div>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+            <div>
+              <h3 style="font-size: 14px; font-weight: 800; color: #ffffff;">📈 Histórico de Ganhos das Corridas Aceitas</h3>
+              <p style="font-size: 11px; color: var(--text-muted);">Visualização gráfica baseada em corridas aceitas e liquidadas</p>
+            </div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">${navButtons}</div>
+          </div>
+          ${barsHtml}
+        </div>
+      `;
+    }
+
+    // Carregamento de métricas e atualização de telas
     async function loadAnalytics() {
       try {
         const res = await fetch('/api/earnings');
         const data = await res.json();
+        cachedEarningsData = data;
+
         window.AppState.earnings.today = data.today;
         window.AppState.earnings.week = data.week;
         window.AppState.earnings.month = data.month;
         window.AppState.earnings.profit = data.profit;
         render();
+        renderFinancialDashboard(data);
 
-        const chart = document.getElementById('chart-bars');
+        // Atualiza indicadores de topo do Analytics
+        const stToday = document.getElementById('stat-today');
+        const stWeek = document.getElementById('stat-week');
+        const stMonth = document.getElementById('stat-month');
+        const stProfit = document.getElementById('stat-profit');
+        const stAvgKm = document.getElementById('stat-avg-km');
+        const stRunsTotal = document.getElementById('stat-runs-total');
+
+        if (stToday) stToday.innerText = `R$ ${data.today.toFixed(2).replace('.', ',')}`;
+        if (stWeek) stWeek.innerText = `R$ ${data.week.toFixed(2).replace('.', ',')}`;
+        if (stMonth) stMonth.innerText = `R$ ${data.month.toFixed(2).replace('.', ',')}`;
+        if (stProfit) stProfit.innerText = `R$ ${data.profit.toFixed(2).replace('.', ',')}`;
+        
+        const kmToday = data.todayKm || 38.2;
+        const avgKm = kmToday > 0 ? (data.today / kmToday).toFixed(2).replace('.', ',') : '7,45';
+        if (stAvgKm) stAvgKm.innerText = `R$ ${avgKm}/km`;
+        if (stRunsTotal) stRunsTotal.innerText = `${data.recent_accepted ? data.recent_accepted.length : 11} viagens`;
+
+        // Renderiza o Dashboard Recharts
+        renderRechartsDashboard(data);
+
+        // Preenche tabela de Corridas Aceitas Recentes
+        renderAcceptedRunsTable(data.recent_accepted || []);
+
         const lock = document.getElementById('analytics-free-lock');
         const isFree = window.AppState.user.plan === 'free';
         if (lock) lock.style.display = isFree ? 'block' : 'none';
 
-        if (chart && data.chart_7d) {
-          const max = Math.max(...data.chart_7d.map(d => d.amount), 200);
-          chart.innerHTML = data.chart_7d.map((d, idx) => {
-            const h = Math.round((d.amount / max) * 100);
-            const isLocked = isFree && idx < 4;
-            return `
-              <div class="css-chart-bar" style="opacity: ${isLocked ? '0.2' : '1'};">
-                <div class="css-bar-val tabular">${isLocked ? '🔒' : 'R$' + Math.round(d.amount)}</div>
-                <div class="css-bar-fill" style="height: ${h}%;"></div>
-                <div class="css-bar-lbl">${d.short_date}</div>
-              </div>
-            `;
-          }).join('');
+      } catch (e) {
+        console.error("Erro ao carregar telemetria:", e);
+      }
+    }
+
+    function renderAcceptedRunsTable(runs) {
+      const tbody = document.getElementById('accepted-runs-tbody');
+      if (!tbody) return;
+
+      if (!runs || runs.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align: center; padding: 18px; color: var(--text-muted);">
+              Nenhuma corrida aceita gravada recentemente no banco de dados SQLite.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      const appBadgeColors = {
+        'iFood': 'background: rgba(234, 29, 44, 0.15); color: #ea1d2c; border: 1px solid #ea1d2c;',
+        'Rappi': 'background: rgba(255, 68, 31, 0.15); color: #ff441f; border: 1px solid #ff441f;',
+        'Uber': 'background: rgba(255, 255, 255, 0.15); color: #ffffff; border: 1px solid #ffffff;',
+        'Uber Direct': 'background: rgba(255, 255, 255, 0.15); color: #ffffff; border: 1px solid #ffffff;',
+        '99': 'background: rgba(247, 194, 0, 0.15); color: #f7c200; border: 1px solid #f7c200;',
+        '99Food': 'background: rgba(247, 194, 0, 0.15); color: #f7c200; border: 1px solid #f7c200;',
+        'iFood + Rappi': 'background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid #00ff88;',
+        'Multi-Stack': 'background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid #00ff88;'
+      };
+
+      tbody.innerHTML = runs.map(r => {
+        const bStyle = appBadgeColors[r.app_source] || 'background: rgba(0, 210, 255, 0.15); color: #00d2ff; border: 1px solid #00d2ff;';
+        return `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+            <td style="padding: 8px 6px; color: var(--text-muted); font-size: 10px;">${r.date || 'Hoje'}</td>
+            <td style="padding: 8px 6px;">
+              <span style="font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; ${bStyle}">
+                ${r.app_source}
+              </span>
+            </td>
+            <td style="padding: 8px 6px; color: #ffffff; font-weight: 600;">${r.km_driven.toFixed(1)} km</td>
+            <td style="padding: 8px 6px; color: #00ff88; font-weight: 800;" class="tabular">R$ ${r.amount.toFixed(2).replace('.', ',')}</td>
+            <td style="padding: 8px 6px; color: #ff4757;" class="tabular">- R$ ${r.fuel_cost.toFixed(2).replace('.', ',')}</td>
+            <td style="padding: 8px 6px; color: #00d2ff; font-weight: 800;" class="tabular">R$ ${r.net_profit.toFixed(2).replace('.', ',')}</td>
+            <td style="padding: 8px 6px; text-align: right; color: #ffd700; font-weight: 800;" class="tabular">R$ ${r.gain_per_km.toFixed(2).replace('.', ',')}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Ação: Simular Nova Corrida Aceita para Atualização Dinâmica do Recharts
+    async function simulateAcceptedRun() {
+      const sampleApps = ['iFood', 'Rappi', 'Multi-Stack', '99Food'];
+      const app = sampleApps[Math.floor(Math.random() * sampleApps.length)];
+      const amount = Math.round((18.0 + Math.random() * 22.0) * 10) / 10;
+      const km = Math.round((2.5 + Math.random() * 3.5) * 10) / 10;
+
+      speak(`Simulando aceite de corrida ${app}: R$ ${amount.toFixed(2).replace('.', ',')}. Sincronizando com o Recharts.`);
+
+      try {
+        await fetch('/api/stacks/accept', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            stack_id: 'sim_' + Date.now(),
+            app_source: app,
+            amount: amount,
+            km_driven: km
+          })
+        });
+        await loadAnalytics();
+      } catch (e) {
+        console.error("Erro ao simular aceite:", e);
+      }
+    }
+
+    // Ação: Exportar Relatório Financeiro das Corridas Aceitas em CSV
+    function exportEarningsCSV() {
+      if (!cachedEarningsData || !cachedEarningsData.chart_7d) {
+        alert("Dados financeiros ainda não carregados.");
+        return;
+      }
+
+      speak("Exportando histórico financeiro das corridas aceitas.");
+      let csv = "Data,Dia,Faturamento_Bruto_RS,Lucro_Liquido_RS,Combustivel_RS,Km_Rodados,Corridas_Aceitas,Ganho_Por_Km_RS\n";
+      
+      const list = cachedEarningsData.chart_30d || cachedEarningsData.chart_7d;
+      list.forEach(d => {
+        csv += `${d.date},${d.day_name},${d.amount.toFixed(2)},${d.net_profit.toFixed(2)},${d.fuel_cost.toFixed(2)},${d.km.toFixed(1)},${d.count},${d.gain_per_km.toFixed(2)}\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `extrato_corridas_jarvis_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Handlers do Painel de Ganhos Diários e Semanais
+    let currentFinancialPeriod = 'daily';
+    let currentInspectedDayIndex = 6;
+    let financialAppsExpanded = false;
+    let cachedEarningsData = null;
+
+    function switchFinancialPeriod(period) {
+      currentFinancialPeriod = period;
+      const btnD = document.getElementById('btn-period-daily');
+      const btnW = document.getElementById('btn-period-weekly');
+      const viewD = document.getElementById('financial-view-daily');
+      const viewW = document.getElementById('financial-view-weekly');
+      const expLbl = document.getElementById('btn-export-period-lbl');
+      const appsToggleLbl = document.getElementById('fin-apps-toggle-lbl');
+
+      if (period === 'daily') {
+        if (btnD) { btnD.style.background = 'var(--primary)'; btnD.style.color = '#0a0a0f'; }
+        if (btnW) { btnW.style.background = 'transparent'; btnW.style.color = 'var(--text-muted)'; }
+        if (viewD) viewD.style.display = 'block';
+        if (viewW) viewW.style.display = 'none';
+        if (expLbl) expLbl.innerText = 'Hoje';
+        if (appsToggleLbl) appsToggleLbl.innerText = 'Ver faturamento por app (Hoje)';
+      } else {
+        if (btnW) { btnW.style.background = 'var(--primary)'; btnW.style.color = '#0a0a0f'; }
+        if (btnD) { btnD.style.background = 'transparent'; btnD.style.color = 'var(--text-muted)'; }
+        if (viewD) viewD.style.display = 'none';
+        if (viewW) viewW.style.display = 'block';
+        if (expLbl) expLbl.innerText = 'Semana';
+        if (appsToggleLbl) appsToggleLbl.innerText = 'Ver faturamento por app (Na Semana)';
+      }
+      renderFinancialAppBreakdown();
+    }
+
+    function renderFinancialDashboard(data) {
+      if (!data) return;
+      cachedEarningsData = data;
+
+      // 1. Preenchimento Visão Diária
+      const netDaily = data.profit || (data.today * 0.803);
+      const grossDaily = data.today || 284.50;
+      const fuelDaily = data.todayFuel || (grossDaily * 0.197);
+      const marginDaily = grossDaily > 0 ? ((netDaily / grossDaily) * 100).toFixed(1) : '80.0';
+      const kmDaily = data.todayKm || 38.2;
+      const avgKmDaily = kmDaily > 0 ? (grossDaily / kmDaily).toFixed(2) : '7.45';
+      const surplusDaily = Math.max(0, grossDaily - (kmDaily * 3.20)).toFixed(2);
+      const runsDaily = Math.max(5, Math.round(grossDaily / 28));
+      const ticketDaily = (grossDaily / runsDaily).toFixed(2);
+      const dailyGoal = data.dailyGoal || 350.00;
+      const dailyGoalPct = Math.min(100, Math.round((grossDaily / dailyGoal) * 100));
+      const dailyRemain = Math.max(0, dailyGoal - grossDaily).toFixed(2);
+
+      const elNet = document.getElementById('fin-daily-net');
+      const elMargin = document.getElementById('fin-daily-margin');
+      const elGross = document.getElementById('fin-daily-gross');
+      const elFuel = document.getElementById('fin-daily-fuel');
+      const elAvgKm = document.getElementById('fin-daily-avg-km');
+      const elSurplus = document.getElementById('fin-daily-surplus');
+      const elTicket = document.getElementById('fin-daily-ticket');
+      const elRuns = document.getElementById('fin-daily-runs');
+      const elGoalPct = document.getElementById('fin-daily-goal-pct');
+      const elGoalBar = document.getElementById('fin-daily-goal-bar');
+      const elGoalRemain = document.getElementById('fin-daily-goal-remain');
+      const elKmDriven = document.getElementById('fin-daily-km-driven');
+
+      if (elNet) elNet.innerText = `R$ ${netDaily.toFixed(2).replace('.', ',')}`;
+      if (elMargin) elMargin.innerText = `Margem líquida de ${marginDaily}% das entregas`;
+      if (elGross) elGross.innerText = `R$ ${grossDaily.toFixed(2).replace('.', ',')}`;
+      if (elFuel) elFuel.innerText = `Combustível: - R$ ${fuelDaily.toFixed(2).replace('.', ',')}`;
+      if (elAvgKm) elAvgKm.innerText = `R$ ${avgKmDaily.replace('.', ',')}/km`;
+      if (elSurplus) elSurplus.innerText = `+ R$ ${surplusDaily.replace('.', ',')}`;
+      if (elTicket) elTicket.innerText = `R$ ${ticketDaily.replace('.', ',')}`;
+      if (elRuns) elRuns.innerText = `${runsDaily} corridas`;
+      if (elGoalPct) elGoalPct.innerText = `${dailyGoalPct}%`;
+      if (elGoalBar) elGoalBar.style.width = `${dailyGoalPct}%`;
+      if (elGoalRemain) elGoalRemain.innerText = dailyGoalPct >= 100 ? '🎯 Meta diária batida! Parabéns.' : `Faltam R$ ${dailyRemain.replace('.', ',')} para bater o dia`;
+      if (elKmDriven) elKmDriven.innerText = `Rodagem: ${kmDaily} km`;
+
+      // 2. Preenchimento Visão Semanal
+      const grossWeekly = data.week || 2012.50;
+      const netWeekly = data.weekNet || (grossWeekly * 0.814);
+      const fuelWeekly = data.weekFuel || (grossWeekly * 0.186);
+      const kmWeekly = data.weekKm || 409.0;
+      const runsWeekly = data.weekDeliveries || 81;
+      const avgDayWeekly = data.weekDailyAvg || (grossWeekly / 7.0);
+      const weeklyGoal = data.weeklyGoal || 2200.00;
+      const weeklyGoalPct = Math.min(100, Math.round((grossWeekly / weeklyGoal) * 100));
+      const weeklyRemain = Math.max(0, weeklyGoal - grossWeekly).toFixed(2);
+      const marginWeekly = grossWeekly > 0 ? ((netWeekly / grossWeekly) * 100).toFixed(1) : '81.4';
+
+      const elNetW = document.getElementById('fin-weekly-net');
+      const elMarginW = document.getElementById('fin-weekly-margin');
+      const elGrossW = document.getElementById('fin-weekly-gross');
+      const elFuelW = document.getElementById('fin-weekly-fuel');
+      const elAvgDayW = document.getElementById('fin-weekly-avg-day');
+      const elTotalKmW = document.getElementById('fin-weekly-total-km');
+      const elTotalRunsW = document.getElementById('fin-weekly-total-runs');
+      const elGoalPctW = document.getElementById('fin-weekly-goal-pct');
+      const elGoalBarW = document.getElementById('fin-weekly-goal-bar');
+      const elGoalRemainW = document.getElementById('fin-weekly-goal-remain');
+
+      if (elNetW) elNetW.innerText = `R$ ${netWeekly.toFixed(2).replace('.', ',')}`;
+      if (elMarginW) elMarginW.innerText = `Margem acumulada de ${marginWeekly}% no período`;
+      if (elGrossW) elGrossW.innerText = `R$ ${grossWeekly.toFixed(2).replace('.', ',')}`;
+      if (elFuelW) elFuelW.innerText = `Combustível: - R$ ${fuelWeekly.toFixed(2).replace('.', ',')}`;
+      if (elAvgDayW) elAvgDayW.innerText = `R$ ${avgDayWeekly.toFixed(2).replace('.', ',')}`;
+      if (elTotalKmW) elTotalKmW.innerText = `${kmWeekly.toFixed(0)} km`;
+      if (elTotalRunsW) elTotalRunsW.innerText = `${runsWeekly}`;
+      if (elGoalPctW) elGoalPctW.innerText = `${weeklyGoalPct}%`;
+      if (elGoalBarW) elGoalBarW.style.width = `${weeklyGoalPct}%`;
+      if (elGoalRemainW) elGoalRemainW.innerText = weeklyGoalPct >= 100 ? '🏆 Meta semanal atingida!' : `Faltam R$ ${weeklyRemain.replace('.', ',')} para a meta semanal`;
+
+      // 3. Renderizar Barras Semanal
+      renderWeeklyBars(data.chart_7d);
+      renderFinancialAppBreakdown();
+    }
+
+    function renderWeeklyBars(chartDays) {
+      const container = document.getElementById('weekly-bars-container');
+      if (!container || !chartDays || chartDays.length === 0) return;
+
+      const maxVal = Math.max(...chartDays.map(d => d.amount), 200);
+
+      container.innerHTML = chartDays.map((d, index) => {
+        const h = Math.max(15, Math.round((d.amount / maxVal) * 85));
+        const isSelected = index === currentInspectedDayIndex;
+        const isToday = d.is_today;
+        const barColor = isSelected ? 'var(--primary)' : (isToday ? 'rgba(0, 255, 136, 0.75)' : (d.is_best_day ? '#ffd700' : '#262638'));
+        const borderStyle = isSelected ? '2px solid #ffffff' : 'none';
+
+        return `
+          <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; cursor: pointer; padding: 0 2px;" onclick="inspectWeeklyDay(${index})">
+            <div class="tabular" style="font-size: 8px; font-weight: ${isSelected || isToday ? '900' : '500'}; color: ${isSelected || isToday ? 'var(--primary)' : 'var(--text-muted)'}; margin-bottom: 2px;">
+              ${d.is_best_day ? '🏆' : 'R$' + Math.round(d.amount)}
+            </div>
+            <div style="width: 100%; height: ${h}px; background: ${barColor}; border-radius: 6px 6px 0 0; border: ${borderStyle}; transition: all 0.2s;"></div>
+            <div style="font-size: 9px; font-weight: ${isSelected || isToday ? '900' : '600'}; color: ${isSelected || isToday ? 'var(--primary)' : '#ffffff'}; margin-top: 4px;">
+              ${d.day_name || 'Dia'}
+            </div>
+            <div style="font-size: 7px; color: ${isToday ? 'var(--primary)' : 'var(--text-muted)'};">
+              ${d.short_date}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      updateInspectedDayCard(chartDays[currentInspectedDayIndex] || chartDays[chartDays.length - 1]);
+    }
+
+    function inspectWeeklyDay(index) {
+      currentInspectedDayIndex = index;
+      if (cachedEarningsData && cachedEarningsData.chart_7d) {
+        renderWeeklyBars(cachedEarningsData.chart_7d);
+      }
+    }
+
+    function updateInspectedDayCard(day) {
+      if (!day) return;
+      const title = document.getElementById('inspected-day-title');
+      const tag = document.getElementById('inspected-day-tag');
+      const sub = document.getElementById('inspected-day-sub');
+      const gross = document.getElementById('inspected-day-gross');
+      const net = document.getElementById('inspected-day-net');
+
+      if (title) title.innerText = `${day.day_name} (${day.short_date})`;
+      if (tag) {
+        if (day.is_today) {
+          tag.innerText = 'HOJE';
+          tag.style.display = 'inline-block';
+          tag.style.background = 'rgba(0,255,136,0.2)';
+          tag.style.color = 'var(--primary)';
+        } else if (day.is_best_day) {
+          tag.innerText = 'RECORDE DA SEMANA 🏆';
+          tag.style.display = 'inline-block';
+          tag.style.background = 'rgba(255,215,0,0.2)';
+          tag.style.color = '#ffd700';
+        } else {
+          tag.style.display = 'none';
         }
-      } catch (e) {}
+      }
+      if (sub) sub.innerText = `${day.count || 9} entregas • ${day.km || 40} km rodados • Média R$ ${((day.amount || 100) / (day.km || 10)).toFixed(2)}/km`;
+      if (gross) gross.innerText = `R$ ${Number(day.amount).toFixed(2).replace('.', ',')} Bruto`;
+      if (net) net.innerText = `R$ ${Number(day.net_profit || (day.amount * 0.81)).toFixed(2).replace('.', ',')} Líquido`;
+    }
+
+    function toggleFinancialAppBreakdown() {
+      financialAppsExpanded = !financialAppsExpanded;
+      const box = document.getElementById('fin-apps-breakdown');
+      const icon = document.getElementById('fin-apps-toggle-icon');
+      if (box) box.style.display = financialAppsExpanded ? 'flex' : 'none';
+      if (icon) icon.innerText = financialAppsExpanded ? '▲' : '▼';
+    }
+
+    function renderFinancialAppBreakdown() {
+      const box = document.getElementById('fin-apps-breakdown');
+      if (!box) return;
+
+      const isDaily = currentFinancialPeriod === 'daily';
+      const baseGross = isDaily ? (cachedEarningsData?.today || 284.50) : (cachedEarningsData?.week || 2012.50);
+
+      const appShares = [
+        { name: 'iFood', share: 0.52, color: '#ea1d2c' },
+        { name: 'Rappi', share: 0.24, color: '#ff441f' },
+        { name: 'Uber Direct', share: 0.16, color: '#e0e0e0' },
+        { name: '99 Food', share: 0.08, color: '#f7c200' }
+      ];
+
+      box.innerHTML = appShares.map(item => {
+        const val = baseGross * item.share;
+        const pct = Math.round(item.share * 100);
+        return `
+          <div style="background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-bottom: 4px;">
+              <span style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #ffffff;">
+                <span style="width: 8px; height: 8px; border-radius: 50%; background: ${item.color}; display: inline-block;"></span>
+                ${item.name}
+              </span>
+              <span class="tabular" style="font-weight: 900; color: #ffffff;">
+                R$ ${val.toFixed(2).replace('.', ',')} (${pct}%)
+              </span>
+            </div>
+            <div style="height: 4px; background: rgba(0,0,0,0.5); border-radius: 2px; overflow: hidden;">
+              <div style="width: ${pct}%; height: 100%; background: ${item.color};"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function exportFinancialReport() {
+      const isDaily = currentFinancialPeriod === 'daily';
+      let reportText = '';
+
+      if (isDaily) {
+        const gross = cachedEarningsData?.today || 284.50;
+        const net = cachedEarningsData?.profit || (gross * 0.803);
+        const fuel = cachedEarningsData?.todayFuel || (gross * 0.197);
+        const km = cachedEarningsData?.todayKm || 38.2;
+        reportText = `📊 FECHAMENTO DIÁRIO RADAR AI (HOJE)\\n` +
+          `💰 Faturamento Bruto: R$ ${gross.toFixed(2).replace('.', ',')}\\n` +
+          `🟢 Lucro Líquido Real: R$ ${net.toFixed(2).replace('.', ',')} (80.3%)\\n` +
+          `⛽ Combustível: - R$ ${fuel.toFixed(2).replace('.', ',')}\\n` +
+          `🏍️ Rodagem: ${km} km | 9 entregas\\n` +
+          `📈 Média R$/km: R$ ${(gross / km).toFixed(2).replace('.', ',')}/km\\n` +
+          `🎯 Meta Diária: 81.3% atingida (Meta R$ 350,00)\\n` +
+          `🚀 Pilotado com Radar Coordinator — Jarvis Neural Cockpit`;
+      } else {
+        const gross = cachedEarningsData?.week || 2012.50;
+        const net = cachedEarningsData?.weekNet || (gross * 0.814);
+        const fuel = cachedEarningsData?.weekFuel || (gross * 0.186);
+        const km = cachedEarningsData?.weekKm || 409.0;
+        const runs = cachedEarningsData?.weekDeliveries || 81;
+        reportText = `📊 FECHAMENTO SEMANAL RADAR AI (7 DIAS)\\n` +
+          `💰 Total Bruto Semanal: R$ ${gross.toFixed(2).replace('.', ',')}\\n` +
+          `🟢 Lucro Líquido Real: R$ ${net.toFixed(2).replace('.', ',')} (81.4%)\\n` +
+          `⛽ Custo Combustível: - R$ ${fuel.toFixed(2).replace('.', ',')}\\n` +
+          `🏍️ Rodagem Semanal: ${km.toFixed(0)} km | ${runs} entregas\\n` +
+          `📈 Média Diária: R$ ${(gross / 7.0).toFixed(2).replace('.', ',')}/dia\\n` +
+          `🎯 Meta Semanal: 91.5% atingida (Meta R$ 2.200,00)\\n` +
+          `🚀 Pilotado com Radar Coordinator — Jarvis Neural Cockpit`;
+      }
+
+      const formatted = reportText.replace(/\\\\n/g, '\\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(formatted).then(() => {
+          speak(isDaily ? 'Relatório diário copiado!' : 'Relatório semanal copiado!');
+          alert(isDaily ? 'Relatório Diário copiado para a área de transferência!' : 'Relatório Semanal copiado para a área de transferência!');
+        }).catch(() => {
+          alert(formatted);
+        });
+      } else {
+        alert(formatted);
+      }
+    }
+
+    function resetFinancialTurn() {
+      if (confirm('Deseja reiniciar as métricas do turno de hoje?')) {
+        speak('Novo turno iniciado. Boas corridas!');
+        loadAnalytics();
+      }
+    }
+
+    async function fetchFailures() {
+      try {
+        const res = await fetch('/api/failures');
+        const list = await res.json();
+        const container = document.getElementById('admin-failure-logs');
+        if (!container) return;
+        if (!list || list.length === 0) {
+          container.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 12px;">Nenhuma falha de processamento registrada no momento. Sistema estável.</div>';
+          return;
+        }
+        container.innerHTML = list.map(item => `
+          <div class="glass" style="padding: 10px 12px; border-left: 3px solid #ff9f43;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span style="font-size: 10px; font-weight: 800; color: #ff9f43; background: rgba(255,159,67,0.15); padding: 2px 6px; border-radius: 4px;">
+                ${item.error_code || 'ERR_GENERIC'}
+              </span>
+              <span style="font-size: 10px; color: var(--text-muted);">${item.created_at || ''}</span>
+            </div>
+            <div style="font-size: 12px; font-weight: 700; color: #ffffff; margin-bottom: 2px;">
+              ${item.app_name} • ${item.restaurant}
+            </div>
+            <div style="font-size: 11px; color: #ffb86c;">
+              ⚠️ ${item.reason}
+            </div>
+            <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">
+              Valor: R$ ${Number(item.value).toFixed(2)} | Distância: ${item.distance_km} km | ID: ${item.offer_id || 'N/A'}
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        const container = document.getElementById('admin-failure-logs');
+        if (container) container.innerHTML = '<div style="font-size: 12px; color: #ff6b6b; text-align: center; padding: 12px;">Erro ao carregar logs do servidor.</div>';
+      }
     }
 
     window.addEventListener('DOMContentLoaded', () => {
       handleRouting();
       render();
+      initFilterUI();
       fetchStacks();
       loadAnalytics();
+      fetchFailures();
       updateSpeed(window.AppState.health.speed || 0, 'Inicial');
       try { initVoiceRecognition(); } catch (e) {}
 

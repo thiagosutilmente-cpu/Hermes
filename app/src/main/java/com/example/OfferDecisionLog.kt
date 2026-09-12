@@ -15,7 +15,8 @@ import java.util.UUID
  */
 enum class DecisionAction(val label: String, val icon: String, val colorHex: Long) {
     ACCEPTED("Aceita", "✅", 0xFF00FF88),
-    DECLINED("Rejeitada", "❌", 0xFFFF4757)
+    DECLINED("Rejeitada", "❌", 0xFFFF4757),
+    FAILED("Falha / Erro", "⚠️", 0xFFFF9F43)
 }
 
 /**
@@ -67,6 +68,11 @@ object OfferDecisionLogManager {
                 val array = JSONArray(jsonStr)
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
+                    val actionParsed = when (obj.optString("action")) {
+                        "ACCEPTED" -> DecisionAction.ACCEPTED
+                        "FAILED" -> DecisionAction.FAILED
+                        else -> DecisionAction.DECLINED
+                    }
                     logs.add(
                         OfferDecisionLog(
                             id = obj.optString("id", UUID.randomUUID().toString()),
@@ -76,7 +82,7 @@ object OfferDecisionLogManager {
                             value = obj.optDouble("value", 0.0),
                             distanceKm = obj.optDouble("distanceKm", 0.0),
                             gainPerKm = obj.optDouble("gainPerKm", 0.0),
-                            action = if (obj.optString("action") == "ACCEPTED") DecisionAction.ACCEPTED else DecisionAction.DECLINED,
+                            action = actionParsed,
                             reason = obj.optString("reason", "Decisão manual"),
                             source = obj.optString("source", "Toque Manual"),
                             timestampFormatted = obj.optString("timestampFormatted", "Hoje"),
@@ -149,6 +155,59 @@ object OfferDecisionLogManager {
     }
 
     /**
+     * Registra evento de FALHA de processamento em ofertas para depuração em campo.
+     */
+    fun logFailure(
+        context: Context,
+        offerId: String,
+        appName: String,
+        restaurant: String,
+        value: Double,
+        distanceKm: Double,
+        reason: String = "Falha no parser/timeout de rede",
+        source: String = "Radar Engine Debug"
+    ): OfferDecisionLog {
+        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        val gainPerKm = if (distanceKm > 0) value / distanceKm else value
+        val item = OfferDecisionLog(
+            offerId = offerId,
+            appName = appName,
+            restaurant = restaurant,
+            value = value,
+            distanceKm = distanceKm,
+            gainPerKm = gainPerKm,
+            action = DecisionAction.FAILED,
+            reason = reason,
+            source = source,
+            timestampFormatted = timeFormat.format(Date())
+        )
+        logs.add(0, item)
+        saveToDisk(context)
+        return item
+    }
+
+    /**
+     * Registra evento de falha a partir de uma oferta RadarOffer já existente.
+     */
+    fun logOfferFailure(
+        context: Context,
+        offer: RadarOffer,
+        reason: String,
+        source: String = "Depuração de Campo"
+    ): OfferDecisionLog {
+        return logFailure(
+            context = context,
+            offerId = offer.id,
+            appName = offer.appName,
+            restaurant = offer.restaurant,
+            value = offer.value,
+            distanceKm = offer.distanceKm,
+            reason = reason,
+            source = source
+        )
+    }
+
+    /**
      * Limpa todo o histórico de logs.
      */
     fun clearLogs(context: Context) {
@@ -157,10 +216,11 @@ object OfferDecisionLogManager {
     }
 
     /**
-     * Métricas agregadas simples do histórico.
+     * Métricas agregadas do histórico (incluindo falhas de processamento).
      */
     fun getTotalAccepted(): Int = logs.count { it.action == DecisionAction.ACCEPTED }
     fun getTotalDeclined(): Int = logs.count { it.action == DecisionAction.DECLINED }
+    fun getTotalFailed(): Int = logs.count { it.action == DecisionAction.FAILED }
     fun getTotalDecisions(): Int = logs.size
 
     fun getAcceptanceRate(): Double {
@@ -271,6 +331,18 @@ object OfferDecisionLogManager {
                 reason = "Distância curta compensa",
                 source = "Navegação Maps",
                 timestampFormatted = "12:55:44"
+            ),
+            OfferDecisionLog(
+                offerId = "stk_seed_err_01",
+                appName = "Uber Eats",
+                restaurant = "Pizzaria Baggio Pinheiros",
+                value = 0.0,
+                distanceKm = 0.0,
+                gainPerKm = 0.0,
+                action = DecisionAction.FAILED,
+                reason = "Payload corrompido: distância inválida no broadcast do app parceiro",
+                source = "Fila Neural Debugger",
+                timestampFormatted = "12:40:15"
             )
         )
         logs.addAll(initialEvents)

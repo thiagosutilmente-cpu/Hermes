@@ -35,7 +35,23 @@ enum class VoiceActionCommand {
     FOCUS_OFF,
     RADAR_ON,
     RADAR_OFF,
-    SEARCH_MERGED
+    SEARCH_MERGED,
+    // Comandos de Interação Natural com o Radar
+    READ_OFFER,
+    READ_EARNINGS,
+    OPEN_NAVIGATION,
+    READ_HEALTH,
+    HELP,
+    // Comandos de Alteração de Filtros por Voz
+    FILTER_RAIN_PRESET,
+    FILTER_SHORT_PRESET,
+    FILTER_MAX_PROFIT_PRESET,
+    FILTER_RESET,
+    FILTER_ONLY_MERGED,
+    FILTER_ONLY_JARVIS,
+    FILTER_MIN_15,
+    FILTER_MIN_20,
+    FILTER_MIN_30
 }
 
 /**
@@ -151,6 +167,8 @@ class HandsFreeSpeechManager(
         }
     }
 
+    private var isMutedForTts: Boolean = false
+
     /**
      * Pausa a escuta de comandos de voz
      */
@@ -165,12 +183,37 @@ class HandsFreeSpeechManager(
         }
     }
 
-    private fun scheduleRestartListening() {
-        if (!isShouldBeListening) return
+    /**
+     * Pausa temporariamente a escuta enquanto o TTS estiver anunciando algo
+     * para evitar que o microfone capture o próprio áudio gerado pelo aparelho (Acoustic Echo).
+     */
+    fun pauseForTts() {
+        isMutedForTts = true
+        restartJob?.cancel()
+        scope.launch {
+            try {
+                speechRecognizer?.stopListening()
+                _state.value = _state.value.copy(isListening = false)
+            } catch (_: Exception) {}
+        }
+    }
+
+    /**
+     * Retoma a escuta contínua logo após o término da fala do TTS.
+     */
+    fun resumeAfterTts() {
+        isMutedForTts = false
+        if (isShouldBeListening) {
+            scheduleRestartListening(delayMs = 400L)
+        }
+    }
+
+    private fun scheduleRestartListening(delayMs: Long = 1200L) {
+        if (!isShouldBeListening || isMutedForTts) return
         restartJob?.cancel()
         restartJob = scope.launch {
-            delay(1200L) // Pausa de recuperação para não sobrecarregar o microfone
-            if (isShouldBeListening) {
+            delay(delayMs) // Pausa de recuperação para não sobrecarregar o microfone
+            if (isShouldBeListening && !isMutedForTts) {
                 try {
                     speechRecognizer?.startListening(recognitionIntent)
                     _state.value = _state.value.copy(isListening = true)
@@ -244,6 +287,78 @@ class HandsFreeSpeechManager(
             t.contains("descartar") || t.contains("dispensar") || t.contains("pular")
         ) {
             return VoiceActionCommand.DECLINE
+        }
+
+        // 3. Comandos de Leitura de Oferta em Voz Alta
+        if (t.contains("ler oferta") || t.contains("ler corrida") || t.contains("ler pedido") ||
+            t.contains("ouvir oferta") || t.contains("ouvir corrida") || t.contains("detalhes") ||
+            t.contains("falar oferta") || t.contains("falar pedido") || t.contains("qual é a oferta") ||
+            t.contains("qual a oferta") || t.contains("o que tem") || t.contains("anunciar")
+        ) {
+            return VoiceActionCommand.READ_OFFER
+        }
+
+        // 4. Comandos de Ganhos / Saldo do Dia
+        if (t.contains("saldo") || t.contains("ganhos") || t.contains("quanto ganhei") ||
+            t.contains("faturamento") || t.contains("extrato") || t.contains("meu saldo") ||
+            t.contains("total hoje") || t.contains("lucro de hoje")
+        ) {
+            return VoiceActionCommand.READ_EARNINGS
+        }
+
+        // 5. Comandos de Rota / Navegação GPS para Coleta
+        if (t.contains("navegar") || t.contains("abrir rota") || t.contains("rota") ||
+            t.contains("abrir mapa") || t.contains("como chegar") || t.contains("iniciar rota") ||
+            t.contains("abrir gps")
+        ) {
+            return VoiceActionCommand.OPEN_NAVIGATION
+        }
+
+        // 6. Comandos de Diagnóstico / Saúde do Sistema
+        if (t.contains("saúde") || t.contains("saude") || t.contains("diagnóstico") ||
+            t.contains("bateria") || t.contains("sinal gps") || t.contains("precisão gps")
+        ) {
+            return VoiceActionCommand.READ_HEALTH
+        }
+
+        // 7. Ajuda / Lista de Comandos Disponíveis
+        if (t.contains("ajuda") || t.contains("comandos") || t.contains("o que posso falar") ||
+            t.contains("quais comandos") || t.contains("socorro")
+        ) {
+            return VoiceActionCommand.HELP
+        }
+
+        // 3. Comandos de Alteração de Filtro por Voz (Direção Segura)
+        if (t.contains("chuva") || t.contains("tarifa dinâmica") || t.contains("temporal")) {
+            return VoiceActionCommand.FILTER_RAIN_PRESET
+        }
+        if (t.contains("tiro curto") || t.contains("filtro curto") || t.contains("corridas curtas") || t.contains("curta distância") || t.contains("curtas")) {
+            return VoiceActionCommand.FILTER_SHORT_PRESET
+        }
+        if (t.contains("máximo lucro") || t.contains("maximo lucro") || t.contains("filtro lucro") || t.contains("alta rentabilidade") || t.contains("lucro alto")) {
+            return VoiceActionCommand.FILTER_MAX_PROFIT_PRESET
+        }
+        if (t.contains("limpar filtro") || t.contains("limpar filtros") || t.contains("resetar filtro") || t.contains("resetar filtros") ||
+            t.contains("redefinir filtro") || t.contains("redefinir filtros") || t.contains("sem filtro") || t.contains("tirar filtro") || t.contains("padrão livre")
+        ) {
+            return VoiceActionCommand.FILTER_RESET
+        }
+        if (t.contains("somente mesclada") || t.contains("somente mescladas") || t.contains("só mesclada") || t.contains("só mescladas") ||
+            t.contains("filtro mesclada") || t.contains("filtro mescladas") || t.contains("apenas mescladas")
+        ) {
+            return VoiceActionCommand.FILTER_ONLY_MERGED
+        }
+        if (t.contains("somente jarvis") || t.contains("só jarvis") || t.contains("filtro jarvis") || t.contains("modo inteligente") || t.contains("recomendações jarvis")) {
+            return VoiceActionCommand.FILTER_ONLY_JARVIS
+        }
+        if (t.contains("mínimo 15") || t.contains("minimo 15") || t.contains("quinze reais") || t.contains("15 reais")) {
+            return VoiceActionCommand.FILTER_MIN_15
+        }
+        if (t.contains("mínimo 20") || t.contains("minimo 20") || t.contains("vinte reais") || t.contains("20 reais")) {
+            return VoiceActionCommand.FILTER_MIN_20
+        }
+        if (t.contains("mínimo 30") || t.contains("minimo 30") || t.contains("trinta reais") || t.contains("30 reais")) {
+            return VoiceActionCommand.FILTER_MIN_30
         }
 
         // Comandos de Modo Foco

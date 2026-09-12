@@ -18,6 +18,11 @@ class NeuralVoiceManager(private val context: Context) : TextToSpeech.OnInitList
     private var isInitialized = false
     var isMuted: Boolean = false
 
+    var onSpeechStarted: (() -> Unit)? = null
+    var onSpeechFinished: (() -> Unit)? = null
+    var isSpeaking: Boolean = false
+        private set
+
     init {
         try {
             tts = TextToSpeech(context.applicationContext, this)
@@ -36,6 +41,24 @@ class NeuralVoiceManager(private val context: Context) : TextToSpeech.OnInitList
             }
             tts?.setSpeechRate(1.15f) // Velocidade ágil e dinâmica para o trânsito
             tts?.setPitch(1.0f)
+
+            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {
+                    isSpeaking = true
+                    onSpeechStarted?.invoke()
+                }
+
+                override fun onDone(utteranceId: String?) {
+                    isSpeaking = false
+                    onSpeechFinished?.invoke()
+                }
+
+                override fun onError(utteranceId: String?) {
+                    isSpeaking = false
+                    onSpeechFinished?.invoke()
+                }
+            })
+
             isInitialized = true
             Log.i("NeuralVoiceManager", "Text-to-Speech inicializado com sucesso em pt-BR.")
         } else {
@@ -135,6 +158,40 @@ class NeuralVoiceManager(private val context: Context) : TextToSpeech.OnInitList
         } else {
             speak("Radar Neural pausado.")
         }
+    }
+
+    /**
+     * Anúncio de saldo e faturamento do dia
+     */
+    fun announceEarnings(todayGross: Double, netProfit: Double, totalKm: Double, deliveryCount: Int) {
+        val grossFmt = String.format(Locale.GERMANY, "%.2f", todayGross).replace(".", ",")
+        val profitFmt = String.format(Locale.GERMANY, "%.2f", netProfit).replace(".", ",")
+        val kmFmt = String.format(Locale.GERMANY, "%.1f", totalKm).replace(".", ",")
+        val deliveryText = if (deliveryCount == 1) "1 entrega realizada" else "$deliveryCount entregas realizadas"
+        speak("Ganhos de hoje: $grossFmt reais brutos com lucro líquido estimado de $profitFmt reais, totalizando $kmFmt quilômetros rodados em $deliveryText.")
+    }
+
+    /**
+     * Anúncio de rota e navegação para coleta
+     */
+    fun announceNavigation(restaurant: String, address: String) {
+        val addrText = if (address.isNotBlank()) " no endereço $address." else "."
+        speak("Iniciando navegação no mapa para coleta no $restaurant$addrText")
+    }
+
+    /**
+     * Anúncio de status de saúde e conectividade
+     */
+    fun announceSystemHealth(score: Int, gpsAccuracyMeters: Float, latencyMs: Int) {
+        val accuracyFmt = String.format(Locale.GERMANY, "%.1f", gpsAccuracyMeters).replace(".", ",")
+        speak("Diagnóstico do sistema: Índice de integridade em $score de 100. GPS com precisão de $accuracyFmt metros e latência de rede em $latencyMs milissegundos.")
+    }
+
+    /**
+     * Ajuda com lista de comandos de voz disponíveis
+     */
+    fun announceHelp() {
+        speak("Comandos viva-voz disponíveis: Diga Aceitar, Cancelar, Ler oferta, Saldo, Rota, Filtro chuva ou Tiro curto.")
     }
 
     fun stop() {

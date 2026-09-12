@@ -70,6 +70,7 @@ fun DeliveryProfileScreen(
         when (selectedFilter) {
             "ACCEPTED" -> logsList.filter { it.action == DecisionAction.ACCEPTED }
             "DECLINED" -> logsList.filter { it.action == DecisionAction.DECLINED }
+            "FAILED" -> logsList.filter { it.action == DecisionAction.FAILED }
             else -> logsList.toList()
         }
     }
@@ -143,6 +144,23 @@ fun DeliveryProfileScreen(
                 },
                 actions = {
                     IconButton(
+                        onClick = {
+                            OfferDecisionLogManager.logFailure(
+                                context = context,
+                                offerId = "test_err_${System.currentTimeMillis() % 1000}",
+                                appName = "Simulação Campo",
+                                restaurant = "Restaurante Teste Depuração",
+                                value = 18.50,
+                                distanceKm = 4.0,
+                                reason = "Falha intencional de teste de campo: timeout de parsing OCR",
+                                source = "Diagnóstico Manual"
+                            )
+                        },
+                        modifier = Modifier.testTag("action_simulate_failure_log")
+                    ) {
+                        Text(text = "⚠️", fontSize = 18.sp)
+                    }
+                    IconButton(
                         onClick = { showClearDialog = true },
                         modifier = Modifier.testTag("action_clear_logs")
                     ) {
@@ -173,6 +191,7 @@ fun DeliveryProfileScreen(
                 DecisionStatsDashboardCard(
                     totalAccepted = OfferDecisionLogManager.getTotalAccepted(),
                     totalDeclined = OfferDecisionLogManager.getTotalDeclined(),
+                    totalFailed = OfferDecisionLogManager.getTotalFailed(),
                     acceptanceRate = OfferDecisionLogManager.getAcceptanceRate(),
                     totalValueAccepted = OfferDecisionLogManager.getTotalAcceptedValue()
                 )
@@ -185,7 +204,8 @@ fun DeliveryProfileScreen(
                     onFilterChange = { selectedFilter = it },
                     totalAll = logsList.size,
                     totalAccepted = logsList.count { it.action == DecisionAction.ACCEPTED },
-                    totalDeclined = logsList.count { it.action == DecisionAction.DECLINED }
+                    totalDeclined = logsList.count { it.action == DecisionAction.DECLINED },
+                    totalFailed = logsList.count { it.action == DecisionAction.FAILED }
                 )
             }
 
@@ -336,6 +356,7 @@ fun PartnerAppPill(name: String, color: Color) {
 fun DecisionStatsDashboardCard(
     totalAccepted: Int,
     totalDeclined: Int,
+    totalFailed: Int = 0,
     acceptanceRate: Double,
     totalValueAccepted: Double
 ) {
@@ -370,7 +391,7 @@ fun DecisionStatsDashboardCard(
                 }
 
                 Text(
-                    text = "${totalAccepted + totalDeclined} eventos",
+                    text = "${totalAccepted + totalDeclined + totalFailed} eventos",
                     color = TextMuted,
                     fontSize = 11.sp
                 )
@@ -380,7 +401,7 @@ fun DecisionStatsDashboardCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 StatMiniBox(
                     title = "ACEITAS",
@@ -395,16 +416,22 @@ fun DecisionStatsDashboardCard(
                     modifier = Modifier.weight(1f)
                 )
                 StatMiniBox(
+                    title = "FALHAS",
+                    value = "$totalFailed",
+                    valueColor = Color(0xFFFF9F43),
+                    modifier = Modifier.weight(1f)
+                )
+                StatMiniBox(
                     title = "TAXA ACEITE",
                     value = String.format(Locale.GERMANY, "%.0f%%", acceptanceRate),
                     valueColor = if (acceptanceRate >= 50.0) NeonGreen else Color(0xFFFFD166),
                     modifier = Modifier.weight(1f)
                 )
                 StatMiniBox(
-                    title = "TOTAL GANHO",
+                    title = "TOTAL",
                     value = String.format(Locale.GERMANY, "R$ %.0f", totalValueAccepted),
                     valueColor = NeonGreen,
-                    modifier = Modifier.weight(1.2f)
+                    modifier = Modifier.weight(1.1f)
                 )
             }
         }
@@ -423,21 +450,21 @@ fun StatMiniBox(
             .clip(RoundedCornerShape(10.dp))
             .background(Color(0xFF141724))
             .border(1.dp, DarkBorder, RoundedCornerShape(10.dp))
-            .padding(vertical = 8.dp, horizontal = 6.dp),
+            .padding(vertical = 8.dp, horizontal = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = title,
                 color = TextMuted,
-                fontSize = 8.5.sp,
+                fontSize = 8.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = value,
                 color = valueColor,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Black
             )
         }
@@ -453,11 +480,12 @@ fun DecisionFilterChipsRow(
     onFilterChange: (String) -> Unit,
     totalAll: Int,
     totalAccepted: Int,
-    totalDeclined: Int
+    totalDeclined: Int,
+    totalFailed: Int = 0
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         FilterChipTab(
             label = "Todos ($totalAll)",
@@ -476,12 +504,20 @@ fun DecisionFilterChipsRow(
             tag = "filter_accepted"
         )
         FilterChipTab(
-            label = "Recusadas ($totalDeclined)",
+            label = "Recusas ($totalDeclined)",
             isSelected = selectedFilter == "DECLINED",
             activeColor = RedDecline,
             onClick = { onFilterChange("DECLINED") },
             modifier = Modifier.weight(1f),
             tag = "filter_declined"
+        )
+        FilterChipTab(
+            label = "Falhas ($totalFailed)",
+            isSelected = selectedFilter == "FAILED",
+            activeColor = Color(0xFFFF9F43),
+            onClick = { onFilterChange("FAILED") },
+            modifier = Modifier.weight(1f),
+            tag = "filter_failed"
         )
     }
 }
@@ -523,7 +559,12 @@ fun FilterChipTab(
 @Composable
 fun DecisionLogItemCard(log: OfferDecisionLog) {
     val isAccepted = log.action == DecisionAction.ACCEPTED
-    val accentColor = if (isAccepted) NeonGreen else RedDecline
+    val isFailed = log.action == DecisionAction.FAILED
+    val accentColor = when (log.action) {
+        DecisionAction.ACCEPTED -> NeonGreen
+        DecisionAction.DECLINED -> RedDecline
+        DecisionAction.FAILED -> Color(0xFFFF9F43)
+    }
     val formattedValue = String.format(Locale.GERMANY, "R$ %.2f", log.value)
     val formattedGain = String.format(Locale.GERMANY, "R$ %.2f/km", log.gainPerKm)
 
@@ -540,7 +581,7 @@ fun DecisionLogItemCard(log: OfferDecisionLog) {
                 .fillMaxWidth()
                 .padding(14.dp)
         ) {
-            // Linha Superior: Ação (Aceita/Recusada), App e Horário
+            // Linha Superior: Ação (Aceita/Recusada/Falha), App e Horário
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -623,7 +664,7 @@ fun DecisionLogItemCard(log: OfferDecisionLog) {
 
                 Text(
                     text = formattedGain,
-                    color = if (log.gainPerKm >= 5.0) NeonGreen else Color(0xFFFFD166),
+                    color = if (log.gainPerKm >= 5.0) NeonGreen else if (isFailed) Color(0xFFFF9F43) else Color(0xFFFFD166),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -637,9 +678,14 @@ fun DecisionLogItemCard(log: OfferDecisionLog) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val reasonColor = when {
+                    isAccepted -> NeonGreen.copy(alpha = 0.9f)
+                    isFailed -> Color(0xFFFFB86C)
+                    else -> Color(0xFFFF8B94)
+                }
                 Text(
                     text = "💡 ${log.reason}",
-                    color = if (isAccepted) NeonGreen.copy(alpha = 0.9f) else Color(0xFFFF8B94),
+                    color = reasonColor,
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,

@@ -72,7 +72,7 @@ import kotlin.math.sqrt
  */
 data class SpeedSafetyState(
     val currentSpeedKmh: Double = 0.0,
-    val isSafetyLockActive: Boolean = false, // true quando > 20.0 km/h
+    val isSafetyLockActive: Boolean = false, // true quando > 10.0 km/h
     val isMoving: Boolean = false, // true quando moto está em movimento
     val isGpsActive: Boolean = false,
     val gpsAccuracyMeters: Float = 3.8f,
@@ -81,7 +81,7 @@ data class SpeedSafetyState(
     val altitudeMeters: Double = 760.0,
     val bearingDegrees: Float = 0f,
     val isSimulating: Boolean = false,
-    val safetySpeedThresholdKmh: Double = 20.0,
+    val safetySpeedThresholdKmh: Double = 10.0,
     val sensorAccelerationMps2: Float = 0f,
     val provider: String = "Fused Location (GPS)"
 )
@@ -92,8 +92,8 @@ data class SpeedSafetyState(
  * com fallback para o [LocationManager] nativo e [SensorManager] (Acelerômetro) para detectar movimento.
  *
  * Regra Crítica:
- * Se a velocidade ultrapassar 20 km/h, ativa automaticamente a trava de segurança, bloqueando e ocultando a lista
- * de ofertas para impedir distrações visuais e acidentes durante a pilotagem.
+ * Se a velocidade ultrapassar 10 km/h via GPS, ativa automaticamente a trava de segurança, bloqueando e
+ * desativando a interface para impedir distrações visuais e acidentes durante a pilotagem.
  */
 class SpeedSafetyMonitor(
     private val context: Context,
@@ -105,7 +105,15 @@ class SpeedSafetyMonitor(
     private val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
     private var fusedLocationCallback: LocationCallback? = null
 
-    private val _state = MutableStateFlow(SpeedSafetyState())
+    // Limiar dinâmico de trava de velocidade carregado das preferências
+    var speedThresholdKmh: Double = try {
+        FilterPreferencesManager.loadCriteria(context).safetySpeedThresholdKm
+    } catch (_: Exception) {
+        15.0
+    }
+        private set
+
+    private val _state = MutableStateFlow(SpeedSafetyState(safetySpeedThresholdKmh = speedThresholdKmh))
     val state: StateFlow<SpeedSafetyState> = _state.asStateFlow()
 
     private var lastLocation: Location? = null
@@ -115,12 +123,57 @@ class SpeedSafetyMonitor(
     private val scope = CoroutineScope(Dispatchers.Main + Job())
 
     companion object {
-        const val SAFETY_SPEED_THRESHOLD_KMH = 20.0
+        const val SAFETY_SPEED_THRESHOLD_KMH = 15.0
+    }
+
+    /**
+     * Atualiza o limiar de velocidade dinâmico e reavalia a trava de segurança imediatamente.
+     */
+    fun updateSpeedThreshold(newThreshold: Double) {
+        speedThresholdKmh = newThreshold
+        LocationService.updateSafetySpeedThreshold(newThreshold)
+        val currentSpeed = _state.value.currentSpeedKmh
+        val wasLocked = _state.value.isSafetyLockActive
+        val isLocked = currentSpeed > newThreshold
+
+        _state.value = _state.value.copy(
+            safetySpeedThresholdKmh = newThreshold,
+            isSafetyLockActive = isLocked
+        )
+
+        if (wasLocked != isLocked) {
+            onSafetyLockChanged(isLocked, currentSpeed)
+        }
     }
 
     init {
         startSensors()
         startLocationUpdates()
+
+        // Sincroniza em tempo real com o LocationService em background
+        scope.launch {
+            LocationService.globalLocationState.collect { locState ->
+                if (!isSimulatingSpeed && locState.isTracking) {
+                    val wasLocked = _state.value.isSafetyLockActive
+                    val isLocked = locState.isSafetyLockActive
+                    _state.value = _state.value.copy(
+                        currentSpeedKmh = locState.currentSpeedKmh,
+                        isSafetyLockActive = isLocked,
+                        isMoving = locState.currentSpeedKmh > 2.0,
+                        isGpsActive = true,
+                        gpsAccuracyMeters = locState.accuracyMeters,
+                        latitude = locState.latitude,
+                        longitude = locState.longitude,
+                        altitudeMeters = locState.altitudeMeters,
+                        bearingDegrees = locState.bearingDegrees,
+                        provider = locState.speedSource
+                    )
+                    if (wasLocked != isLocked) {
+                        onSafetyLockChanged(isLocked, locState.currentSpeedKmh)
+                    }
+                }
+            }
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -213,7 +266,7 @@ class SpeedSafetyMonitor(
         lastLocation = location
 
         val wasLocked = _state.value.isSafetyLockActive
-        val isLocked = speedKmh > SAFETY_SPEED_THRESHOLD_KMH
+        val isLocked = speedKmh > speedThresholdKmh
         val isMoving = speedKmh > 2.0 || _state.value.sensorAccelerationMps2 > 1.2f
 
         _state.value = _state.value.copy(
@@ -232,6 +285,12 @@ class SpeedSafetyMonitor(
 
         // Sincroniza com LocationService
         LocationService.updateSimulatedSpeed(speedKmh)
+
+        // Avalia zonas de alta demanda (Geofencing) com a localização atual
+        try {
+            GeofencingDemandManager.getInstance(context)
+                .evaluateCurrentLocation(location.latitude, location.longitude)
+        } catch (_: Exception) {}
 
         if (wasLocked != isLocked) {
             onSafetyLockChanged(isLocked, speedKmh)
@@ -270,7 +329,7 @@ class SpeedSafetyMonitor(
         simulatedSpeedKmh = speedKmh
 
         val wasLocked = _state.value.isSafetyLockActive
-        val isLocked = speedKmh > SAFETY_SPEED_THRESHOLD_KMH
+        val isLocked = speedKmh > speedThresholdKmh
         val isMoving = speedKmh > 2.0
 
         _state.value = _state.value.copy(
@@ -323,7 +382,10 @@ class SpeedSafetyMonitor(
 @Composable
 fun SpeedSafetyLockCard(
     speedKmh: Double = 24.5,
+    thresholdKmh: Double = 15.0,
     isListeningVoice: Boolean = true,
+    lastVoiceCommand: String = "",
+    onSimulateVoiceCommand: ((String) -> Unit)? = null,
     onTestSpeedChanged: (Double) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -386,7 +448,7 @@ fun SpeedSafetyLockCard(
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = "> 20 KM/H",
+                        text = "> ${thresholdKmh.toInt()} KM/H",
                         color = RedDecline,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Black
@@ -407,7 +469,7 @@ fun SpeedSafetyLockCard(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = String.format(Locale.GERMANY, "%.0f", speedKmh),
+                        text = String.format(Locale("pt", "BR"), "%.0f", speedKmh),
                         color = TextLight,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Black
@@ -424,14 +486,14 @@ fun SpeedSafetyLockCard(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Lista de ofertas bloqueada por segurança",
+                text = "Interface desativada por segurança (GPS)",
                 color = TextLight,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Para proteger sua vida no trânsito, a interface de ofertas é bloqueada automaticamente enquanto o veículo estiver em movimento acima de 20 km/h.",
+                text = "Para proteger sua vida no trânsito, a interface é desativada e bloqueada automaticamente enquanto o veículo estiver em movimento acima de ${thresholdKmh.toInt()} km/h (configurável nas preferências).",
                 color = TextMuted,
                 fontSize = 11.sp,
                 lineHeight = 15.sp,
@@ -440,30 +502,153 @@ fun SpeedSafetyLockCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Aviso de Comandos por Voz Ativos
-            Row(
+            // Aviso e Painel de Comandos por Voz Ativos na Direção
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF0D1F18))
-                    .border(1.dp, NeonGreen.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .border(1.dp, NeonGreen.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .padding(12.dp)
             ) {
-                Text(text = "🎙️", fontSize = 16.sp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text(
-                        text = "Mãos Livres Ativo no Capacete",
-                        color = NeonGreen,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Você ainda pode aceitar a melhor oferta dizendo \"Aceitar\" ou \"Cancelar\".",
-                        color = TextLight.copy(alpha = 0.8f),
-                        fontSize = 10.sp
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = if (isListeningVoice) "🎙️" else "🔇", fontSize = 18.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (isListeningVoice) "Reconhecimento de Voz Contínuo Ativo" else "Reconhecimento em Espera",
+                            color = NeonGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (lastVoiceCommand.isNotBlank())
+                                "Último comando: \"$lastVoiceCommand\""
+                            else
+                                "Fale para aceitar corridas ou ajustar filtros sem soltar o guidão.",
+                            color = if (lastVoiceCommand.isNotBlank()) Color(0xFF00D2FF) else TextLight.copy(alpha = 0.85f),
+                            fontSize = 10.sp,
+                            fontWeight = if (lastVoiceCommand.isNotBlank()) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "Comandos de Áudio Disponíveis na Pilotagem:",
+                    color = TextMuted,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Chips / Botões de Comandos de Voz (Permite falar ou simular com 1 toque tático)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(NeonGreen.copy(alpha = 0.15f))
+                            .border(1.dp, NeonGreen.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                            .clickable { onSimulateVoiceCommand?.invoke("aceitar") }
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "🗣️ \"Aceitar\"",
+                            color = NeonGreen,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(RedDecline.copy(alpha = 0.15f))
+                            .border(1.dp, RedDecline.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                            .clickable { onSimulateVoiceCommand?.invoke("recusar") }
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "🗣️ \"Recusar\"",
+                            color = RedDecline,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Comandos de Filtro por Áudio
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF00D2FF).copy(alpha = 0.15f))
+                            .border(1.dp, Color(0xFF00D2FF).copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                            .clickable { onSimulateVoiceCommand?.invoke("filtro chuva") }
+                            .padding(vertical = 5.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "🌧️ \"Filtro Chuva\"",
+                            color = Color(0xFF00D2FF),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFFFFB800).copy(alpha = 0.15f))
+                            .border(1.dp, Color(0xFFFFB800).copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                            .clickable { onSimulateVoiceCommand?.invoke("tiro curto") }
+                            .padding(vertical = 5.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "⚡ \"Tiro Curto\"",
+                            color = Color(0xFFFFB800),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF9D4EDD).copy(alpha = 0.15f))
+                            .border(1.dp, Color(0xFF9D4EDD).copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                            .clickable { onSimulateVoiceCommand?.invoke("resetar filtros") }
+                            .padding(vertical = 5.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "🔄 \"Resetar\"",
+                            color = Color(0xFF9D4EDD),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
@@ -483,17 +668,17 @@ fun SpeedSafetyLockCard(
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SpeedTestButton(label = "0 km/h", isSelected = speedKmh <= 5.0) {
+                    SpeedTestButton(label = "0 km/h", isSelected = speedKmh <= 3.0) {
                         onTestSpeedChanged(0.0)
                     }
-                    SpeedTestButton(label = "15 km/h", isSelected = speedKmh in 6.0..20.0) {
+                    SpeedTestButton(label = "8 km/h", isSelected = speedKmh in 3.1..10.0) {
+                        onTestSpeedChanged(8.0)
+                    }
+                    SpeedTestButton(label = "15 km/h", isSelected = speedKmh in 10.1..25.0) {
                         onTestSpeedChanged(15.0)
                     }
-                    SpeedTestButton(label = "25 km/h", isSelected = speedKmh in 20.1..35.0) {
-                        onTestSpeedChanged(25.0)
-                    }
-                    SpeedTestButton(label = "45 km/h", isSelected = speedKmh > 35.0) {
-                        onTestSpeedChanged(45.0)
+                    SpeedTestButton(label = "35 km/h", isSelected = speedKmh > 25.0) {
+                        onTestSpeedChanged(35.0)
                     }
                 }
             }
@@ -506,7 +691,6 @@ fun SpeedSafetyLockCard(
  * Exibe no dashboard do entregador a velocidade instantânea de pilotagem,
  * o status dos satélites e o estado do bloqueio de segurança.
  */
-@Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun RealtimeSpeedTelemetryCard(
     speedState: SpeedSafetyState = SpeedSafetyState(
@@ -515,6 +699,8 @@ fun RealtimeSpeedTelemetryCard(
         isGpsActive = true,
         gpsAccuracyMeters = 3.8f
     ),
+    isBackgroundLocationGranted: Boolean = true,
+    onRequestBackgroundLocation: (() -> Unit)? = null,
     onSimulateSpeed: (Double) -> Unit = {},
     onResetRealGps: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -587,6 +773,84 @@ fun RealtimeSpeedTelemetryCard(
                 }
             }
 
+            // Indicador de Serviço em Background (Foreground Service)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF0F141C))
+                    .border(0.6.dp, Color(0xFF1E293B), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF00D2FF))
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "SERVIÇO 2º PLANO: ATIVO (FOREGROUND)",
+                        color = Color(0xFF00D2FF),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Text(
+                    text = "Áudio + Vibração",
+                    color = TextMuted,
+                    fontSize = 9.sp
+                )
+            }
+
+            // Banner se a permissão de segundo plano contínua estiver pendente no Android 10+
+            if (!isBackgroundLocationGranted && onRequestBackgroundLocation != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF2A1C0A))
+                        .border(1.dp, Color(0xFFFFB800), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "📍 Localização em 2º plano pendente",
+                            color = Color(0xFFFFB800),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Permita 'O tempo todo' para manter a trava ativa no Waze.",
+                            color = TextLight,
+                            fontSize = 9.sp
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFFFFB800))
+                            .clickable { onRequestBackgroundLocation() }
+                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = "ATIVAR",
+                            color = Color(0xFF0A0A0F),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             // Velocímetro e Detalhes
@@ -597,7 +861,7 @@ fun RealtimeSpeedTelemetryCard(
             ) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = String.format(Locale.GERMANY, "%.1f", speedState.currentSpeedKmh),
+                        text = String.format(Locale("pt", "BR"), "%.1f", speedState.currentSpeedKmh),
                         color = if (isLocked) RedDecline else NeonGreen,
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Black
@@ -622,7 +886,7 @@ fun RealtimeSpeedTelemetryCard(
                         )
                     }
                     Text(
-                        text = if (isLocked) "🚨 Trava Ativa (> 20 km/h)" else "🛡️ Modo Toque Livre (<= 20 km/h)",
+                        text = if (isLocked) "🚨 Trava Ativa (> ${speedState.safetySpeedThresholdKmh.toInt()} km/h)" else "🛡️ Toque Livre (<= ${speedState.safetySpeedThresholdKmh.toInt()} km/h)",
                         color = if (isLocked) RedDecline else TextLight,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold
@@ -651,14 +915,14 @@ fun RealtimeSpeedTelemetryCard(
                 )
 
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SpeedTestButton(label = "0 km/h", isSelected = speedState.currentSpeedKmh <= 5.0 && speedState.isSimulating) {
+                    SpeedTestButton(label = "0 km/h", isSelected = speedState.currentSpeedKmh <= 3.0 && speedState.isSimulating) {
                         onSimulateSpeed(0.0)
                     }
-                    SpeedTestButton(label = "15 km/h", isSelected = speedState.currentSpeedKmh in 6.0..20.0 && speedState.isSimulating) {
-                        onSimulateSpeed(15.0)
+                    SpeedTestButton(label = "8 km/h", isSelected = speedState.currentSpeedKmh in 3.1..10.0 && speedState.isSimulating) {
+                        onSimulateSpeed(8.0)
                     }
-                    SpeedTestButton(label = "25 km/h", isSelected = speedState.currentSpeedKmh > 20.0 && speedState.isSimulating) {
-                        onSimulateSpeed(25.0)
+                    SpeedTestButton(label = "15 km/h", isSelected = speedState.currentSpeedKmh > 10.0 && speedState.isSimulating) {
+                        onSimulateSpeed(15.0)
                     }
                     SpeedTestButton(label = "📡 GPS Real", isSelected = !speedState.isSimulating) {
                         onResetRealGps()

@@ -1,6 +1,7 @@
 package com.example
 
 import androidx.compose.ui.graphics.Color
+import org.json.JSONObject
 import java.util.Locale
 
 /**
@@ -240,11 +241,16 @@ object MergedDeliverySearchEngine {
         val val2 = (15..23).random().toDouble()
         val totalVal = val1 + val2
 
-        val dist1 = (20..35).random() / 10.0
-        val dist2 = (18..30).random() / 10.0
-        // Economia de rota compartilhada de 20% a 35%
-        val totalDist = ((dist1 + dist2) * 0.75).let { Math.round(it * 10) / 10.0 }.coerceAtLeast(3.2)
-        val savedKm = Math.max(0.6, Math.round(((dist1 + dist2) - totalDist) * 10) / 10.0)
+        // Coordenadas dos pontos de coleta e entrega urbanos
+        val baseLat = -23.561684
+        val baseLng = -46.655981
+        val dist1 = LocationService.estimateUrbanRouteKm(baseLat, baseLng, baseLat + 0.015, baseLng + 0.018).coerceIn(2.0, 3.8)
+        val dist2 = LocationService.estimateUrbanRouteKm(baseLat + 0.015, baseLng + 0.018, baseLat - 0.010, baseLng - 0.012).coerceIn(1.8, 3.5)
+
+        // Economia real de rota compartilhada de 25% a 35% ao unificar trechos
+        val rawTotal = (dist1 + dist2) * 0.70
+        val totalDist = (Math.round(rawTotal * 10.0) / 10.0).coerceAtLeast(3.0)
+        val savedKm = Math.max(0.6, Math.round(((dist1 + dist2) - totalDist) * 10.0) / 10.0)
         val bonusPct = (45..75).random()
 
         val id = "merged_${System.currentTimeMillis() % 100000}"
@@ -292,52 +298,175 @@ object MergedDeliverySearchEngine {
     }
 
     /**
-     * Executa busca e pareamento inteligente a partir de ofertas isoladas existentes
+     * Executa busca e pareamento inteligente a partir de ofertas isoladas existentes.
+     * Algoritmo Aprimorado de Busca Multi-App O(N²):
+     * 1. Testa todas as combinações de pares não-mesclados entre apps parceiros distintos.
+     * 2. Calcula a distância combinada considerando o fator de rota urbana compartilhada e proximidade dos hubs.
+     * 3. Prioriza e ordena pelo maior ganho financeiro por quilômetro (R$/km) e maior economia de trajeto.
      */
     fun findPairableSynergy(offers: List<RadarOffer>): List<RadarOffer> {
         val singles = offers.filter { !it.isMultiStack }
         if (singles.size < 2) return emptyList()
 
-        val mergedResults = mutableListOf<RadarOffer>()
-        for (i in 0 until singles.size - 1) {
-            val a = singles[i]
-            val b = singles[i + 1]
-            if (a.appName != b.appName) {
-                // Combina os dois apps
-                val combinedValue = a.value + b.value
-                val combinedDistance = ((a.distanceKm + b.distanceKm) * 0.72).let { Math.round(it * 10) / 10.0 }
-                val savedKm = Math.round(((a.distanceKm + b.distanceKm) - combinedDistance) * 10) / 10.0
-                val bonus = (((combinedValue / combinedDistance) / Math.max(a.gainPerKm, b.gainPerKm) - 1.0) * 100).toInt().coerceIn(20, 80)
+        val candidatePairs = mutableListOf<RadarOffer>()
 
-                mergedResults.add(
-                    RadarOffer(
-                        id = "paired_${a.id}_${b.id}",
-                        appName = "${a.appName} + ${b.appName} (Multi-Stack)",
-                        appColor = NeonGreen,
-                        restaurant = "${a.restaurant} & ${b.restaurant}",
-                        value = combinedValue,
-                        distanceKm = combinedDistance,
-                        timeMinutes = ((a.timeMinutes + b.timeMinutes) * 0.75).toInt(),
-                        pickupAddress = a.pickupAddress,
-                        destinationAddress = b.destinationAddress,
-                        isMultiStack = true,
-                        subOrders = listOf(
-                            SubDeliveryOrder(a.appName, a.appColor, a.restaurant, a.value, a.distanceKm, a.pickupAddress, a.destinationAddress),
-                            SubDeliveryOrder(b.appName, b.appColor, b.restaurant, b.value, b.distanceKm, b.pickupAddress, b.destinationAddress)
-                        ),
-                        synergySavingsKm = savedKm,
-                        synergyBonusPercent = bonus,
-                        waypointRoute = listOf(
-                            "● Coleta 1: ${a.restaurant}",
-                            "● Coleta 2: ${b.restaurant}",
-                            "🏠 Entrega 1: ${a.destinationAddress}",
-                            "🏢 Entrega 2: ${b.destinationAddress}"
+        for (i in 0 until singles.size) {
+            for (j in (i + 1) until singles.size) {
+                val a = singles[i]
+                val b = singles[j]
+
+                // Prioriza mesclagem entre aplicativos diferentes (iFood + Rappi, Uber + 99, etc.)
+                if (a.appName != b.appName) {
+                    val combinedValue = a.value + b.value
+
+                    // Fator de sobreposição geográfica estimado com base na proximidade de hubs e destinos
+                    val overlapFactor = when {
+                        a.pickupAddress.contains("Paulista", ignoreCase = true) && b.pickupAddress.contains("Paulista", ignoreCase = true) -> 0.62
+                        a.destinationAddress.contains("Jardins", ignoreCase = true) && b.destinationAddress.contains("Jardins", ignoreCase = true) -> 0.65
+                        a.destinationAddress.contains("Pinheiros", ignoreCase = true) && b.destinationAddress.contains("Pinheiros", ignoreCase = true) -> 0.68
+                        else -> 0.74 // Rota compartilhada padrão no raio urbano
+                    }
+
+                    val rawDistance = (a.distanceKm + b.distanceKm) * overlapFactor
+                    val combinedDistance = (Math.round(rawDistance * 10.0) / 10.0).coerceAtLeast(1.8)
+                    val savedKm = Math.max(0.4, Math.round(((a.distanceKm + b.distanceKm) - combinedDistance) * 10.0) / 10.0)
+
+                    val maxSingleGain = Math.max(a.gainPerKm, b.gainPerKm)
+                    val combinedGainPerKm = combinedValue / combinedDistance
+                    val bonusPercent = (((combinedGainPerKm / maxSingleGain) - 1.0) * 100).toInt().coerceIn(15, 90)
+
+                    val estimatedTimeMinutes = ((a.timeMinutes + b.timeMinutes) * 0.72).toInt().coerceAtLeast(14)
+
+                    candidatePairs.add(
+                        RadarOffer(
+                            id = "paired_${a.id}_${b.id}",
+                            appName = "${a.appName} + ${b.appName} (Multi-Stack)",
+                            appColor = NeonGreen,
+                            restaurant = "${a.restaurant} & ${b.restaurant}",
+                            value = combinedValue,
+                            distanceKm = combinedDistance,
+                            timeMinutes = estimatedTimeMinutes,
+                            pickupAddress = "${a.pickupAddress} ➔ ${b.pickupAddress}",
+                            destinationAddress = "${a.destinationAddress} ➔ ${b.destinationAddress}",
+                            isMultiStack = true,
+                            subOrders = listOf(
+                                SubDeliveryOrder(
+                                    appName = a.appName,
+                                    appColor = a.appColor,
+                                    restaurant = a.restaurant,
+                                    value = a.value,
+                                    distanceKm = a.distanceKm,
+                                    pickupAddress = a.pickupAddress,
+                                    destinationAddress = a.destinationAddress
+                                ),
+                                SubDeliveryOrder(
+                                    appName = b.appName,
+                                    appColor = b.appColor,
+                                    restaurant = b.restaurant,
+                                    value = b.value,
+                                    distanceKm = b.distanceKm,
+                                    pickupAddress = b.pickupAddress,
+                                    destinationAddress = b.destinationAddress
+                                )
+                            ),
+                            synergySavingsKm = savedKm,
+                            synergyBonusPercent = bonusPercent,
+                            waypointRoute = listOf(
+                                "● Coleta 1 (${a.appName}): ${a.restaurant}",
+                                "● Coleta 2 (${b.appName}): ${b.restaurant}",
+                                "🏠 Entrega 1: ${a.destinationAddress}",
+                                "🏢 Entrega 2: ${b.destinationAddress}"
+                            )
                         )
                     )
-                )
-                break
+                }
             }
         }
-        return mergedResults
+
+        // Ordena pela maior rentabilidade por km gerada
+        return candidatePairs.sortedByDescending { it.gainPerKm }
+    }
+
+    /**
+     * Mapeia um JSON de pedido retornado pela API REST (/api/stacks) para um [RadarOffer] completo,
+     * identificando automaticamente se é multi-stack, calculando ganho/km e avaliando com Jarvis Neural.
+     */
+    fun mapBackendStackToRadarOffer(json: JSONObject): RadarOffer {
+        val id = json.optString("id", "stk_${System.currentTimeMillis() % 10000}")
+        val apps = json.optString("apps", "iFood")
+        val restaurant = json.optString("restaurant", "Restaurante Local")
+        val totalValue = json.optDouble("total_value", 20.0)
+        val distanceKm = json.optDouble("distance_km", 3.5)
+        val timeMin = json.optInt("time_min", 15)
+        val isMulti = apps.contains("+")
+
+        val appColor = when {
+            apps.contains("iFood", ignoreCase = true) -> RedIFood
+            apps.contains("Rappi", ignoreCase = true) -> OrangeRappi
+            apps.contains("99", ignoreCase = true) -> Yellow99
+            else -> TextLight
+        }
+
+        val decision = RadarDecisionEngine.evaluate(totalValue, distanceKm, apps)
+
+        val subOrdersList = if (isMulti) {
+            val appParts = apps.split("+").map { it.trim() }
+            val restParts = restaurant.split("&").map { it.trim() }
+            val halfValue = (totalValue / 2.0 * 100).toInt() / 100.0
+            val otherValue = totalValue - halfValue
+            val halfDist = (distanceKm / 2.0 * 10).toInt() / 10.0
+            val otherDist = (distanceKm - halfDist).coerceAtLeast(1.0)
+            listOf(
+                SubDeliveryOrder(
+                    appName = appParts.getOrNull(0) ?: "App 1",
+                    appColor = if (appParts.getOrNull(0)?.contains("iFood", true) == true) RedIFood else OrangeRappi,
+                    restaurant = restParts.getOrNull(0) ?: restaurant,
+                    value = halfValue,
+                    distanceKm = halfDist,
+                    pickupAddress = "Hub ${restParts.getOrNull(0) ?: restaurant}",
+                    destinationAddress = "Ponto de Entrega A"
+                ),
+                SubDeliveryOrder(
+                    appName = appParts.getOrNull(1) ?: "App 2",
+                    appColor = if (appParts.getOrNull(1)?.contains("Rappi", true) == true) OrangeRappi else if (appParts.getOrNull(1)?.contains("99", true) == true) Yellow99 else TextLight,
+                    restaurant = restParts.getOrNull(1) ?: "Parceiro Secundário",
+                    value = otherValue,
+                    distanceKm = otherDist,
+                    pickupAddress = "Hub ${restParts.getOrNull(1) ?: "Parceiro"}",
+                    destinationAddress = "Ponto de Entrega B"
+                )
+            )
+        } else {
+            emptyList()
+        }
+
+        return RadarOffer(
+            id = id,
+            appName = if (isMulti) "$apps (Multi-Stack)" else apps,
+            appColor = if (isMulti) NeonGreen else appColor,
+            restaurant = restaurant,
+            value = totalValue,
+            distanceKm = distanceKm,
+            timeMinutes = timeMin,
+            pickupAddress = "Hub Parceiro: $restaurant",
+            destinationAddress = "Entrega Cliente, SP",
+            isMultiStack = isMulti,
+            neuralDecision = decision,
+            subOrders = subOrdersList,
+            synergySavingsKm = if (isMulti) 0.9 else 0.0,
+            synergyBonusPercent = if (isMulti) 48 else 0,
+            waypointRoute = if (isMulti) {
+                listOf(
+                    "● Coleta Multi-App: $restaurant",
+                    "🏠 Entrega Cliente A",
+                    "🏢 Entrega Cliente B"
+                )
+            } else {
+                listOf(
+                    "● Coleta: $restaurant",
+                    "🏠 Entrega Cliente"
+                )
+            }
+        )
     }
 }
