@@ -58,7 +58,8 @@ import java.util.Locale
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun DeliveryProfileScreen(
-    onNavigateBack: () -> Unit = {}
+    onNavigateBack: () -> Unit = {},
+    onOpenOnboardingTour: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val logsList = OfferDecisionLogManager.logs
@@ -184,6 +185,56 @@ fun DeliveryProfileScreen(
             // 1. CARD PRINCIPAL DO PERFIL DO ENTREGADOR
             item {
                 UserProfileHeaderCard()
+            }
+
+            // 1.1. CARD DE AJUDA & TOUR GUIADO DE OPERAÇÃO
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = DarkCard),
+                    border = BorderStroke(1.dp, NeonGreen.copy(alpha = 0.4f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenOnboardingTour() }
+                        .testTag("card_onboarding_tour_trigger")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(NeonGreen.copy(alpha = 0.15f), CircleShape)
+                                .border(1.dp, NeonGreen, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = "💡", fontSize = 20.sp)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Tour Guiado: Filtros & Comandos de Voz",
+                                color = TextLight,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Rever tutorial de como calibrar filtros de ofertas e usar viva-voz no capacete",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "➔",
+                            color = NeonGreen,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
 
             // 2. MÉTRICAS AGREGADAS DO HISTÓRICO DE DECISÕES

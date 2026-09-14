@@ -22,6 +22,7 @@ import sqlite3
 import datetime
 import threading
 import urllib.parse
+import urllib.request
 import socket
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 
@@ -129,6 +130,7 @@ def init_database():
     if cur.fetchone()["count"] == 0:
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         mock_stacks = [
+            ("stk_00", "iFood + Rappi + Uber", "BK Paulista, Pizza Hut Jardins & Subway Frei Caneca", 54.00, 5.2, 24, "pending", now_str),
             ("stk_01", "iFood + Rappi", "Burger King Paulista & Pizza Hut Jardins", 33.00, 4.2, 18, "pending", now_str),
             ("stk_02", "iFood", "McDonald's Henrique Schaumann", 15.00, 2.8, 12, "pending", now_str),
             ("stk_03", "Rappi", "Starbucks Frei Caneca", 18.00, 3.1, 14, "pending", now_str),
@@ -201,7 +203,104 @@ def init_database():
         """, seed_failures)
         conn.commit()
 
+    # Tabela 6: geofence_zones (Hotspots de Alta Demanda e Polos Gastronômicos)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS geofence_zones (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
+            radius_meters REAL NOT NULL,
+            orders_per_hour INTEGER NOT NULL,
+            bonus_multiplier REAL NOT NULL,
+            primary_app TEXT NOT NULL,
+            description TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+
+    # Inserção das Zonas Padrão de Alta Demanda (Geofencing Hotspots)
+    cur.execute("SELECT COUNT(*) as count FROM geofence_zones")
+    if cur.fetchone()["count"] == 0:
+        default_geofences = [
+            ("zone_paulista_bk", "Polo Paulista • Av. Paulista / Frei Caneca", "Fast-Food & Dark Kitchen", -23.561684, -46.655981, 650.0, 62, 1.45, "iFood + Rappi", "Burger King, Starbucks, Habib's e Shopping Center 3"),
+            ("zone_jardins_alameda", "Gastronomia Jardins • Al. Santos / Augusta", "Pizzarias & Gourmet", -23.564210, -46.652150, 550.0, 45, 1.30, "Rappi + iFood", "Pizza Hut, Bullguer e restaurantes noturnos"),
+            ("zone_pinheiros_teodoro", "Hub Pinheiros • Teodoro / Fradique", "Bares & Lanches Rápidos", -23.567890, -46.684120, 700.0, 54, 1.40, "Uber Direct + iFood", "Fluxo contínuo de entregas para Pinheiros e Vila Madalena"),
+            ("zone_faria_lima_prime", "Faria Lima Corporativo • Itaim / JK", "Almoço Executivo & Cafeterias", -23.585120, -46.681530, 800.0, 78, 1.50, "iFood + Rappi + 99", "Maior densidade de pedidos corporativos de pico"),
+            ("zone_morumbi_shopping", "Complexo Morumbi • Chácara Sto Antônio", "Shoppings & Grandes Redes", -23.623100, -46.698900, 900.0, 50, 1.25, "iFood + Uber Direct", "Outback, Madero e praças de alimentação")
+        ]
+        cur.executemany("""
+            INSERT INTO geofence_zones (id, name, category, latitude, longitude, radius_meters, orders_per_hour, bonus_multiplier, primary_app, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, default_geofences)
+        conn.commit()
+
     conn.close()
+
+# Estado global de Geofencing para simulação e rastreamento em tempo real
+ACTIVE_GEOFENCE_ZONE_ID = None
+
+def haversine_distance_meters(lat1, lon1, lat2, lon2):
+    import math
+    R = 6371000.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2.0) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * (math.sin(dlon / 2.0) ** 2)
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+    return R * c
+
+def get_geofences_data(lat=-23.561684, lng=-46.655981):
+    global ACTIVE_GEOFENCE_ZONE_ID
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM geofence_zones").fetchall()
+    conn.close()
+    zones = []
+    active_zone = None
+    closest_zone = None
+    min_dist = float('inf')
+
+    for r in rows:
+        z = dict(r)
+        z_lat = z["latitude"]
+        z_lng = z["longitude"]
+        dist_m = round(haversine_distance_meters(lat, lng, z_lat, z_lng), 1)
+        z["distance_meters"] = dist_m
+        z["distance_km"] = round(dist_m / 1000.0, 2)
+        z["is_inside"] = (ACTIVE_GEOFENCE_ZONE_ID == z["id"]) or (dist_m <= z["radius_meters"])
+        z["is_approaching"] = (not z["is_inside"]) and (dist_m <= (z["radius_meters"] + 350.0))
+        z["surge_bonus_percent"] = int((z["bonus_multiplier"] - 1.0) * 100)
+
+        if z["is_inside"]:
+            active_zone = z
+        if dist_m < min_dist:
+            min_dist = dist_m
+            closest_zone = z
+        zones.append(z)
+
+    return {
+        "zones": zones,
+        "active_zone": active_zone,
+        "closest_zone": closest_zone,
+        "is_inside_hotspot": active_zone is not None,
+        "active_zone_id": ACTIVE_GEOFENCE_ZONE_ID or (active_zone["id"] if active_zone else None),
+        "user_location": {"latitude": lat, "longitude": lng}
+    }
+
+def evaluate_geofence_data(data):
+    lat = float(data.get("latitude", -23.561684))
+    lng = float(data.get("longitude", -46.655981))
+    return get_geofences_data(lat, lng), 200
+
+def simulate_geofence_data(data):
+    global ACTIVE_GEOFENCE_ZONE_ID
+    action = data.get("action", "enter")
+    zone_id = data.get("zone_id", "zone_paulista_bk")
+    if action == "enter":
+        ACTIVE_GEOFENCE_ZONE_ID = zone_id
+    else:
+        ACTIVE_GEOFENCE_ZONE_ID = None
+    return get_geofences_data(), 200
 
 # ==============================================================================
 # FLASK APP SETUP & API REST (COM FALLBACK AUTOMÁTICO PARA HTTP.SERVER PADRÃO)
@@ -214,7 +313,27 @@ def get_stacks_data(status="pending"):
     else:
         rows = conn.execute("SELECT * FROM stacks WHERE status = ? ORDER BY total_value DESC", (status,)).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    result = []
+    for r in rows:
+        d = dict(r)
+        val = d.get("total_value", 0.0)
+        dist = d.get("distance_km", 1.0)
+        apps = d.get("apps", "")
+        gain = round(val / dist, 2) if dist > 0 else val
+        is_multi = "+" in apps
+        is_tri = apps.count("+") >= 2
+        d["gain_per_km"] = gain
+        d["is_multi_stack"] = is_multi
+        d["is_tri_stack"] = is_tri
+        if is_multi:
+            d["quantum_score"] = 99 if is_tri else 96
+            d["vector_deviation_deg"] = 4.2 if is_tri else 5.5
+            d["fuel_saved_ml"] = 480 if is_tri else 310
+            d["anti_ban_risk"] = 0.0
+            d["kitchen_status"] = "Zero Espera: 3 Cozinhas Sincronizadas" if is_tri else "Balcão Liberado ao Chegar"
+            d["ai_insight"] = "Tri-Stack 4D com SLA 100% seguro e rota linear unificada." if is_tri else "Sincronia de trajeto com zero espera no balcão."
+        result.append(d)
+    return result
 
 def accept_stack_data(stack_id):
     if not stack_id:
@@ -607,6 +726,262 @@ def record_failure_data(data):
         "error_code": error_code
     }, 201
 
+# ==============================================================================
+# JARVIS AI COGNITIVE ENGINE (GEMINI 3.5 FLASH + LOCAL NEURAL HEURISTIC ENGINE)
+# ==============================================================================
+def call_gemini_api(prompt, system_instruction=None, max_tokens=600):
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return None
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "maxOutputTokens": max_tokens,
+            "temperature": 0.4
+        }
+    }
+    if system_instruction:
+        payload["systemInstruction"] = {
+            "parts": [{"text": system_instruction}]
+        }
+    
+    req_body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=req_body, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            candidates = data.get("candidates", [])
+            if candidates and candidates[0].get("content", {}).get("parts"):
+                return candidates[0]["content"]["parts"][0]["text"].strip()
+    except Exception as e:
+        print(f"[JARVIS AI] Gemini API fallback ativo ({e})")
+    return None
+
+def ai_chat_copilot(message, history=None):
+    if not message:
+        return {"reply": "Olá piloto! Jarvis conectado. Como posso potencializar seu faturamento agora?", "source": "local"}
+    
+    sys_inst = (
+        "Você é o Jarvis Neural AI Copilot da plataforma Radar Coordinator para entregadores em São Paulo. "
+        "Você é um copiloto de rua: direto, tático, protetor do piloto e focado em lucro por km e segurança. "
+        "Contexto atual: Piloto Thiago (Plano Pro), R$ 284,50 faturados hoje (meta R$ 350, faltam R$ 65,50), 38.2km rodados, "
+        "Polo Paulista ativo (+45% tarifa dinâmica), Apps: iFood, Rappi, Uber Direct, 99Food. "
+        "Responda em português brasileiro de forma objetiva, com dicas táticas de trânsito, postos, rotas e lucro."
+    )
+    
+    gemini_reply = call_gemini_api(f"Mensagem do entregador: {message}", system_instruction=sys_inst, max_tokens=320)
+    if gemini_reply:
+        return {"reply": gemini_reply, "source": "gemini-3.5-flash", "success": True}
+    
+    # Fallback Neural Heurístico Contextual de Alta Precisão
+    msg_lower = message.lower()
+    if any(k in msg_lower for k in ["meta", "falta", "quanto falta", "350"]):
+        reply = (
+            "🎯 Faltam apenas R$ 65,50 para bater sua meta diária de R$ 350,00! "
+            "Com o Polo Paulista pagando +45% de tarifa dinâmica agora, você liquida isso em 2 corridas curtas ou em 1 Tri-Stack iFood+Rappi. "
+            "Mantenha-se na Consolação / Frei Caneca para corridas de alta margem."
+        )
+    elif any(k in msg_lower for k in ["paulista", "polo", "hotspot", "onde ir", "região", "lugar", "demanda"]):
+        reply = (
+            "🔥 O Polo Paulista (Av. Paulista / Frei Caneca) está com ~62 pedidos/hora e bônus de +45% ativo. "
+            "Para ticket corporativo mais alto, o Polo Faria Lima está pagando +50%. "
+            "Posicione-se perto do Shopping Center 3 para pescar pedidos duplos com espera zero no balcão."
+        )
+    elif any(k in msg_lower for k in ["chuva", "chovendo", "pista", "molhada", "segurança"]):
+        reply = (
+            "🌧️ ALERTA DE PISTA MOLHADA: Aumente a distância de frenagem em 50%. "
+            "No Jarvis, reduza a distância máxima de corrida para 4.0 km e suba o ganho mínimo para R$ 6,50/km. "
+            "A demanda sobe 35% na chuva — você tem prioridade para recusar corridas longas e lucrar mais em raios curtos."
+        )
+    elif any(k in msg_lower for k in ["combustível", "gasolina", "abastecer", "posto", "consumo"]):
+        reply = (
+            "⛽ Sua média de consumo hoje está em 34.8 km/L com custo de R$ 0,17 por km rodado. "
+            "Com os filtros do Jarvis evitando 38km de corrida ociosa, você economizou R$ 6,53 em combustível hoje. "
+            "Posto recomendado com menor fila: Ipiranga da Rua Augusta com Peixoto Gomide."
+        )
+    elif any(k in msg_lower for k in ["vale a pena", "aceitar", "recusar", "pedido", "corrida"]):
+        reply = (
+            "💡 Regra de Ouro do Jarvis: só aceite corridas acima de R$ 5,00/km (ou acima de R$ 3,80 se a distância for menor que 3.5 km). "
+            "Se for pedido único de R$ 10 para rodar 6 km, RECUSE: o lucro líquido fica abaixo de R$ 1,20 por km e você perde tempo de balcão."
+        )
+    else:
+        reply = (
+            f"🤖 Jarvis online e sincronizado! Você faturou R$ 284,50 hoje (média R$ 7,45/km). "
+            f"Os polos Paulista (+45%) e Jardins (+30%) estão com alta densidade de pedidos no iFood e Rappi. "
+            f"Foco na rota linear para manter o risco anti-ban zerado!"
+        )
+    
+    return {"reply": reply, "source": "jarvis-neural-engine", "success": True}
+
+def ai_analyze_stack_data(data):
+    val = float(data.get("value", 0.0))
+    dist = float(data.get("distance", 1.0))
+    dist = max(dist, 0.5)
+    apps = data.get("apps", "iFood")
+    restaurant = data.get("restaurant", "Restaurante Local")
+    
+    fuel_cost_per_km = 0.17  # R$ 5.95/L na moto fazendo 35 km/L
+    fuel_expense = round(dist * fuel_cost_per_km, 2)
+    net_profit = round(val - fuel_expense, 2)
+    gain_per_km = round(val / dist, 2)
+    net_gain_per_km = round(net_profit / dist, 2)
+    
+    is_multi = "+" in apps
+    is_tri = apps.count("+") >= 2
+    
+    est_transit_min = int((dist / 22.0) * 60) + 4
+    est_kitchen_wait_min = 2 if is_multi else 6
+    total_time_min = est_transit_min + est_kitchen_wait_min
+    
+    score = 50
+    if gain_per_km >= 6.0: score += 30
+    elif gain_per_km >= 4.5: score += 20
+    elif gain_per_km < 3.0: score -= 25
+    
+    if dist <= 3.5: score += 15
+    elif dist > 7.0: score -= 20
+    
+    if is_tri: score += 10
+    elif is_multi: score += 5
+    score = max(10, min(99, score))
+    
+    if score >= 75:
+        verdict = "ACEITAR IMEDIATAMENTE (Prioridade Máxima)"
+        verdict_color = "#00ff88"
+        tactical_summary = f"Rentabilidade excelente de R$ {gain_per_km:.2f}/km. Rota compacta com consumo de apenas {int(dist*28)}ml de gasolina e lucro líquido real de R$ {net_profit:.2f}."
+    elif score >= 50:
+        verdict = "ACEITAR COM MODERAÇÃO"
+        verdict_color = "#ff9f1c"
+        tactical_summary = f"Margem aceitável de R$ {gain_per_km:.2f}/km. Monitore o tempo de balcão para garantir o SLA de entrega."
+    else:
+        verdict = "RECUSAR (Inviável / Prejuízo)"
+        verdict_color = "#ea1d2c"
+        tactical_summary = f"Distância desproporcional ao valor. Risco de queimar combustível com margem líquida de apenas R$ {net_gain_per_km:.2f}/km."
+        
+    return {
+        "success": True,
+        "score": score,
+        "verdict": verdict,
+        "verdict_color": verdict_color,
+        "tactical_summary": tactical_summary,
+        "metrics": {
+            "gross_value": val,
+            "distance_km": dist,
+            "gain_per_km": gain_per_km,
+            "fuel_expense": fuel_expense,
+            "net_profit": net_profit,
+            "net_gain_per_km": net_gain_per_km,
+            "est_transit_min": est_transit_min,
+            "est_kitchen_wait_min": est_kitchen_wait_min,
+            "total_time_min": total_time_min,
+            "hourly_rate_projected": round((net_profit / max(total_time_min, 10)) * 60, 2),
+            "anti_ban_safe": True,
+            "apps": apps,
+            "restaurant": restaurant
+        }
+    }, 200
+
+def ai_parse_notification_data(data):
+    raw_text = data.get("text", "")
+    if not raw_text:
+        return {"error": "Texto da notificação/print não fornecido"}, 400
+    
+    import re
+    val_match = re.search(r'R\$\s*([0-9]+[.,][0-9]{2})', raw_text, re.IGNORECASE)
+    dist_match = re.search(r'([0-9]+[.,]?[0-9]*)\s*km', raw_text, re.IGNORECASE)
+    
+    val = 24.50
+    if val_match:
+        val = float(val_match.group(1).replace(',', '.'))
+    dist = 3.8
+    if dist_match:
+        dist = float(dist_match.group(1).replace(',', '.'))
+        
+    detected_app = "iFood"
+    if "rappi" in raw_text.lower():
+        detected_app = "Rappi"
+    elif "uber" in raw_text.lower():
+        detected_app = "Uber Direct"
+    elif "99" in raw_text.lower():
+        detected_app = "99Food"
+        
+    res, _ = ai_analyze_stack_data({"value": val, "distance": dist, "apps": detected_app, "restaurant": "Extraído via OCR Jarvis"})
+    res["parsed_app"] = detected_app
+    res["raw_text"] = raw_text
+    return res, 200
+
+def ai_predict_demand_data():
+    return {
+        "success": True,
+        "current_hour": datetime.datetime.now().strftime("%H:%M"),
+        "forecasts": [
+            {
+                "period": "11:30 - 14:00",
+                "label": "Pico Almoço Corporativo",
+                "zone": "Polo Faria Lima & Paulista",
+                "estimated_hourly_earnings": "R$ 48 - R$ 65",
+                "demand_level": "Extrema (Pico Alto)",
+                "multi_stack_probability": 88,
+                "surge_bonus": "+45% a +50%",
+                "tip": "Mantenha-se entre Augusta e Faria Lima. Restaurantes corporativos liberam múltiplos pedidos em minutos."
+            },
+            {
+                "period": "14:30 - 17:30",
+                "label": "Entretarde & Farmácias",
+                "zone": "Polo Jardins & Cerqueira César",
+                "estimated_hourly_earnings": "R$ 32 - R$ 42",
+                "demand_level": "Moderada",
+                "multi_stack_probability": 45,
+                "surge_bonus": "+25%",
+                "tip": "Priorize entregas de farmácias e cafeterias no Rappi com pouca bagagem e agilidade."
+            },
+            {
+                "period": "18:00 - 21:30",
+                "label": "Pico Jantar Gourmet & Pizzas",
+                "zone": "Polo Jardins, Pinheiros & Vila Madalena",
+                "estimated_hourly_earnings": "R$ 55 - R$ 78",
+                "demand_level": "Máxima (Super Pico)",
+                "multi_stack_probability": 94,
+                "surge_bonus": "+40% a +55%",
+                "tip": "Momento ideal para Tri-Stack quântico. Clientes dão gorjeta alta na região dos Jardins."
+            },
+            {
+                "period": "22:00 - 01:00",
+                "label": "Madrugada Lanches & Fast-Food",
+                "zone": "Polo Paulista (Burger King & Habib's 24h)",
+                "estimated_hourly_earnings": "R$ 40 - R$ 52",
+                "demand_level": "Alta",
+                "multi_stack_probability": 72,
+                "surge_bonus": "+35%",
+                "tip": "Trânsito livre permite dobrar a velocidade média sem risco. Foque em redes 24h."
+            }
+        ]
+    }
+
+def ai_coach_summary_data():
+    return {
+        "success": True,
+        "coach_name": "Jarvis Neural Coach 4.0",
+        "diagnostic_date": datetime.date.today().strftime("%d/%m/%Y"),
+        "overall_grade": "A+",
+        "kpis": {
+            "efficiency_gain_km": "R$ 7,45 / km",
+            "regional_benchmark_diff": "+42% superior à média SP (R$ 5,20)",
+            "dead_km_saved": "38.4 km poupados",
+            "fuel_saved_reais": "R$ 6,53 economizados hoje",
+            "hours_saved_in_traffic": "1h 14min",
+            "acceptance_rate_quality": "84% dos pedidos aceitos tinham rentabilidade alta"
+        },
+        "tactical_coaching": [
+            "🏆 Excelente disciplina de recusa: Você recusou 3 pedidos longos do Uber com R$/km abaixo de R$ 3,00, preservando sua moto e tempo.",
+            "⚡ Oportunidade identificada: Durante o almoço, o Polo Faria Lima gerou 2 Tri-Stacks que elevaram sua diária em R$ 68 em menos de 45 minutos.",
+            "🛡️ Alerta de fadiga: Você está ativo há 4h 30min com telemetria estável. Recomendamos hidratação nos próximos 20 minutos."
+        ]
+    }
+
 def get_manifest_json():
     return json.dumps({
         "name": "Radar Coordinator — Jarvis Neural Cockpit",
@@ -667,6 +1042,40 @@ if FLASK_AVAILABLE:
     def f_dcs():
         res, code = evaluate_decision_data(flask_request.get_json(silent=True) or {})
         return flask_jsonify(res), code
+    @app.route("/api/geofences", methods=["GET"])
+    def f_geofences_get():
+        lat = float(flask_request.args.get("lat", -23.561684))
+        lng = float(flask_request.args.get("lng", -46.655981))
+        return flask_jsonify(get_geofences_data(lat, lng))
+    @app.route("/api/geofences/evaluate", methods=["POST"])
+    def f_geofences_eval():
+        res, code = evaluate_geofence_data(flask_request.get_json(silent=True) or {})
+        return flask_jsonify(res), code
+    @app.route("/api/geofences/simulate", methods=["POST"])
+    def f_geofences_sim():
+        res, code = simulate_geofence_data(flask_request.get_json(silent=True) or {})
+        return flask_jsonify(res), code
+    @app.route("/api/ai/chat", methods=["POST"])
+    def f_ai_chat():
+        data = flask_request.get_json(silent=True) or {}
+        msg = data.get("message", "")
+        return flask_jsonify(ai_chat_copilot(msg)), 200
+    @app.route("/api/ai/analyze-stack", methods=["POST"])
+    def f_ai_analyze_stack():
+        data = flask_request.get_json(silent=True) or {}
+        res, code = ai_analyze_stack_data(data)
+        return flask_jsonify(res), code
+    @app.route("/api/ai/parse-notification", methods=["POST"])
+    def f_ai_parse_notif():
+        data = flask_request.get_json(silent=True) or {}
+        res, code = ai_parse_notification_data(data)
+        return flask_jsonify(res), code
+    @app.route("/api/ai/predict-demand", methods=["GET"])
+    def f_ai_predict_demand():
+        return flask_jsonify(ai_predict_demand_data()), 200
+    @app.route("/api/ai/coach-summary", methods=["GET"])
+    def f_ai_coach():
+        return flask_jsonify(ai_coach_summary_data()), 200
     @app.route("/api/analytics", methods=["POST"])
     def f_analytics():
         data = flask_request.get_json(silent=True) or {}
@@ -828,6 +1237,29 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+        elif path == "/api/geofences":
+            lat = float(qs.get("lat", [-23.561684])[0])
+            lng = float(qs.get("lng", [-46.655981])[0])
+            body = json.dumps(get_geofences_data(lat, lng)).encode("utf-8")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/ai/predict-demand":
+            body = json.dumps(ai_predict_demand_data()).encode("utf-8")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/ai/coach-summary":
+            body = json.dumps(ai_coach_summary_data()).encode("utf-8")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
         else:
             self.send_response(404)
             self.send_cors_headers()
@@ -892,6 +1324,46 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             event_name = req_data.get("event_name", "unknown")
             body = json.dumps({"success": True, "event": event_name, "status": "recorded"}).encode("utf-8")
             self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/geofences/evaluate":
+            res, code = evaluate_geofence_data(req_data)
+            body = json.dumps(res).encode("utf-8")
+            self.send_response(code)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/geofences/simulate":
+            res, code = simulate_geofence_data(req_data)
+            body = json.dumps(res).encode("utf-8")
+            self.send_response(code)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/ai/chat":
+            msg = req_data.get("message", "")
+            body = json.dumps(ai_chat_copilot(msg)).encode("utf-8")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/ai/analyze-stack":
+            res, code = ai_analyze_stack_data(req_data)
+            body = json.dumps(res).encode("utf-8")
+            self.send_response(code)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/ai/parse-notification":
+            res, code = ai_parse_notification_data(req_data)
+            body = json.dumps(res).encode("utf-8")
+            self.send_response(code)
             self.send_cors_headers("application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -1156,6 +1628,21 @@ HTML_CONTENT = """<!DOCTYPE html>
     .const-node.pilot .const-node-icon {
       border-color: var(--primary);
       animation: nodePulse 2.5s infinite;
+    }
+    .const-node.hotspot .const-node-icon {
+      border-color: #ff9f1c;
+      box-shadow: 0 0 10px rgba(255, 159, 28, 0.6);
+      animation: hotspotPulse 2.8s infinite;
+    }
+    .const-node.hotspot.active .const-node-icon {
+      border-color: #00ff88;
+      box-shadow: 0 0 16px rgba(0, 255, 136, 0.85);
+      animation: nodePulse 1.8s infinite;
+    }
+    @keyframes hotspotPulse {
+      0% { box-shadow: 0 0 0 0 rgba(255, 159, 28, 0.7); }
+      70% { box-shadow: 0 0 0 12px rgba(255, 159, 28, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 159, 28, 0); }
     }
     .const-node-lbl {
       font-size: 9px;
@@ -1498,12 +1985,179 @@ HTML_CONTENT = """<!DOCTYPE html>
       70% { transform: scale(1.12); box-shadow: 0 0 0 10px rgba(255, 71, 87, 0); }
       100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); }
     }
+
+    /* AI Copilot & Modal Styles */
+    .ai-chat-box {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: 380px;
+      overflow-y: auto;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(10, 10, 15, 0.6);
+      border: 1px solid var(--surface-border);
+      margin-bottom: 12px;
+    }
+    .ai-msg {
+      display: flex;
+      gap: 10px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .ai-msg-jarvis {
+      align-self: flex-start;
+    }
+    .ai-msg-user {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+    .ai-bubble {
+      padding: 10px 14px;
+      border-radius: 14px;
+      max-width: 85%;
+    }
+    .ai-bubble-jarvis {
+      background: rgba(17, 17, 24, 0.95);
+      border: 1px solid rgba(0, 210, 255, 0.4);
+      color: #e0e0ff;
+      box-shadow: 0 2px 10px rgba(0, 210, 255, 0.08);
+    }
+    .ai-bubble-user {
+      background: linear-gradient(135deg, rgba(0, 255, 136, 0.25) 0%, rgba(0, 255, 136, 0.1) 100%);
+      border: 1px solid var(--primary);
+      color: #ffffff;
+    }
+    .ai-chip {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(0, 210, 255, 0.3);
+      color: #00d2ff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 100px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .ai-chip:hover {
+      background: rgba(0, 210, 255, 0.2);
+      border-color: #00d2ff;
+      transform: translateY(-1px);
+    }
+    .ai-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(5, 5, 8, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 300;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease-out;
+    }
+    .ai-modal-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .ai-modal-card {
+      background: linear-gradient(145deg, #111118 0%, #0d0d14 100%);
+      border: 1px solid rgba(0, 210, 255, 0.5);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 210, 255, 0.2);
+      transform: scale(0.95);
+      transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .ai-modal-overlay.open .ai-modal-card {
+      transform: scale(1);
+    }
+    .holo-glow {
+      animation: holoPulse 3s ease-in-out infinite;
+    }
+    @keyframes holoPulse {
+      0%, 100% { filter: drop-shadow(0 0 8px rgba(0, 210, 255, 0.6)); }
+      50% { filter: drop-shadow(0 0 18px rgba(0, 255, 136, 0.9)); }
+    }
   </style>
 </head>
 <body>
 
   <!-- Toast Flutuante de Voz Jarvis -->
   <div id="voice-toast">🎙️ <span id="voice-toast-msg"></span></div>
+
+  <!-- Modal de Análise Neural IA Jarvis para Stacks -->
+  <div id="ai-stack-modal" class="ai-modal-overlay" onclick="if(event.target===this) closeAiStackModal()">
+    <div class="ai-modal-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--surface-border); padding-bottom: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 24px;" class="holo-glow">🤖</span>
+          <div>
+            <div style="font-size: 13px; font-weight: 900; color: #00d2ff; letter-spacing: 0.5px;">JARVIS AI STACK ANALYZER</div>
+            <div style="font-size: 10px; color: var(--text-muted);">Auditoria Neural 4D com Gemini & Telemetria</div>
+          </div>
+        </div>
+        <button class="btn" style="padding: 4px 8px; font-size: 12px; background: rgba(255,255,255,0.06);" onclick="closeAiStackModal()">✕</button>
+      </div>
+
+      <!-- Veredito & Score Principal -->
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--surface-border); border-radius: 14px; padding: 14px; margin-bottom: 14px; text-align: center;">
+        <div style="font-size: 10px; color: var(--text-muted); font-weight: 800; text-transform: uppercase; margin-bottom: 4px;">Score de Viabilidade Quântica</div>
+        <div id="modal-ai-score" class="tabular" style="font-size: 38px; font-weight: 900; color: #00ff88; line-height: 1;">--</div>
+        <div id="modal-ai-verdict" style="font-size: 13px; font-weight: 800; color: #00ff88; margin-top: 6px;">Analisando proposta...</div>
+      </div>
+
+      <!-- Grid de Métricas Financeiras & Táticas -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+        <div class="glass" style="padding: 10px 12px;">
+          <div style="font-size: 10px; color: var(--text-muted);">Lucro Líquido Real</div>
+          <div id="modal-ai-netprofit" class="tabular" style="font-size: 16px; font-weight: 900; color: #ffffff;">--</div>
+          <div id="modal-ai-fuel" style="font-size: 9px; color: #ff9f1c;">Gasolina: --</div>
+        </div>
+        <div class="glass" style="padding: 10px 12px;">
+          <div style="font-size: 10px; color: var(--text-muted);">Ganho Líquido / KM</div>
+          <div id="modal-ai-netgainkm" class="tabular" style="font-size: 16px; font-weight: 900; color: var(--primary);">--</div>
+          <div style="font-size: 9px; color: var(--text-muted);">Descontado desgaste</div>
+        </div>
+        <div class="glass" style="padding: 10px 12px;">
+          <div style="font-size: 10px; color: var(--text-muted);">Tempo Total Previsto</div>
+          <div id="modal-ai-time" class="tabular" style="font-size: 16px; font-weight: 900; color: #ffffff;">--</div>
+          <div id="modal-ai-kitchen" style="font-size: 9px; color: #00d2ff;">Cozinha: --</div>
+        </div>
+        <div class="glass" style="padding: 10px 12px;">
+          <div style="font-size: 10px; color: var(--text-muted);">Rentabilidade / Hora</div>
+          <div id="modal-ai-hourly" class="tabular" style="font-size: 16px; font-weight: 900; color: #ffd700;">--</div>
+          <div style="font-size: 9px; color: var(--text-muted);">Ritmo projetado</div>
+        </div>
+      </div>
+
+      <!-- Explicação Tática do Jarvis -->
+      <div class="glass" style="padding: 12px 14px; margin-bottom: 16px; border-left: 3px solid #00d2ff;">
+        <div style="font-size: 11px; font-weight: 800; color: #00d2ff; margin-bottom: 4px;">PARECER TÁTICO DO JARVIS:</div>
+        <div id="modal-ai-summary" style="font-size: 12px; color: #e0e0ff; line-height: 1.4;">
+          Calculando parâmetros ideais de rota e tempos de semáforo...
+        </div>
+      </div>
+
+      <!-- Ações do Modal -->
+      <div style="display: flex; gap: 8px;">
+        <button id="modal-ai-speak-btn" class="btn" style="flex: 1; padding: 10px; font-size: 11px; background: rgba(0, 210, 255, 0.15); color: #00d2ff; border: 1px solid #00d2ff;" onclick="speakAiVerdict()">
+          🔊 Ouvir Parecer
+        </button>
+        <button id="modal-ai-accept-btn" class="btn btn-green" style="flex: 1; padding: 10px; font-size: 11px;" onclick="acceptModalStack()">
+          ✅ Aceitar Corrida
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Top Bar -->
   <header class="top-bar">
@@ -1542,8 +2196,9 @@ HTML_CONTENT = """<!DOCTYPE html>
           Agrupe pedidos de iFood, Rappi, Uber e 99 na mesma rota sincronizada e aumente seu faturamento em até 70%.
         </p>
       </div>
-      <div style="display: flex; justify-content: center; gap: 8px; margin-bottom: 20px;">
+      <div id="onboard-dots" style="display: flex; justify-content: center; gap: 8px; margin-bottom: 20px;">
         <span class="status-dot"></span>
+        <span class="status-dot" style="opacity: 0.3;"></span>
         <span class="status-dot" style="opacity: 0.3;"></span>
         <span class="status-dot" style="opacity: 0.3;"></span>
       </div>
@@ -1578,6 +2233,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     <div class="nav-pills">
       <a href="#dashboard" class="nav-pill active">🎯 Cockpit</a>
       <a href="#stacks" class="nav-pill">📦 Stacks (8)</a>
+      <a href="#ai-copilot" class="nav-pill" style="color: #00d2ff; border-color: rgba(0, 210, 255, 0.5);">🤖 Jarvis IA</a>
       <a href="#analytics" class="nav-pill">📊 Analytics</a>
       <a href="#subscription" class="nav-pill">⭐ Plano Pro</a>
       <a href="#settings" class="nav-pill">⚙️ Ajustes</a>
@@ -1672,7 +2328,47 @@ HTML_CONTENT = """<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Constellation Map: nós absolutos (🏍️ você, 🍔 BK, 🍕 PH, 🏠, 🏢, ☕ Starbucks) -->
+    <!-- Card de Geofencing: Monitoramento de Zonas de Alta Demanda (Hotspots) -->
+    <div class="glass" style="padding: 14px 16px; margin-bottom: 14px; border: 1.5px solid rgba(255, 159, 28, 0.45); border-radius: 16px; background: rgba(17, 17, 24, 0.95);" id="geofence-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 20px;">🎯</span>
+          <div>
+            <div style="font-size: 12px; font-weight: 800; color: #ffffff;">GEOFENCING • POLOS DE ALTA DEMANDA</div>
+            <div style="font-size: 10px; color: var(--text-muted);">Monitoramento em Tempo Real de Hotspots de Pedidos & Tarifa Dinâmica</div>
+          </div>
+        </div>
+        <div id="geofence-status-pill">
+          <span style="background: rgba(0, 255, 136, 0.15); color: #00ff88; font-weight: 800; font-size: 10px; padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(0, 255, 136, 0.4);">📡 GEOFENCE ATIVO</span>
+        </div>
+      </div>
+
+      <!-- Status da Zona Ativa / Proximidade -->
+      <div id="geofence-active-banner" style="background: rgba(255, 159, 28, 0.12); border: 1.5px solid #ff9f1c; border-radius: 12px; padding: 12px; margin-bottom: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 12px; font-weight: 900; color: #ffb347;" id="geofence-zone-title">🔥 DENTRO DO HOTSPOT: Polo Paulista</div>
+            <div style="font-size: 10px; color: #ffebcc; margin-top: 2px;" id="geofence-zone-desc">Tarifa Dinâmica +45% ativa • ~62 pedidos/hora • Fast-Food & Dark Kitchen</div>
+          </div>
+          <span style="background: #ff9f1c; color: #0a0a0f; font-weight: 900; font-size: 11px; padding: 4px 8px; border-radius: 6px;" id="geofence-zone-bonus">+45% TARIFA</span>
+        </div>
+      </div>
+
+      <!-- Lista de Polos Monitorados em Tempo Real -->
+      <div id="geofence-zones-list" style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px;">
+        <!-- Preenchido dinamicamente via JS -->
+      </div>
+
+      <!-- Ações de Simulação e Teste de Geofencing -->
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <button class="btn" style="flex: 1; padding: 6px 10px; font-size: 10px; background: rgba(255, 159, 28, 0.2); color: #ff9f1c; border: 1px solid #ff9f1c;" onclick="simulateGeofence('enter', 'zone_paulista_bk')">⚡ Entrar Polo Paulista (+45%)</button>
+        <button class="btn" style="flex: 1; padding: 6px 10px; font-size: 10px; background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid #00ff88;" onclick="simulateGeofence('enter', 'zone_pinheiros_teodoro')">⚡ Entrar Hub Pinheiros (+40%)</button>
+        <button class="btn" style="flex: 1; padding: 6px 10px; font-size: 10px; background: rgba(0, 210, 255, 0.15); color: #00d2ff; border: 1px solid #00d2ff;" onclick="simulateGeofence('enter', 'zone_faria_lima_prime')">⚡ Faria Lima (+50%)</button>
+        <button class="btn" style="padding: 6px 10px; font-size: 10px; background: rgba(255, 255, 255, 0.08); color: var(--text-muted);" onclick="simulateGeofence('exit')">Sair do Polo</button>
+      </div>
+    </div>
+
+    <!-- Constellation Map: nós absolutos (🏍️ você, 🍔 BK, 🍕 PH, 🏠, 🏢, ☕ Starbucks, 🔥 Hotspots) -->
     <div class="constellation-map">
       <div class="map-grid"></div>
       <div class="radar-sweep-line"></div>
@@ -1683,24 +2379,34 @@ HTML_CONTENT = """<!DOCTYPE html>
         <div class="const-node-lbl" style="color: var(--primary);">VOCÊ</div>
       </div>
 
-      <!-- Nós: BK, PH, Residência, Edifício, Starbucks -->
-      <div class="const-node" style="top: 24%; left: 24%;" onclick="speak('Burger King Paulista. Coleta pronta.')">
+      <!-- Nós de Hotspot / Polos de Demanda com Radar Pulsante -->
+      <div class="const-node hotspot active" id="map-node-paulista" style="top: 18%; left: 32%;" onclick="simulateGeofence('enter', 'zone_paulista_bk')">
+        <div class="const-node-icon">🔥</div>
+        <div class="const-node-lbl" style="color: #ff9f1c;">Polo Paulista (+45%)</div>
+      </div>
+      <div class="const-node hotspot" id="map-node-jardins" style="top: 36%; left: 78%;" onclick="simulateGeofence('enter', 'zone_jardins_alameda')">
+        <div class="const-node-icon">🍕</div>
+        <div class="const-node-lbl" style="color: #ff9f1c;">Jardins (+30%)</div>
+      </div>
+      <div class="const-node hotspot" id="map-node-farialima" style="top: 75%; left: 70%;" onclick="simulateGeofence('enter', 'zone_faria_lima_prime')">
+        <div class="const-node-icon">🏢</div>
+        <div class="const-node-lbl" style="color: #00d2ff;">Faria Lima (+50%)</div>
+      </div>
+
+      <!-- Nós: BK, PH, Residência, Starbucks -->
+      <div class="const-node" style="top: 26%; left: 16%;" onclick="speak('Burger King Paulista. Coleta pronta.')">
         <div class="const-node-icon">🍔</div>
         <div class="const-node-lbl">BK Paulista</div>
       </div>
-      <div class="const-node" style="top: 26%; left: 74%;" onclick="speak('Pizza Hut Jardins. Pedido embalado.')">
+      <div class="const-node" style="top: 48%; left: 82%;" onclick="speak('Pizza Hut Jardins. Pedido embalado.')">
         <div class="const-node-icon">🍕</div>
         <div class="const-node-lbl">Pizza Hut</div>
       </div>
-      <div class="const-node" style="top: 72%; left: 26%;" onclick="speak('Residência Apto 84.')">
+      <div class="const-node" style="top: 76%; left: 24%;" onclick="speak('Residência Apto 84.')">
         <div class="const-node-icon">🏠</div>
         <div class="const-node-lbl">Residência</div>
       </div>
-      <div class="const-node" style="top: 70%; left: 76%;" onclick="speak('Edifício Comercial Faria Lima.')">
-        <div class="const-node-icon">🏢</div>
-        <div class="const-node-lbl">Edifício</div>
-      </div>
-      <div class="const-node" style="top: 12%; left: 50%;" onclick="speak('Starbucks Frei Caneca.')">
+      <div class="const-node" style="top: 10%; left: 60%;" onclick="speak('Starbucks Frei Caneca.')">
         <div class="const-node-icon">☕</div>
         <div class="const-node-lbl">Starbucks</div>
       </div>
@@ -1726,10 +2432,34 @@ HTML_CONTENT = """<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- Jarvis AI Live Advisor Widget -->
+    <div class="glass" style="padding: 14px 16px; margin-bottom: 18px; border: 1.5px solid rgba(0, 210, 255, 0.4); border-radius: 16px; background: linear-gradient(135deg, rgba(0, 210, 255, 0.1) 0%, rgba(17, 17, 24, 0.95) 100%);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 20px;" class="holo-glow">🤖</span>
+          <span style="font-size: 12px; font-weight: 900; color: #00d2ff; letter-spacing: 0.5px;">JARVIS AI LIVE ADVISOR</span>
+        </div>
+        <a href="#ai-copilot" class="btn" style="padding: 4px 10px; font-size: 10px; background: rgba(0, 210, 255, 0.2); color: #00d2ff; border: 1px solid #00d2ff; border-radius: 6px; text-decoration: none;">Abrir Chat ➔</a>
+      </div>
+      <div id="dash-ai-advisor-text" style="font-size: 12px; color: #ffffff; line-height: 1.4; margin-bottom: 10px;">
+        🎯 <strong>Polo Paulista (+45%)</strong> ativo e em pico de almoço corporativo. Faltam R$ 65,50 para bater sua meta diária de R$ 350. Priorize pedidos duplos do Burger King e Starbucks para ganho superior a R$ 7,50/km.
+      </div>
+      <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px;">
+        <button class="btn btn-sm" style="font-size: 10px; padding: 5px 10px; background: rgba(255,255,255,0.06); color: #00d2ff; border: 1px solid rgba(0,210,255,0.3);" onclick="askJarvisQuick('Devo ir para o Polo Paulista agora?')">Consultar Polo Paulista</button>
+        <button class="btn btn-sm" style="font-size: 10px; padding: 5px 10px; background: rgba(255,255,255,0.06); color: var(--primary); border: 1px solid rgba(0,255,136,0.3);" onclick="askJarvisQuick('Como bater a meta de R$ 350 hoje?')">Estratégia Meta R$ 350</button>
+        <button class="btn btn-sm" style="font-size: 10px; padding: 5px 10px; background: rgba(255,255,255,0.06); color: #ffd700; border: 1px solid rgba(255,215,0,0.3);" onclick="openStackAiAnalysis(33.0, 4.2, 'iFood + Rappi', 'Burger King e Pizza Hut', 'stk_01')">🧠 IA: Analisar Corrida R$ 33</button>
+      </div>
+    </div>
+
     <!-- Calculadora Inteligente POST /api/decision -->
     <div class="glass" style="padding: 14px; margin-bottom: 18px;">
-      <div style="font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 10px;">
-        🧠 Avaliador Neural Jarvis (/api/decision)
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div style="font-size: 13px; font-weight: 700; color: var(--primary);">
+          🧠 Avaliador Neural Jarvis (/api/decision)
+        </div>
+        <button class="btn btn-sm" style="font-size: 10px; padding: 3px 8px; background: rgba(0,210,255,0.15); color: #00d2ff; border: 1px solid #00d2ff;" onclick="openStackAiAnalysis(parseFloat(document.getElementById('dec-val').value)||33, parseFloat(document.getElementById('dec-km').value)||4.2, 'App Simulado', 'Restaurante Exemplo')">
+          ⚡ Auditoria Neural 4D
+        </button>
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px;">
         <input type="number" id="dec-val" class="glass" style="padding: 8px 10px; color: #fff; font-size: 12px;" placeholder="Valor (R$)" value="33.00">
@@ -1927,6 +2657,7 @@ HTML_CONTENT = """<!DOCTYPE html>
           <div>
             <span class="app-dot app-ifood">iFood</span> + <span class="app-dot app-rappi">Rappi</span>
             <span style="background: rgba(0, 255, 136, 0.2); color: var(--primary); font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid var(--primary);">✨ MESCLADA</span>
+            <span style="background: rgba(255, 159, 28, 0.2); color: #ff9f1c; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid #ff9f1c;">🔥 POLO PAULISTA (+45%)</span>
             <div style="font-size: 14px; font-weight: 800; color: #ffffff; margin-top: 6px;">Burger King Paulista & Pizza Hut Jardins</div>
           </div>
           <div style="text-align: right;">
@@ -1943,6 +2674,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
         <div class="stack-btn-row">
           <button class="btn btn-red" onclick="declineStack(this, 'stk_01')">❌ Recusar</button>
+          <button class="btn" style="background: rgba(0, 210, 255, 0.15); color: #00d2ff; border: 1px solid #00d2ff;" onclick="openStackAiAnalysis(33.00, 4.2, 'iFood + Rappi', 'Burger King Paulista e Pizza Hut', 'stk_01')">🧠 IA</button>
           <button class="btn" style="background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid #ffd700;" onclick="readOfferAloud('iFood e Rappi', 'Burger King e Pizza Hut', 33.0, 4.2, 7.86, 18)">🔊 Ouvir</button>
           <button class="btn btn-maps" onclick="openMapsRoute('Burger King Avenida Paulista, Sao Paulo', 'Pizza Hut Alameda Santos, Sao Paulo', 'Edificio Paulista Corporate, Sao Paulo', 'stk_01')">🗺️ Maps Rota</button>
           <button class="btn btn-green" onclick="acceptStack(this, 33.00, 'stk_01')">✅ Aceitar</button>
@@ -1968,6 +2700,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
         <div class="stack-btn-row">
           <button class="btn btn-red" onclick="declineStack(this, 'stk_02')">❌ Recusar</button>
+          <button class="btn" style="background: rgba(0, 210, 255, 0.15); color: #00d2ff; border: 1px solid #00d2ff;" onclick="openStackAiAnalysis(15.00, 2.8, 'iFood', 'McDonald\'s Henrique Schaumann', 'stk_02')">🧠 IA</button>
           <button class="btn" style="background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid #ffd700;" onclick="readOfferAloud('iFood', 'McDonalds Henrique Schaumann', 15.0, 2.8, 5.35, 12)">🔊 Ouvir</button>
           <button class="btn btn-maps" onclick="openMapsRoute('McDonalds Henrique Schaumann, Sao Paulo', null, 'Rua Augusta 1500, Sao Paulo', 'stk_02')">🗺️ Maps</button>
           <button class="btn btn-green" onclick="acceptStack(this, 15.00, 'stk_02')">✅ Aceitar</button>
@@ -1979,6 +2712,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         <div class="stack-header">
           <div>
             <span class="app-dot app-rappi">Rappi</span>
+            <span style="background: rgba(255, 159, 28, 0.2); color: #ff9f1c; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid #ff9f1c;">🔥 POLO PAULISTA (+45%)</span>
             <div style="font-size: 14px; font-weight: 800; color: #ffffff; margin-top: 6px;">Starbucks Frei Caneca</div>
           </div>
           <div style="text-align: right;">
@@ -1993,6 +2727,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
         <div class="stack-btn-row">
           <button class="btn btn-red" onclick="declineStack(this, 'stk_03')">❌ Recusar</button>
+          <button class="btn" style="background: rgba(0, 210, 255, 0.15); color: #00d2ff; border: 1px solid #00d2ff;" onclick="openStackAiAnalysis(18.00, 3.1, 'Rappi', 'Starbucks Frei Caneca', 'stk_03')">🧠 IA</button>
           <button class="btn" style="background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid #ffd700;" onclick="readOfferAloud('Rappi', 'Starbucks Frei Caneca', 18.0, 3.1, 5.80, 14)">🔊 Ouvir</button>
           <button class="btn btn-maps" onclick="openMapsRoute('Starbucks Shopping Frei Caneca, Sao Paulo', null, 'Avenida Consolacao 2000, Sao Paulo', 'stk_03')">🗺️ Maps</button>
           <button class="btn btn-green" onclick="acceptStack(this, 18.00, 'stk_03')">✅ Aceitar</button>
@@ -2007,6 +2742,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     <div class="nav-pills">
       <a href="#dashboard" class="nav-pill">Cockpit</a>
       <a href="#stacks" class="nav-pill active">Stacks</a>
+      <a href="#ai-copilot" class="nav-pill" style="color: #00d2ff; border-color: rgba(0, 210, 255, 0.4);">🤖 Jarvis IA</a>
       <a href="#analytics" class="nav-pill">Analytics</a>
       <a href="#subscription" class="nav-pill">Plano Pro</a>
       <a href="#settings" class="nav-pill">Ajustes</a>
@@ -2055,9 +2791,61 @@ HTML_CONTENT = """<!DOCTYPE html>
     <div class="nav-pills">
       <a href="#dashboard" class="nav-pill">Cockpit</a>
       <a href="#stacks" class="nav-pill">Stacks</a>
+      <a href="#ai-copilot" class="nav-pill" style="color: #00d2ff; border-color: rgba(0, 210, 255, 0.4);">🤖 Jarvis IA</a>
       <a href="#analytics" class="nav-pill active">Analytics Recharts</a>
       <a href="#subscription" class="nav-pill">Plano Pro</a>
       <a href="#settings" class="nav-pill">Ajustes</a>
+    </div>
+
+    <!-- MÓDULO: JARVIS AI PERFORMANCE COACH & DIAGNÓSTICO NOTURNO -->
+    <div class="glass" style="padding: 16px; margin-bottom: 16px; border: 1.5px solid rgba(0, 210, 255, 0.4); border-radius: 18px;" id="ai-coach-panel">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 24px;" class="holo-glow">🧠</span>
+          <div>
+            <div style="font-size: 14px; font-weight: 900; color: #00d2ff;">JARVIS AI PERFORMANCE COACH</div>
+            <div style="font-size: 10px; color: var(--text-muted);">Auditoria neural do turno em tempo real com Gemini Flash</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px; background: rgba(0,210,255,0.15); color: #00d2ff; border: 1px solid #00d2ff;" onclick="loadAiCoachSummary()">🔄 Atualizar IA</button>
+          <div style="background: rgba(0, 255, 136, 0.15); border: 1px solid #00ff88; border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: 900; color: #00ff88;">
+            NOTA: <span id="coach-grade">A+</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 14px;">
+        <div class="glass" style="padding: 10px;">
+          <div style="font-size: 10px; color: var(--text-muted);">Eficiência Média</div>
+          <div id="coach-eff" class="tabular" style="font-size: 15px; font-weight: 900; color: var(--primary);">R$ 7,45 / km</div>
+          <div style="font-size: 9px; color: #00d2ff;">+42% vs média SP</div>
+        </div>
+        <div class="glass" style="padding: 10px;">
+          <div style="font-size: 10px; color: var(--text-muted);">Km Ociosos Poupados</div>
+          <div id="coach-kmsaved" class="tabular" style="font-size: 15px; font-weight: 900; color: #ffd700;">38.4 km</div>
+          <div style="font-size: 9px; color: var(--text-muted);">Recusa estratégica</div>
+        </div>
+        <div class="glass" style="padding: 10px;">
+          <div style="font-size: 10px; color: var(--text-muted);">Gasolina Economizada</div>
+          <div id="coach-fuel" class="tabular" style="font-size: 15px; font-weight: 900; color: #00ff88;">R$ 6,53</div>
+          <div style="font-size: 9px; color: var(--text-muted);">1.100 ml poupados</div>
+        </div>
+        <div class="glass" style="padding: 10px;">
+          <div style="font-size: 10px; color: var(--text-muted);">Tempo Preservado</div>
+          <div id="coach-time" class="tabular" style="font-size: 15px; font-weight: 900; color: #ffffff;">1h 14min</div>
+          <div style="font-size: 9px; color: var(--text-muted);">Menos semáforos</div>
+        </div>
+      </div>
+
+      <div style="background: rgba(0,0,0,0.4); border-radius: 10px; padding: 12px; border-left: 3px solid #00d2ff;">
+        <div style="font-size: 11px; font-weight: 800; color: #00d2ff; margin-bottom: 6px;">FEEDBACK TÁTICO DO COPILOTO:</div>
+        <div id="coach-tactical-tips" style="display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: #e0e0ff; line-height: 1.4;">
+          <div>• 🎯 <strong>Excelente seletividade:</strong> Você recusou 8 corridas abaixo de R$ 3,50/km, mantendo seu rendimento horário em R$ 42,60/h.</div>
+          <div>• 🔥 <strong>Foco no Polo Paulista:</strong> 72% do seu faturamento veio da região da Paulista e Jardins, aproveitando a mesclagem BK + Pizza Hut.</div>
+          <div>• 🛵 <strong>Previsão de Meta:</strong> No ritmo atual, você baterá a meta de R$ 350,00 às 15h40, restando apenas 2 corridas curtas.</div>
+        </div>
+      </div>
     </div>
 
     <!-- Cabeçalho do Dashboard de Ganhos -->
@@ -2357,6 +3145,118 @@ HTML_CONTENT = """<!DOCTYPE html>
     </div>
   </section>
 
+  <!-- #AI-COPILOT (Jarvis Neural AI Copilot & Intelligent Assistant) -->
+  <section id="ai-copilot" class="view-section">
+    <!-- Navegação -->
+    <div class="nav-pills">
+      <a href="#dashboard" class="nav-pill">Cockpit</a>
+      <a href="#stacks" class="nav-pill">Stacks</a>
+      <a href="#ai-copilot" class="nav-pill active" style="color: #00d2ff; border-color: #00d2ff;">🤖 Jarvis IA</a>
+      <a href="#analytics" class="nav-pill">Analytics</a>
+      <a href="#subscription" class="nav-pill">Plano Pro</a>
+      <a href="#settings" class="nav-pill">Ajustes</a>
+      <a href="#admin" class="nav-pill">Admin</a>
+    </div>
+
+    <!-- Header do Copilot com Avatar Holográfico -->
+    <div style="background: linear-gradient(135deg, rgba(0, 210, 255, 0.15) 0%, rgba(17, 17, 24, 0.95) 100%); border: 1px solid rgba(0, 210, 255, 0.4); border-radius: 18px; padding: 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="font-size: 32px;" class="holo-glow">🤖</div>
+        <div>
+          <div style="font-size: 15px; font-weight: 900; color: #ffffff; display: flex; align-items: center; gap: 8px;">
+            <span>JARVIS NEURAL COPILOT 4.0</span>
+            <span style="background: rgba(0, 255, 136, 0.2); color: var(--primary); font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--primary);">ONLINE</span>
+          </div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">Copiloto tático com Gemini Flash & Telemetria Quântica de São Paulo</div>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button class="btn" style="padding: 6px 12px; font-size: 11px; background: rgba(0, 210, 255, 0.15); color: #00d2ff; border: 1px solid #00d2ff;" onclick="speak('Jarvis Copilot em escuta contínua. Pode me chamar pelo capacete.')">
+          🔊 Testar Áudio
+        </button>
+      </div>
+    </div>
+
+    <!-- MÓDULO 1: CHAT TÁTICO CONVERSACIONAL -->
+    <div class="glass" style="padding: 16px; margin-bottom: 16px; border: 1px solid rgba(0, 210, 255, 0.3);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <span style="font-size: 12px; font-weight: 800; color: #00d2ff; letter-spacing: 0.5px;">💬 ASSISTENTE TÁTICO DE RUA</span>
+        <span id="ai-chat-status" style="font-size: 10px; color: var(--primary); font-weight: 700;">Pronto</span>
+      </div>
+
+      <!-- Quick Prompt Chips -->
+      <div style="display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 12px;">
+        <div class="ai-chip" onclick="askJarvisQuick('Devo continuar no Polo Paulista agora?')">🔥 Polo Paulista</div>
+        <div class="ai-chip" onclick="askJarvisQuick('Quanto falta e qual a melhor rota para bater a meta de R$ 350?')">🎯 Meta R$ 350</div>
+        <div class="ai-chip" onclick="askJarvisQuick('Qual a recomendação de segurança para chuva na pista?')">🌧️ Modo Chuva</div>
+        <div class="ai-chip" onclick="askJarvisQuick('Qual posto tem gasolina barata e como está meu consumo hoje?')">⛽ Combustível</div>
+        <div class="ai-chip" onclick="askJarvisQuick('Vale a pena aceitar pedido de R$ 18 por 4km?')">💡 Vale a pena?</div>
+      </div>
+
+      <!-- Caixa de Mensagens -->
+      <div id="ai-chat-messages" class="ai-chat-box">
+        <div class="ai-msg ai-msg-jarvis">
+          <div style="font-size: 18px;">🤖</div>
+          <div class="ai-bubble ai-bubble-jarvis">
+            <strong>Jarvis:</strong> Fala Thiago! Monitorando os 4 apps de entrega em tempo real. Você já está com <strong>R$ 284,50</strong> faturados hoje (+R$ 7,45/km). O <strong>Polo Paulista (+45%)</strong> está fervendo com pedidos de almoço corporativo. Como posso te apoiar agora no asfalto?
+          </div>
+        </div>
+      </div>
+
+      <!-- Campo de Entrada com Microfone -->
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <input type="text" id="ai-user-input" class="glass" style="flex: 1; padding: 10px 14px; font-size: 12px; color: #ffffff; border-radius: 10px;" placeholder="Pergunte ao Jarvis (ex: 'Compensa ir pra Faria Lima agora?')..." onkeydown="if(event.key==='Enter') sendAiChatMessage()">
+        <button id="ai-mic-btn" class="hud-btn" style="width: 40px; height: 40px; border-radius: 10px; font-size: 16px;" onclick="startVoiceInputForAi()" title="Falar por voz">🎙️</button>
+        <button class="btn btn-green" style="padding: 10px 16px; font-size: 12px; border-radius: 10px;" onclick="sendAiChatMessage()">Enviar</button>
+      </div>
+    </div>
+
+    <!-- MÓDULO 2: LEITOR NEURAL OCR DE NOTIFICAÇÕES & PRINTS -->
+    <div class="glass" style="padding: 16px; margin-bottom: 16px; border: 1px solid rgba(0, 255, 136, 0.3);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">📸</span>
+          <span style="font-size: 12px; font-weight: 800; color: var(--primary); letter-spacing: 0.5px;">LEITOR NEURAL DE OFERTAS & NOTIFICAÇÕES (OCR IA)</span>
+        </div>
+        <span style="font-size: 10px; color: var(--text-muted);">Decisão Instantânea</span>
+      </div>
+      <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px;">
+        Cole o texto da notificação ou broadcast do app de entrega para extração instantânea com IA e veredito imediato por voz.
+      </p>
+
+      <textarea id="ai-notif-input" class="glass" style="width: 100%; min-height: 65px; padding: 10px; font-size: 12px; color: #ffffff; border-radius: 8px; resize: vertical; margin-bottom: 10px;" placeholder="Ex: iFood: Novo Pedido! R$ 32,50 - 4.1km - Madero Frei Caneca para Cerqueira César..."></textarea>
+
+      <!-- Exemplos Rápidos de 1 Toque -->
+      <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
+        <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="fillSampleNotif('iFood: Novo Pedido! R$ 29,80 • 3.5km • Habib\'s Frei Caneca ➔ Bela Vista')">Exemplo iFood R$ 29,80</button>
+        <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="fillSampleNotif('Rappi Turbo: Pedido R$ 42,00 • 5.1km • Outback Center 3 ➔ Jardins')">Exemplo Rappi R$ 42,00</button>
+        <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="fillSampleNotif('Uber Direct: Nova Viagem R$ 9,50 • 6.8km • Droga Raia ➔ Pinheiros')">Exemplo Uber R$ 9,50 (Ruim)</button>
+      </div>
+
+      <button class="btn btn-green" style="width: 100%; padding: 10px; font-size: 12px; font-weight: 800;" onclick="parseAndAnalyzeNotification()">
+        🧠 Avaliar Notificação com IA do Jarvis ➔
+      </button>
+    </div>
+
+    <!-- MÓDULO 3: PREVISÃO PREDITIVA DE DEMANDA & HORÁRIOS DE PICO -->
+    <div class="glass" style="padding: 16px; margin-bottom: 16px; border: 1px solid rgba(255, 215, 0, 0.35);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 20px;">⚡</span>
+          <div>
+            <div style="font-size: 13px; font-weight: 900; color: #ffd700;">PREVISÃO PREDITIVA DE DEMANDA (PRÓXIMAS HORAS)</div>
+            <div style="font-size: 10px; color: var(--text-muted);">Modelo neural calibrado para a malha viária de São Paulo</div>
+          </div>
+        </div>
+        <button class="btn btn-sm" style="font-size: 10px; padding: 4px 8px;" onclick="loadAiDemandPredictions()">🔄 Atualizar</button>
+      </div>
+
+      <div id="ai-demand-forecasts-grid" style="display: grid; grid-template-columns: 1fr; gap: 10px;">
+        <!-- Preenchido dinamicamente via JS -->
+      </div>
+    </div>
+  </section>
+
   <!-- Bottom bar: Health Pulse 94/100 + GPS/Latência/Temp + botões 🎙️🛡️⚙️▶ -->
   <footer class="bottom-hud">
     <div class="health-badge" onclick="speak('Índice de saúde do sistema 94 de 100.')">
@@ -2375,6 +3275,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     </div>
 
     <div class="hud-actions">
+      <button class="hud-btn" style="color: #00d2ff; border-color: rgba(0, 210, 255, 0.5);" title="Jarvis Copilot IA" onclick="location.hash='#ai-copilot'">🤖</button>
       <button class="hud-btn active" id="btn-voz" title="Voz Jarvis" onclick="toggleVoz()">🎙️</button>
       <button class="hud-btn" id="btn-foco" title="Modo Foco" onclick="toggleModoFoco()">🛡️</button>
       <button class="hud-btn" title="Configurações" onclick="location.hash='#settings'">⚙️</button>
@@ -2391,6 +3292,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       earnings: { today: 284.50, week: 1420.80, month: 5680.00, totalKm: 38.2, profit: 218.40 },
       stacks: { active: [], pending: [], history: [], autoAccept: false, minGainPerKm: 5.0, minValue: 0.0, maxDistance: 8.0, minBonus: 0.0 },
       health: { score: 94, gpsAccuracy: 4.2, latency: 12, temperature: 28, speed: 0.0, isSafetyLock: false, isMoving: false },
+      geofencing: { zones: [], activeZone: null, closestZone: null, isInside: false, activeZoneId: null },
       config: { voiceEnabled: true, focusModeAuto: true, theme: 'dark' }
     };
 
@@ -2405,6 +3307,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             earnings: Object.assign({}, defaultState.earnings, parsed.earnings || {}),
             stacks: Object.assign({}, defaultState.stacks, parsed.stacks || {}),
             health: Object.assign({}, defaultState.health, parsed.health || {}),
+            geofencing: Object.assign({}, defaultState.geofencing, parsed.geofencing || {}),
             config: Object.assign({}, defaultState.config, parsed.config || {})
           };
         }
@@ -2699,6 +3602,26 @@ HTML_CONTENT = """<!DOCTYPE html>
         speak(`Seus ganhos hoje são de R$ ${window.AppState.earnings.today.toFixed(2).replace('.', ',')}.`);
       } else if (cmd.includes('saúde') || cmd.includes('status')) {
         speak(`Índice de saúde em 94 de 100. GPS com precisão de 4 metros.`);
+      } else if (cmd.includes('polos') || cmd.includes('polo') || cmd.includes('alta demanda') || cmd.includes('hotspots') || cmd.includes('hotspot') || cmd.includes('geofence')) {
+        const gf = window.AppState.geofencing;
+        if (gf && gf.isInside && gf.activeZone) {
+          speak(`Você está dentro do polo ${gf.activeZone.name}, com tarifa dinâmica e bônus de mais ${gf.activeZone.surge_bonus_percent} porcento.`);
+        } else if (gf && gf.closestZone) {
+          speak(`Polo mais próximo é ${gf.closestZone.name}, a ${gf.closestZone.distance_meters} metros. Bônus de mais ${gf.closestZone.surge_bonus_percent} porcento.`);
+        } else {
+          speak("Monitoramento de geofencing ativo. 5 polos de alta demanda rastreados em tempo real.");
+        }
+      } else if (cmd.includes('jarvis') || cmd.includes('copiloto') || cmd.includes('ia') || cmd.includes('inteligência') || cmd.includes('dica')) {
+        location.hash = '#ai-copilot';
+        speak('Jarvis Copilot aberto. Como posso te apoiar agora no asfalto?');
+      } else if (cmd.includes('previsão') || cmd.includes('demanda') || cmd.includes('horário de pico')) {
+        location.hash = '#ai-copilot';
+        loadAiDemandPredictions();
+        speak('Carregando previsão de demanda para as próximas horas.');
+      } else if (cmd.includes('coach') || cmd.includes('diagnóstico') || cmd.includes('como estou indo') || cmd.includes('desempenho')) {
+        location.hash = '#analytics';
+        loadAiCoachSummary();
+        speak('Abrindo diagnóstico de desempenho do Jarvis Coach.');
       }
     }
 
@@ -2766,6 +3689,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             lastGpsCoords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
             lastGpsTimestamp = pos.timestamp;
             updateSpeed(spd, 'GPS Fused');
+            evaluateGeofenceLocation(pos.coords.latitude, pos.coords.longitude);
           },
           err => {
             console.log("GPS local:", err.message);
@@ -2775,6 +3699,159 @@ HTML_CONTENT = """<!DOCTYPE html>
       } else {
         speak("Geolocalização não suportada no navegador atual.");
       }
+    }
+
+    // =========================================================================
+    // SERVIÇO DE LOCALIZAÇÃO E MONITORAMENTO DE GEOFENCING EM TEMPO REAL
+    // =========================================================================
+    async function fetchGeofences(lat = -23.561684, lng = -46.655981) {
+      try {
+        const res = await fetch(`/api/geofences?lat=${lat}&lng=${lng}`);
+        const data = await res.json();
+        if (data && data.zones) {
+          window.AppState.geofencing = {
+            zones: data.zones,
+            activeZone: data.active_zone,
+            closestZone: data.closest_zone,
+            isInside: data.is_inside_hotspot,
+            activeZoneId: data.active_zone_id
+          };
+          renderGeofenceUI();
+        }
+      } catch (e) {
+        console.error("Erro ao buscar geofences:", e);
+      }
+    }
+
+    async function evaluateGeofenceLocation(lat, lng) {
+      try {
+        const res = await fetch('/api/geofences/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ latitude: lat, longitude: lng })
+        });
+        const data = await res.json();
+        if (data && data.zones) {
+          const wasInside = window.AppState.geofencing ? window.AppState.geofencing.isInside : false;
+          window.AppState.geofencing = {
+            zones: data.zones,
+            activeZone: data.active_zone,
+            closestZone: data.closest_zone,
+            isInside: data.is_inside_hotspot,
+            activeZoneId: data.active_zone_id
+          };
+          renderGeofenceUI();
+          if (!wasInside && data.is_inside_hotspot && data.active_zone) {
+            speak(`Alerta Geofence: Você entrou na zona de alta demanda ${data.active_zone.name}. Tarifa dinâmica aumentada em mais ${data.active_zone.surge_bonus_percent} porcento.`);
+          } else if (wasInside && !data.is_inside_hotspot) {
+            speak("Você saiu da zona de alta demanda. Retornando para tarifa normal.");
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao avaliar geofence:", e);
+      }
+    }
+
+    async function simulateGeofence(action, zoneId = null) {
+      try {
+        const res = await fetch('/api/geofences/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: action, zone_id: zoneId })
+        });
+        const data = await res.json();
+        if (data && data.zones) {
+          window.AppState.geofencing = {
+            zones: data.zones,
+            activeZone: data.active_zone,
+            closestZone: data.closest_zone,
+            isInside: data.is_inside_hotspot,
+            activeZoneId: data.active_zone_id
+          };
+          renderGeofenceUI();
+          if (action === 'enter' && data.active_zone) {
+            speak(`Entrada em polo de alta demanda: ${data.active_zone.name}. Tarifa dinâmica com bônus de mais ${data.active_zone.surge_bonus_percent} porcento ativada.`);
+          } else if (action === 'exit') {
+            speak("Você saiu da zona de alta demanda.");
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao simular geofence:", e);
+      }
+    }
+
+    function renderGeofenceUI() {
+      const gf = window.AppState.geofencing;
+      if (!gf) return;
+
+      const statusPill = document.getElementById('geofence-status-pill');
+      const banner = document.getElementById('geofence-active-banner');
+      const title = document.getElementById('geofence-zone-title');
+      const desc = document.getElementById('geofence-zone-desc');
+      const bonus = document.getElementById('geofence-zone-bonus');
+      const list = document.getElementById('geofence-zones-list');
+
+      if (gf.isInside && gf.activeZone) {
+        if (statusPill) statusPill.innerHTML = '<span style="background: rgba(0, 255, 136, 0.2); color: #00ff88; font-weight: 800; font-size: 10px; padding: 4px 8px; border-radius: 6px; border: 1px solid #00ff88;">🔥 DENTRO DO HOTSPOT</span>';
+        if (banner) {
+          banner.style.display = 'block';
+          banner.style.borderColor = '#00ff88';
+          banner.style.background = 'rgba(0, 255, 136, 0.12)';
+        }
+        if (title) title.innerHTML = `🔥 DENTRO DO HOTSPOT: <span style="color:#00ff88;">${gf.activeZone.name}</span>`;
+        if (desc) desc.innerText = `${gf.activeZone.category} • ~${gf.activeZone.orders_per_hour} pedidos/hora • ${gf.activeZone.description}`;
+        if (bonus) {
+          bonus.innerText = `+${gf.activeZone.surge_bonus_percent}% TARIFA`;
+          bonus.style.background = '#00ff88';
+          bonus.style.color = '#0a0a0f';
+        }
+      } else if (gf.closestZone) {
+        if (statusPill) statusPill.innerHTML = '<span style="background: rgba(255, 159, 28, 0.15); color: #ff9f1c; font-weight: 800; font-size: 10px; padding: 4px 8px; border-radius: 6px; border: 1px solid #ff9f1c;">📡 PROCURANDO HOTSPOTS</span>';
+        if (banner) {
+          banner.style.display = 'block';
+          banner.style.borderColor = '#ff9f1c';
+          banner.style.background = 'rgba(255, 159, 28, 0.08)';
+        }
+        if (title) title.innerHTML = `📍 PRÓXIMO: <span style="color:#ff9f1c;">${gf.closestZone.name}</span> (${gf.closestZone.distance_meters}m)`;
+        if (desc) desc.innerText = `Aproximando-se do polo gastronômico • ~${gf.closestZone.orders_per_hour} pedidos/h estimados`;
+        if (bonus) {
+          bonus.innerText = `BÔNUS ATÉ +${gf.closestZone.surge_bonus_percent}%`;
+          bonus.style.background = '#ff9f1c';
+          bonus.style.color = '#000';
+        }
+      }
+
+      if (list && gf.zones) {
+        list.innerHTML = gf.zones.map(z => {
+          const isActive = (gf.activeZoneId === z.id) || z.is_inside;
+          const borderCol = isActive ? '#00ff88' : 'var(--surface-border)';
+          const bgCol = isActive ? 'rgba(0, 255, 136, 0.12)' : 'rgba(0,0,0,0.3)';
+          return `
+            <div style="display: flex; justify-content: space-between; align-items: center; background: ${bgCol}; border: 1px solid ${borderCol}; padding: 8px 12px; border-radius: 10px; cursor: pointer;" onclick="simulateGeofence('enter', '${z.id}')">
+              <div>
+                <div style="font-size: 11px; font-weight: 800; color: ${isActive ? '#00ff88' : '#ffffff'};">
+                  ${isActive ? '🔥 ' : '📍 '}${z.name}
+                </div>
+                <div style="font-size: 9px; color: var(--text-muted); margin-top: 2px;">
+                  ${z.category} • Raio: ${z.radius_meters}m • Apps: ${z.primary_app}
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-size: 11px; font-weight: 900; color: ${isActive ? '#00ff88' : '#ff9f1c'};">+${z.surge_bonus_percent}% Tarifa</div>
+                <div style="font-size: 9px; color: var(--text-muted);">${z.distance_meters}m • ~${z.orders_per_hour} ped/h</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Sincronizar nós de Hotspot no mapa de constelação
+      const mapPaulista = document.getElementById('map-node-paulista');
+      const mapJardins = document.getElementById('map-node-jardins');
+      const mapFariaLima = document.getElementById('map-node-farialima');
+      if (mapPaulista) mapPaulista.classList.toggle('active', gf.activeZoneId === 'zone_paulista_bk');
+      if (mapJardins) mapJardins.classList.toggle('active', gf.activeZoneId === 'zone_jardins_alameda');
+      if (mapFariaLima) mapFariaLima.classList.toggle('active', gf.activeZoneId === 'zone_faria_lima_prime');
     }
 
     function updateFilterMinValue(v) {
@@ -3033,27 +4110,57 @@ HTML_CONTENT = """<!DOCTYPE html>
     }
 
     let onboardStep = 1;
+    function updateOnboardDots() {
+      const dotsContainer = document.getElementById('onboard-dots');
+      if (!dotsContainer) return;
+      const dots = dotsContainer.getElementsByClassName('status-dot');
+      for (let i = 0; i < dots.length; i++) {
+        dots[i].style.opacity = (i + 1 <= onboardStep) ? '1' : '0.3';
+      }
+    }
+
     function nextOnboardSlide() {
       onboardStep++;
       const content = document.getElementById('onboard-content');
       const btn = document.getElementById('onboard-btn-next');
+      updateOnboardDots();
       if (onboardStep === 2) {
         content.innerHTML = `
-          <div style="font-size: 52px; margin-bottom: 16px;">🧠</div>
-          <h2 style="font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 8px;">Decisão Neural em Tempo Real</h2>
-          <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 24px;">
-            O Jarvis avalia valor, quilometragem e tempo em frações de segundo para recomendar a melhor corrida.
+          <div style="font-size: 52px; margin-bottom: 16px;">⚙️</div>
+          <h2 style="font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 8px;">Configurando Filtros de Ofertas</h2>
+          <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px;">
+            Calibre seu limite de operação para só aceitar pedidos lucrativos:
           </p>
+          <div style="text-align: left; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 20px; font-size: 12px; line-height: 1.6;">
+            <div><strong style="color: #00d2ff;">1. Raio Máximo (km):</strong> Evite viagens distantes que gastam combustível (ex: até 5 km).</div>
+            <div><strong style="color: #00ff88;">2. Valor Mínimo (R$):</strong> Descarta corridas baratas abaixo do seu piso (ex: R$ 15,00).</div>
+            <div><strong style="color: #ffd700;">3. Multiplicador R$/h:</strong> Garanta mais de R$ 5,00 por km rodado e mire em R$ 45/hora.</div>
+          </div>
         `;
       } else if (onboardStep === 3) {
         content.innerHTML = `
           <div style="font-size: 52px; margin-bottom: 16px;">🎙️</div>
-          <h2 style="font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 8px;">Cockpit Mãos-Livres</h2>
-          <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 24px;">
-            Alertas em português para você não tirar as mãos do guidão nem os olhos do trânsito.
+          <h2 style="font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 8px;">Comandos de Voz no Capacete</h2>
+          <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px;">
+            Pilotagem 100% segura com fone Bluetooth ou comunicador sem tirar as mãos do guidão:
+          </p>
+          <div style="text-align: left; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 20px; font-size: 12px; line-height: 1.6;">
+            <div><strong style="color: #00ff88;">"Aceitar" / "Sim":</strong> Confirma a corrida recomendada imediatamente.</div>
+            <div><strong style="color: #ff4757;">"Recusar" / "Não":</strong> Descarta o pedido e silencia o alerta.</div>
+            <div><strong style="color: #00d2ff;">"Ouvir Oferta":</strong> A IA sintetiza restaurante, valor e km no fone.</div>
+            <div><strong style="color: #ffd700;">"Modo Foco":</strong> Ativa o display de caracteres gigantes para o sol.</div>
+          </div>
+        `;
+        btn.innerText = 'Próximo';
+      } else if (onboardStep === 4) {
+        content.innerHTML = `
+          <div style="font-size: 52px; margin-bottom: 16px;">🚀</div>
+          <h2 style="font-size: 20px; font-weight: 800; color: #ffffff; margin-bottom: 8px;">Tudo Pronto para Faturar!</h2>
+          <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 16px;">
+            Filtros calibrados, comandos por voz ativos e multi-stack conectado. Boas entregas!
           </p>
         `;
-        btn.innerText = 'Iniciar';
+        btn.innerText = 'Começar a Rodar';
       } else {
         finishOnboarding();
       }
@@ -3139,12 +4246,20 @@ HTML_CONTENT = """<!DOCTYPE html>
         const restParts = s.restaurant.split('&');
         const r1 = restParts[0] ? restParts[0].trim() : s.restaurant;
         const r2 = restParts[1] ? restParts[1].trim() : null;
+
+        const isPaulista = s.restaurant.includes('Paulista') || s.restaurant.includes('Frei Caneca') || s.restaurant.includes('Center 3') || s.restaurant.includes('Augusta');
+        const isJardins = s.restaurant.includes('Jardins') || s.restaurant.includes('Santos');
+        const isPinheiros = s.restaurant.includes('Pinheiros') || s.restaurant.includes('Rebouças');
+        const isFariaLima = s.restaurant.includes('Olímpia') || s.restaurant.includes('Faria Lima');
+        const hotspotTag = isPaulista ? '🔥 POLO PAULISTA (+45%)' : (isJardins ? '🔥 POLO JARDINS (+30%)' : (isPinheiros ? '🔥 HUB PINHEIROS (+40%)' : (isFariaLima ? '🔥 FARIA LIMA (+50%)' : null)));
+
         return `
           <div class="stack-card ${isMulti ? 'multi' : ''}">
             <div class="stack-header">
               <div>
                 <span class="app-dot ${s.apps.includes('iFood') ? 'app-ifood' : (s.apps.includes('Rappi') ? 'app-rappi' : 'app-99')}">${s.apps}</span>
                 ${isMulti ? '<span style="background: rgba(0, 255, 136, 0.2); color: var(--primary); font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid var(--primary);">✨ MESCLADA</span>' : ''}
+                ${hotspotTag ? `<span style="background: rgba(255, 159, 28, 0.2); color: #ff9f1c; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-left: 6px; border: 1px solid #ff9f1c;">${hotspotTag}</span>` : ''}
                 <div style="font-size: 14px; font-weight: 800; color: #ffffff; margin-top: 6px;">${s.restaurant}</div>
               </div>
               <div style="text-align: right;">
@@ -3160,7 +4275,8 @@ HTML_CONTENT = """<!DOCTYPE html>
             </div>
             <div class="stack-btn-row">
               <button class="btn btn-red" onclick="declineStack(this, '${s.id}')">❌ Recusar</button>
-              <button class="btn" style="background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid #ffd700;" onclick="readOfferAloud('${s.apps}', '${s.restaurant}', ${s.total_value}, ${s.distance_km}, ${gain}, ${s.time_min})">🔊 Ouvir</button>
+              <button class="btn" style="background: rgba(0, 210, 255, 0.15); color: #00d2ff; border: 1px solid #00d2ff;" onclick="openStackAiAnalysis(${s.total_value}, ${s.distance_km}, '${s.apps}', '${s.restaurant.replace(/'/g, "\\'")}', '${s.id}')">🧠 IA</button>
+              <button class="btn" style="background: rgba(255, 215, 0, 0.15); color: #ffd700; border: 1px solid #ffd700;" onclick="readOfferAloud('${s.apps}', '${s.restaurant.replace(/'/g, "\\'")}', ${s.total_value}, ${s.distance_km}, ${gain}, ${s.time_min})">🔊 Ouvir</button>
               <button class="btn btn-maps" onclick="openMapsRoute('${r1}, Sao Paulo', ${r2 ? `'${r2}, Sao Paulo'` : 'null'}, 'Sao Paulo, SP', '${s.id}')">🗺️ Maps Rota</button>
               <button class="btn btn-green" onclick="acceptStack(this, ${s.total_value}, '${s.id}')">✅ Aceitar</button>
             </div>
@@ -3982,6 +5098,412 @@ HTML_CONTENT = """<!DOCTYPE html>
       }
     }
 
+    // =========================================================================
+    // FUNÇÕES DO JARVIS NEURAL AI COPILOT & MODAL DE ANÁLISE COGNITIVA
+    // =========================================================================
+    let currentModalStackId = null;
+    let currentModalValue = 0;
+    let currentAiVerdictText = '';
+
+    async function openStackAiAnalysis(val, dist, apps, rest, stackId) {
+      currentModalStackId = stackId;
+      currentModalValue = val;
+
+      const modal = document.getElementById('ai-stack-modal');
+      if (!modal) return;
+
+      modal.classList.add('open');
+
+      // Preenche cabeçalho básico imediato
+      const headerTitle = document.getElementById('ai-modal-header-title');
+      const headerSub = document.getElementById('ai-modal-header-sub');
+      if (headerTitle) headerTitle.innerText = `${apps} • ${rest}`;
+      if (headerSub) headerSub.innerText = `R$ ${val.toFixed(2).replace('.', ',')} • ${dist} km • ID: ${stackId}`;
+
+      // Estado de Carregamento Neural
+      const scoreEl = document.getElementById('ai-modal-score');
+      const verdictEl = document.getElementById('ai-modal-verdict-badge');
+      const summaryEl = document.getElementById('ai-modal-summary');
+      if (scoreEl) scoreEl.innerText = '--';
+      if (verdictEl) {
+        verdictEl.innerText = 'PROCESSANDO COM GEMINI FLASH...';
+        verdictEl.style.color = '#00d2ff';
+        verdictEl.style.borderColor = '#00d2ff';
+      }
+      if (summaryEl) summaryEl.innerHTML = '<em>⚡ Consultando modelo neural cognitivo com telemetria de trânsito em tempo real de São Paulo...</em>';
+
+      try {
+        const res = await fetch('/api/ai/analyze-stack', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            value: val,
+            distance: dist,
+            apps: apps,
+            restaurant: rest
+          })
+        });
+
+        const data = await res.json();
+        const score = data.score || 85;
+        const verdict = data.verdict || (score >= 70 ? 'ACEITAR' : 'RECUSAR');
+        const netProfit = data.net_profit || (val - (dist * 0.17));
+        const netGainKm = data.net_gain_per_km || (val / dist);
+        const estTime = data.est_time_min || Math.round(dist * 3.5 + 8);
+        const hourlyRate = data.hourly_rate || (netProfit / (estTime / 60.0));
+        const fuelCost = data.fuel_cost || (dist * 0.17);
+        const kitchenWait = data.kitchen_wait_min || 6;
+        const summary = data.summary || `Análise de rentabilidade: corrida de R$ ${val.toFixed(2)} com retorno líquido excelente de R$ ${netGainKm.toFixed(2)}/km.`;
+
+        currentAiVerdictText = `Veredito Jarvis: ${verdict}. Score ${score} de 100. ${summary}`;
+
+        if (scoreEl) scoreEl.innerText = `${score}/100`;
+        if (verdictEl) {
+          verdictEl.innerText = `VEREDITO: ${verdict}`;
+          verdictEl.style.color = verdict === 'ACEITAR' ? 'var(--primary)' : (verdict === 'AVALIAR' ? '#ffd700' : '#ff4757');
+          verdictEl.style.borderColor = verdict === 'ACEITAR' ? 'var(--primary)' : (verdict === 'AVALIAR' ? '#ffd700' : '#ff4757');
+        }
+
+        const npEl = document.getElementById('ai-modal-netprofit');
+        const ngEl = document.getElementById('ai-modal-netgainkm');
+        const tmEl = document.getElementById('ai-modal-time');
+        const hrEl = document.getElementById('ai-modal-hourly');
+        const fcEl = document.getElementById('ai-modal-fuel');
+        const kwEl = document.getElementById('ai-modal-kitchen');
+
+        if (npEl) npEl.innerText = `R$ ${Number(netProfit).toFixed(2).replace('.', ',')}`;
+        if (ngEl) ngEl.innerText = `R$ ${Number(netGainKm).toFixed(2).replace('.', ',')}/km`;
+        if (tmEl) tmEl.innerText = `~${estTime} min`;
+        if (hrEl) hrEl.innerText = `R$ ${Number(hourlyRate).toFixed(2).replace('.', ',')}/h`;
+        if (fcEl) fcEl.innerText = `- R$ ${Number(fuelCost).toFixed(2).replace('.', ',')}`;
+        if (kwEl) kwEl.innerText = `~${kitchenWait} min`;
+
+        if (summaryEl) summaryEl.innerHTML = summary;
+
+        // Anúncio por voz hands-free se áudio estiver ativado
+        if (window.AppState.config.voiceEnabled) {
+          speak(`Veredito Jarvis: ${verdict}. Score ${score}. ${summary}`);
+        }
+
+      } catch (err) {
+        if (summaryEl) summaryEl.innerHTML = `⚠️ Análise local: Ganho de R$ ${(val/dist).toFixed(2)}/km. Projeção de lucro líquida positiva.`;
+        if (verdictEl) {
+          verdictEl.innerText = (val/dist >= 4.0) ? 'VEREDITO: ACEITAR' : 'VEREDITO: RECUSAR';
+        }
+      }
+    }
+
+    function closeAiStackModal() {
+      const modal = document.getElementById('ai-stack-modal');
+      if (modal) modal.classList.remove('open');
+    }
+
+    function acceptModalStack() {
+      closeAiStackModal();
+      if (currentModalStackId && currentModalValue) {
+        acceptStack(null, currentModalValue, currentModalStackId);
+      }
+    }
+
+    function speakAiVerdict() {
+      if (currentAiVerdictText) {
+        speak(currentAiVerdictText);
+      } else {
+        speak("Analisando corrida com modelo neural.");
+      }
+    }
+
+    // =========================================================================
+    // CHAT TÁTICO COM GEMINI FLASH
+    // =========================================================================
+    async function sendAiChatMessage() {
+      const input = document.getElementById('ai-user-input');
+      if (!input) return;
+      const text = input.value.trim();
+      if (!text) return;
+
+      const chatBox = document.getElementById('ai-chat-messages');
+      const statusEl = document.getElementById('ai-chat-status');
+
+      // Adiciona mensagem do piloto
+      const userDiv = document.createElement('div');
+      userDiv.className = 'ai-msg ai-msg-pilot';
+      userDiv.innerHTML = `
+        <div class="ai-bubble ai-bubble-pilot">
+          ${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}
+        </div>
+        <div style="font-size: 18px;">🏍️</div>
+      `;
+      chatBox.appendChild(userDiv);
+      input.value = '';
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      if (statusEl) {
+        statusEl.innerText = 'Processando...';
+        statusEl.style.color = '#00d2ff';
+      }
+
+      // Indicador de digitação
+      const typingDiv = document.createElement('div');
+      typingDiv.className = 'ai-msg ai-msg-jarvis';
+      typingDiv.id = 'ai-typing-temp';
+      typingDiv.innerHTML = `
+        <div style="font-size: 18px;">🤖</div>
+        <div class="ai-bubble ai-bubble-jarvis" style="color: var(--text-muted);">
+          <em>Jarvis analisando com Gemini Flash...</em>
+        </div>
+      `;
+      chatBox.appendChild(typingDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      try {
+        const res = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: text,
+            context: {
+              today_earnings: window.AppState.earnings.today,
+              total_km: window.AppState.earnings.totalKm,
+              current_speed: window.AppState.health.speed,
+              active_zone: window.AppState.geofencing ? window.AppState.geofencing.activeZone : null
+            }
+          })
+        });
+
+        const data = await res.json();
+        const reply = data.reply || 'Câmbio piloto. Linha desimpedida na Paulista e Jardins.';
+
+        typingDiv.remove();
+
+        const jarvisDiv = document.createElement('div');
+        jarvisDiv.className = 'ai-msg ai-msg-jarvis';
+        jarvisDiv.innerHTML = `
+          <div style="font-size: 18px;">🤖</div>
+          <div class="ai-bubble ai-bubble-jarvis">
+            <strong>Jarvis:</strong> ${reply}
+          </div>
+        `;
+        chatBox.appendChild(jarvisDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        if (statusEl) {
+          statusEl.innerText = 'Pronto';
+          statusEl.style.color = 'var(--primary)';
+        }
+
+        if (window.AppState.config.voiceEnabled) {
+          speak(reply);
+        }
+
+      } catch (e) {
+        typingDiv.remove();
+        const jarvisDiv = document.createElement('div');
+        jarvisDiv.className = 'ai-msg ai-msg-jarvis';
+        jarvisDiv.innerHTML = `
+          <div style="font-size: 18px;">🤖</div>
+          <div class="ai-bubble ai-bubble-jarvis">
+            <strong>Jarvis:</strong> Entendido, Thiago. Continue priorizando pedidos acima de R$ 5,00/km no Polo Paulista para bater sua meta de R$ 350 com menos combustível.
+          </div>
+        `;
+        chatBox.appendChild(jarvisDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+    }
+
+    function askJarvisQuick(prompt) {
+      location.hash = '#ai-copilot';
+      const input = document.getElementById('ai-user-input');
+      if (input) {
+        input.value = prompt;
+        sendAiChatMessage();
+      }
+    }
+
+    function startVoiceInputForAi() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const micBtn = document.getElementById('ai-mic-btn');
+      if (!SpeechRecognition) {
+        const promptTxt = prompt("Reconhecimento de fala indisponível. Digite sua pergunta ao Jarvis:");
+        if (promptTxt) {
+          const input = document.getElementById('ai-user-input');
+          if (input) {
+            input.value = promptTxt;
+            sendAiChatMessage();
+          }
+        }
+        return;
+      }
+
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'pt-BR';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        if (micBtn) {
+          micBtn.style.background = 'rgba(255, 71, 87, 0.4)';
+          micBtn.style.borderColor = '#ff4757';
+        }
+        speak("Jarvis ouvindo...");
+
+        recognition.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          const input = document.getElementById('ai-user-input');
+          if (input) {
+            input.value = transcript;
+            sendAiChatMessage();
+          }
+        };
+
+        recognition.onend = () => {
+          if (micBtn) {
+            micBtn.style.background = '';
+            micBtn.style.borderColor = '';
+          }
+        };
+
+        recognition.onerror = () => {
+          if (micBtn) {
+            micBtn.style.background = '';
+            micBtn.style.borderColor = '';
+          }
+        };
+
+        recognition.start();
+      } catch (e) {
+        console.error("SpeechRecognition error:", e);
+      }
+    }
+
+    // =========================================================================
+    // OCR & LEITOR NEURAL DE NOTIFICAÇÕES
+    // =========================================================================
+    function fillSampleNotif(text) {
+      const el = document.getElementById('ai-notif-input');
+      if (el) el.value = text;
+    }
+
+    async function parseAndAnalyzeNotification() {
+      const input = document.getElementById('ai-notif-input');
+      if (!input || !input.value.trim()) {
+        speak("Cole ou digite o texto da notificação primeiro.");
+        return;
+      }
+
+      speak("Extraindo dados da notificação com inteligência artificial...");
+
+      try {
+        const res = await fetch('/api/ai/parse-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: input.value.trim() })
+        });
+
+        const data = await res.json();
+        const parsed = data.parsed || {
+          value: 29.80,
+          distance_km: 3.5,
+          restaurant: "Restaurante Identificado",
+          app_source: "iFood"
+        };
+
+        // Abre o modal de análise com os dados extraídos
+        openStackAiAnalysis(
+          parsed.value,
+          parsed.distance_km,
+          parsed.app_source,
+          parsed.restaurant,
+          'notif_' + Date.now().toString().slice(-4)
+        );
+
+      } catch (e) {
+        openStackAiAnalysis(29.80, 3.5, 'iFood', 'Restaurante Extraído', 'notif_demo');
+      }
+    }
+
+    // =========================================================================
+    // PREVISÃO PREDITIVA DE DEMANDA
+    // =========================================================================
+    async function loadAiDemandPredictions() {
+      const grid = document.getElementById('ai-demand-forecasts-grid');
+      if (!grid) return;
+
+      grid.innerHTML = '<div style="text-align: center; color: var(--text-muted); font-size: 11px; padding: 12px;">Carregando modelo preditivo...</div>';
+
+      try {
+        const res = await fetch('/api/ai/predict-demand');
+        const data = await res.json();
+        const forecasts = data.forecasts || [];
+
+        if (forecasts.length === 0) {
+          grid.innerHTML = '<div style="color: var(--text-muted); font-size: 11px;">Sem previsões ativas no momento.</div>';
+          return;
+        }
+
+        grid.innerHTML = forecasts.map(f => {
+          const surgeColor = f.surge_level === 'EXTREMO' ? '#ff4757' : (f.surge_level === 'MUITO ALTO' ? '#ffd700' : 'var(--primary)');
+          return `
+            <div class="glass" style="padding: 12px 14px; border-left: 3px solid ${surgeColor}; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <div style="font-size: 13px; font-weight: 800; color: #ffffff; display: flex; align-items: center; gap: 6px;">
+                  <span>${f.zone_name}</span>
+                  <span style="font-size: 10px; font-weight: 900; color: ${surgeColor}; background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; border: 1px solid ${surgeColor};">
+                    ${f.surge_level} (${f.surge_multiplier}x)
+                  </span>
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">
+                  Pico previsto: <strong>${f.peak_window}</strong> • Probabilidade: <strong>${f.probability_percent}%</strong>
+                </div>
+                <div style="font-size: 10px; color: #00d2ff; margin-top: 2px;">
+                  💡 Dica tática: ${f.recommended_position}
+                </div>
+              </div>
+              <div style="text-align: right;">
+                <div class="tabular" style="font-size: 13px; font-weight: 900; color: var(--primary);">${f.expected_orders_hr}</div>
+                <button class="btn btn-sm" style="margin-top: 4px; font-size: 10px; padding: 4px 8px; background: rgba(0,255,136,0.12); color: var(--primary); border: 1px solid var(--primary);" onclick="speak('Navegando para o polo ${f.zone_name.replace(/'/g, "\\'")}'); location.hash='#dashboard';">
+                  📍 Posicionar
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+      } catch (e) {
+        grid.innerHTML = '<div style="color: #ff6b6b; font-size: 11px;">Erro ao carregar previsões.</div>';
+      }
+    }
+
+    // =========================================================================
+    // COACH DE PERFORMANCE JARVIS IA
+    // =========================================================================
+    async function loadAiCoachSummary() {
+      try {
+        const res = await fetch('/api/ai/coach-summary');
+        const data = await res.json();
+        const rep = data.report || {};
+
+        const gradeEl = document.getElementById('coach-grade');
+        const effEl = document.getElementById('coach-eff');
+        const kmSavedEl = document.getElementById('coach-kmsaved');
+        const fuelEl = document.getElementById('coach-fuel');
+        const timeEl = document.getElementById('coach-time');
+        const tipsEl = document.getElementById('coach-tactical-tips');
+
+        if (gradeEl && rep.grade) gradeEl.innerText = rep.grade;
+        if (effEl && rep.avg_efficiency) effEl.innerText = rep.avg_efficiency;
+        if (kmSavedEl && rep.idle_km_saved) kmSavedEl.innerText = `${rep.idle_km_saved} km`;
+        if (fuelEl && rep.fuel_saved_reais) fuelEl.innerText = `R$ ${rep.fuel_saved_reais.toFixed(2).replace('.', ',')}`;
+        if (timeEl && rep.time_saved_min) timeEl.innerText = `${Math.floor(rep.time_saved_min/60)}h ${rep.time_saved_min%60}min`;
+
+        if (tipsEl && rep.tactical_tips && rep.tactical_tips.length > 0) {
+          tipsEl.innerHTML = rep.tactical_tips.map(t => `<div>• ${t}</div>`).join('');
+        }
+      } catch (e) {
+        console.error("Erro ao carregar Coach IA:", e);
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
       handleRouting();
       render();
@@ -3989,6 +5511,9 @@ HTML_CONTENT = """<!DOCTYPE html>
       fetchStacks();
       loadAnalytics();
       fetchFailures();
+      fetchGeofences();
+      loadAiDemandPredictions();
+      loadAiCoachSummary();
       updateSpeed(window.AppState.health.speed || 0, 'Inicial');
       try { initVoiceRecognition(); } catch (e) {}
 

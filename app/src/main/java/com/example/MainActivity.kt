@@ -227,6 +227,11 @@ fun RadarDeliveryDashboard(
     // Estado da Tela de Perfil do Entregador
     var showProfileScreen by remember { mutableStateOf(false) }
 
+    // Estado do Tour Guiado (Onboarding) na primeira execução do app
+    var showOnboardingTour by remember {
+        mutableStateOf(!OnboardingPreferencesManager.hasCompletedOnboarding(context))
+    }
+
     // Inicialização do Gerenciador de Assinaturas Pro e Google Play Billing
     LaunchedEffect(Unit) {
         SubscriptionManager.initialize(context)
@@ -657,6 +662,7 @@ fun RadarDeliveryDashboard(
                 VoiceActionCommand.HELP -> {
                     HapticFeedbackHelper.vibrateTap(context)
                     voiceManager?.announceHelp()
+                    showOnboardingTour = true
                 }
                 VoiceActionCommand.FOCUS_ON -> {
                     HapticFeedbackHelper.vibrateTap(context)
@@ -851,9 +857,24 @@ fun RadarDeliveryDashboard(
         }
     }
 
+    if (showOnboardingTour) {
+        GuidedOnboardingTour(
+            onFinishTour = { showOnboardingTour = false },
+            onOpenFilterSettings = {
+                showOnboardingTour = false
+                showFilterSettingsScreen = true
+            }
+        )
+        return
+    }
+
     if (showProfileScreen) {
         DeliveryProfileScreen(
-            onNavigateBack = { showProfileScreen = false }
+            onNavigateBack = { showProfileScreen = false },
+            onOpenOnboardingTour = {
+                showProfileScreen = false
+                showOnboardingTour = true
+            }
         )
         return
     }
@@ -915,6 +936,17 @@ fun RadarDeliveryDashboard(
                     }
                 },
                 actions = {
+                    // Botão do Tour Guiado / Ajuda de Operação (Filtros e Comandos de Voz)
+                    IconButton(
+                        onClick = { showOnboardingTour = true },
+                        modifier = Modifier.testTag("action_onboarding_tour")
+                    ) {
+                        Text(
+                            text = "💡",
+                            fontSize = 18.sp
+                        )
+                    }
+
                     // Botão de Perfil do Entregador (Histórico Interno de Decisões)
                     IconButton(
                         onClick = { showProfileScreen = true },
@@ -1667,7 +1699,11 @@ fun RadarDeliveryDashboard(
     // Tela de Perfil do Entregador (Histórico de Decisões)
     if (showProfileScreen) {
         DeliveryProfileScreen(
-            onNavigateBack = { showProfileScreen = false }
+            onNavigateBack = { showProfileScreen = false },
+            onOpenOnboardingTour = {
+                showProfileScreen = false
+                showOnboardingTour = true
+            }
         )
     }
 
@@ -2256,16 +2292,24 @@ fun OfferCard(
 
                     if (offer.isMultiStack) {
                         Spacer(modifier = Modifier.width(8.dp))
+                        val isTri = offer.quantumTelemetry?.isTriStack == true
+                        val isInFlight = offer.quantumTelemetry?.inFlightIntercept == true
+                        val badgeText = when {
+                            isTri -> "🔥 TRI-STACK 4D"
+                            isInFlight -> "🚀 INTERCEPTAÇÃO EM VOO"
+                            else -> "✨ MULTI-STACK 4D"
+                        }
+                        val badgeBg = if (isTri) Color(0xFFFF9800) else NeonGreen
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(NeonGreen.copy(alpha = 0.2f))
-                                .border(1.dp, NeonGreen, RoundedCornerShape(6.dp))
+                                .background(badgeBg.copy(alpha = 0.2f))
+                                .border(1.dp, badgeBg, RoundedCornerShape(6.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "✨ MULTI-STACK",
-                                color = NeonGreen,
+                                text = badgeText,
+                                color = badgeBg,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Black
                             )
@@ -2293,6 +2337,48 @@ fun OfferCard(
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 0.2.sp
             )
+
+            // Destaque de Zona de Alta Demanda Geofencing (Hotspot ativo)
+            if (offer.highDemandZoneTag != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF301B00))
+                        .border(1.dp, Color(0xFFFF9F1C), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🔥", fontSize = 11.sp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "POLO DE ALTA DEMANDA • ${offer.highDemandZoneTag}",
+                            color = Color(0xFFFFB347),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.4.sp
+                        )
+                    }
+                    if (offer.surgeBonusPercent > 0) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFFFF9F1C))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "+${offer.surgeBonusPercent}% TARIFA",
+                                color = Color.Black,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(6.dp))
 
@@ -2495,6 +2581,145 @@ fun OfferCard(
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium
                         )
+                    }
+
+                    // 4.6. PAINEL EXCLUSIVO TELEMETRIA QUÂNTICA 4D (JARVIS QUANTUM STACKING 4.0)
+                    offer.quantumTelemetry?.let { telemetry ->
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFF07121A))
+                                .border(1.dp, Color(0xFF00E5FF).copy(alpha = 0.55f), RoundedCornerShape(10.dp))
+                                .padding(10.dp)
+                        ) {
+                            // Header do painel quântico
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(text = "🌌", fontSize = 12.sp)
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = "JARVIS QUANTUM 4D • QS ${telemetry.quantumScore}%",
+                                        color = Color(0xFF00E5FF),
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Black,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFF00E5FF).copy(alpha = 0.2f))
+                                        .border(0.8.dp, Color(0xFF00E5FF), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "🛡️ ESCUDO ANTI-BAN 100%",
+                                        color = Color(0xFF00E5FF),
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Grid de 3 Métricas Quânticas
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                // 1. Zero Espera de Balcão
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(DarkCardElevated)
+                                        .padding(6.dp)
+                                ) {
+                                    Column {
+                                        Text("⏱️ BALCÃO", color = TextMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                        Text("Zero Espera", color = NeonGreen, fontSize = 9.5.sp, fontWeight = FontWeight.Black)
+                                    }
+                                }
+                                // 2. Desvio Vetorial
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(DarkCardElevated)
+                                        .padding(6.dp)
+                                ) {
+                                    Column {
+                                        Text("📐 DESVIO", color = TextMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                        Text("${telemetry.vectorDeviationDegrees}° curso", color = Color(0xFF00E5FF), fontSize = 9.5.sp, fontWeight = FontWeight.Black)
+                                    }
+                                }
+                                // 3. Gasolina economizada
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(DarkCardElevated)
+                                        .padding(6.dp)
+                                ) {
+                                    Column {
+                                        Text("⛽ POUPADO", color = TextMuted, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                        Text("-${telemetry.fuelSavedMilliliters} ml", color = Color(0xFFFFD700), fontSize = 9.5.sp, fontWeight = FontWeight.Black)
+                                    }
+                                }
+                            }
+
+                            // Sincronia de Cozinha dos Restaurantes (Kitchen Staging)
+                            if (telemetry.kitchenSyncPoints.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "SINCRONIA 4D DE PREPARO (COZINHAS):",
+                                    color = TextMuted,
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.4.sp
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    telemetry.kitchenSyncPoints.forEach { sync ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "🍳 ${sync.restaurant}",
+                                                color = TextLight,
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                text = sync.readyStatus,
+                                                color = NeonGreen,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // AI Insight
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "💡 \"${telemetry.aiInsight}\"",
+                                color = Color(0xFF80DEEA),
+                                fontSize = 9.5.sp,
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                lineHeight = 13.sp
+                            )
+                        }
                     }
 
                     // Detalhamento dos Sub-Pedidos por Plataforma

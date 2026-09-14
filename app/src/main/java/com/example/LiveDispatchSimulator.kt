@@ -22,7 +22,10 @@ data class RadarOffer(
     val synergySavingsKm: Double = 0.0,
     val synergyBonusPercent: Int = 0,
     val waypointRoute: List<String> = emptyList(),
-    val itemsCount: Int = 1
+    val itemsCount: Int = 1,
+    val quantumTelemetry: HyperQuantumTelemetry? = null,
+    val highDemandZoneTag: String? = null,
+    val surgeBonusPercent: Int = 0
 ) {
     val gainPerKm: Double
         get() = if (distanceKm > 0) value / distanceKm else value
@@ -72,31 +75,10 @@ object LiveDispatchSimulator {
      * Retorna a lista inicial com as principais ofertas ativas
      */
     fun getInitialOffers(): List<RadarOffer> {
+        val curated = MergedDeliverySearchEngine.getCuratedMergedStacks()
         return listOf(
-            RadarOffer(
-                id = "offer_101",
-                appName = "iFood + Rappi (Multi-Stack)",
-                appColor = NeonGreen,
-                restaurant = "Burger King & Pizza Hut",
-                value = 33.00,
-                distanceKm = 4.2,
-                timeMinutes = 18,
-                pickupAddress = "Av. Paulista, 1578",
-                destinationAddress = "R. Bela Cintra, 904",
-                isMultiStack = true,
-                subOrders = listOf(
-                    SubDeliveryOrder("iFood", RedIFood, "Burger King Jardins", 15.00, 2.8, "Av. Paulista, 1578", "R. Bela Cintra, 904"),
-                    SubDeliveryOrder("Rappi", OrangeRappi, "Pizza Hut Paulista", 18.00, 2.4, "Al. Santos, 120", "Al. Lorena, 450")
-                ),
-                synergySavingsKm = 1.0,
-                synergyBonusPercent = 58,
-                waypointRoute = listOf(
-                    "● Coleta 1: Burger King (Av. Paulista)",
-                    "● Coleta 2: Pizza Hut (Al. Santos)",
-                    "🏠 Entrega 1: R. Bela Cintra, 904",
-                    "🏢 Entrega 2: Al. Lorena, 450"
-                )
-            ),
+            curated[0], // Tri-Stack Quântico 4D (iFood + Rappi + Uber)
+            curated[1], // In-Flight Dynamic Intercept (Rappi + iFood)
             RadarOffer(
                 id = "offer_102",
                 appName = "iFood",
@@ -106,7 +88,9 @@ object LiveDispatchSimulator {
                 distanceKm = 3.1,
                 timeMinutes = 12,
                 pickupAddress = "Shopping Ibirapuera",
-                destinationAddress = "Av. Moema, 450"
+                destinationAddress = "Av. Moema, 450",
+                highDemandZoneTag = "Hub Pinheiros",
+                surgeBonusPercent = 40
             ),
             RadarOffer(
                 id = "offer_103",
@@ -117,7 +101,9 @@ object LiveDispatchSimulator {
                 distanceKm = 2.4,
                 timeMinutes = 9,
                 pickupAddress = "R. Augusta, 2100",
-                destinationAddress = "Al. Santos, 120"
+                destinationAddress = "Al. Santos, 120",
+                highDemandZoneTag = "Gastronomia Jardins",
+                surgeBonusPercent = 30
             ),
             RadarOffer(
                 id = "offer_104",
@@ -128,7 +114,9 @@ object LiveDispatchSimulator {
                 distanceKm = 5.0,
                 timeMinutes = 20,
                 pickupAddress = "Shopping Morumbi",
-                destinationAddress = "Av. Chucri Zaidan, 110"
+                destinationAddress = "Av. Chucri Zaidan, 110",
+                highDemandZoneTag = "Complexo Morumbi",
+                surgeBonusPercent = 25
             )
         )
     }
@@ -137,20 +125,26 @@ object LiveDispatchSimulator {
      * Gera uma nova oferta aleatória realista em tempo real calculando a distância viária real
      */
     fun generateNextOffer(): RadarOffer {
+        val isMulti = (1..4).random() == 1
+        if (isMulti) {
+            return MergedDeliverySearchEngine.generateRealtimeMergedStack()
+        }
+
         val (restName, pickup) = restaurants.random()
         val dest = destinations.random()
 
-        val isMulti = (1..5).random() == 1
-        val appConfig = if (isMulti) {
-            Triple("iFood + Rappi (Multi-Stack)", NeonGreen, true)
-        } else {
-            when ((1..4).random()) {
-                1 -> Triple("iFood", RedIFood, false)
-                2 -> Triple("Rappi", OrangeRappi, false)
-                3 -> Triple("Uber Eats", TextLight, false)
-                else -> Triple("99 Food", Yellow99, false)
-            }
+        val appConfig = when ((1..4).random()) {
+            1 -> Triple("iFood", RedIFood, false)
+            2 -> Triple("Rappi", OrangeRappi, false)
+            3 -> Triple("Uber Eats", TextLight, false)
+            else -> Triple("99 Food", Yellow99, false)
         }
+
+        // Identifica automaticamente se a coleta está em uma Zona de Alta Demanda (Geofence Hotspot)
+        val matchedZone = GeofencingDemandManager.matchZoneByAddress(pickup)
+            ?: GeofencingDemandManager.currentActiveZone.value
+        val demandTag = matchedZone?.name?.split("•")?.firstOrNull()?.trim()
+        val surgeBonus = matchedZone?.surgeBonusPercent ?: 0
 
         // Simula pequenos deslocamentos de coordenadas em torno de São Paulo
         val baseLat = -23.561684
@@ -181,7 +175,14 @@ object LiveDispatchSimulator {
             else -> (22..30).random() / 10.0 // Desvantajoso
         }
 
-        val computedValue = (distance * valuePerKmFactor).let { Math.round(it * 2) / 2.0 }.coerceAtLeast(14.0)
+        val baseComputedValue = (distance * valuePerKmFactor).let { Math.round(it * 2) / 2.0 }.coerceAtLeast(14.0)
+        // Aplica o bônus de tarifa dinâmica da zona de alta demanda se detectado
+        val computedValue = if (surgeBonus > 0) {
+            val boosted = baseComputedValue * (1.0 + (surgeBonus / 100.0))
+            Math.round(boosted * 2) / 2.0
+        } else {
+            baseComputedValue
+        }
         val timeMins = (distance * 3.5).toInt().coerceIn(8, 30)
 
         val id = "offer_${System.currentTimeMillis() % 100000}"
@@ -213,7 +214,9 @@ object LiveDispatchSimulator {
                     "🏠 Entrega 1: $dest",
                     "🏢 Entrega 2: Al. Lorena, 450"
                 )
-            } else emptyList()
+            } else emptyList(),
+            highDemandZoneTag = demandTag,
+            surgeBonusPercent = surgeBonus
         )
     }
 }
