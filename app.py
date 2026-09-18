@@ -3462,6 +3462,76 @@ HTML_CONTENT = """<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- GRÁFICOS SIMULADOS CSS: EVOLUÇÃO DE MRR E USUÁRIOS ATIVOS -->
+    <div class="glass" style="padding: 16px; margin-top: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div>
+          <h3 style="font-size: 14px; font-weight: 800; color: #ffffff;">📈 Curva de Crescimento & MRR (Últimos 6 Meses)</h3>
+          <p style="font-size: 11px; color: var(--text-muted);">Gráfico simulado em puro CSS3</p>
+        </div>
+        <span style="font-size: 11px; font-weight: 800; color: var(--primary); background: rgba(0,255,136,0.12); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--primary);">+139.7% no semestre</span>
+      </div>
+
+      <!-- Gráfico de Barras CSS: MRR Mensal -->
+      <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; height: 160px; padding: 12px 6px 6px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px;">
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;">
+          <div style="font-size: 9px; color: #00d2ff; font-weight: 800; margin-bottom: 4px;">R$ 7.8k</div>
+          <div style="width: 80%; height: 42%; background: linear-gradient(180deg, #00d2ff 0%, rgba(0,210,255,0.4) 100%); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px rgba(0,210,255,0.2);"></div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">Abr</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;">
+          <div style="font-size: 9px; color: #00d2ff; font-weight: 800; margin-bottom: 4px;">R$ 9.4k</div>
+          <div style="width: 80%; height: 50%; background: linear-gradient(180deg, #00d2ff 0%, rgba(0,210,255,0.4) 100%); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px rgba(0,210,255,0.2);"></div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">Mai</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;">
+          <div style="font-size: 9px; color: #00d2ff; font-weight: 800; margin-bottom: 4px;">R$ 11.6k</div>
+          <div style="width: 80%; height: 62%; background: linear-gradient(180deg, #00d2ff 0%, rgba(0,210,255,0.4) 100%); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px rgba(0,210,255,0.2);"></div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">Jun</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;">
+          <div style="font-size: 9px; color: #00d2ff; font-weight: 800; margin-bottom: 4px;">R$ 13.9k</div>
+          <div style="width: 80%; height: 74%; background: linear-gradient(180deg, #00d2ff 0%, rgba(0,210,255,0.4) 100%); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px rgba(0,210,255,0.2);"></div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">Jul</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;">
+          <div style="font-size: 9px; color: #00d2ff; font-weight: 800; margin-bottom: 4px;">R$ 16.2k</div>
+          <div style="width: 80%; height: 86%; background: linear-gradient(180deg, #00d2ff 0%, rgba(0,210,255,0.4) 100%); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px rgba(0,210,255,0.2);"></div>
+          <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">Ago</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;">
+          <div style="font-size: 9px; color: var(--primary); font-weight: 900; margin-bottom: 4px;">R$ 18.7k</div>
+          <div style="width: 80%; height: 100%; background: linear-gradient(180deg, #00ff88 0%, rgba(0,255,136,0.4) 100%); border-radius: 4px 4px 0 0; box-shadow: 0 0 14px rgba(0,255,136,0.5);"></div>
+          <div style="font-size: 10px; color: var(--primary); font-weight: 800; margin-top: 6px;">Set (Atual)</div>
+        </div>
+      </div>
+
+      <!-- Gráfico de Linha Simulada CSS: Ativos Diários no Turno -->
+      <div style="margin-top: 14px; background: rgba(0,0,0,0.3); border-radius: 10px; padding: 12px;">
+        <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 8px;">
+          <span style="color: var(--text-muted);">Pico de Concorrência Concorrente (Hoje):</span>
+          <span style="color: var(--primary); font-weight: 800;">342 motociclistas ativos às 12h30</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px; height: 28px;">
+          <div style="flex: 1; height: 12px; background: rgba(0,255,136,0.2); border-radius: 3px;" title="08h: 42 ativos"></div>
+          <div style="flex: 1; height: 16px; background: rgba(0,255,136,0.3); border-radius: 3px;" title="10h: 110 ativos"></div>
+          <div style="flex: 1.5; height: 28px; background: #00ff88; border-radius: 3px; box-shadow: 0 0 8px #00ff88;" title="12h: 342 ativos (PICO ALMOÇO)"></div>
+          <div style="flex: 1; height: 18px; background: rgba(0,255,136,0.4); border-radius: 3px;" title="14h: 180 ativos"></div>
+          <div style="flex: 1; height: 14px; background: rgba(0,255,136,0.25); border-radius: 3px;" title="16h: 130 ativos"></div>
+          <div style="flex: 1.5; height: 26px; background: #00ff88; border-radius: 3px; box-shadow: 0 0 8px #00ff88;" title="19h: 310 ativos (PICO JANTAR)"></div>
+          <div style="flex: 1; height: 20px; background: rgba(0,255,136,0.5); border-radius: 3px;" title="21h: 210 ativos"></div>
+          <div style="flex: 0.8; height: 10px; background: rgba(0,255,136,0.2); border-radius: 3px;" title="23h: 65 ativos"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 9px; color: var(--text-muted); margin-top: 4px;">
+          <span>08:00</span>
+          <span>12:00 (Almoço)</span>
+          <span>16:00</span>
+          <span>20:00 (Jantar)</span>
+          <span>23:59</span>
+        </div>
+      </div>
+    </div>
+
     <!-- LOGS DE EVENTOS E FALHAS DE PROCESSAMENTO (DEPURAÇÃO DE CAMPO) -->
     <div style="margin-top: 24px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -6149,12 +6219,12 @@ def run_server(port):
 
 if __name__ == "__main__":
     init_database()
-    main_port = int(os.environ.get("PYTHON_PORT", "5000"))
-    print(f"Radar Coordinator — Jarvis Neural Cockpit iniciando na porta {main_port}...")
+    port1 = int(os.environ.get("PYTHON_PORT", "3000"))
+    port2 = 5000 if port1 != 5000 else 3000
+    print(f"Radar Coordinator — Jarvis Neural Cockpit iniciando nas portas {port1} e {port2}...")
     
-    if main_port != 5000:
-        t5000 = threading.Thread(target=run_server, args=(5000,), daemon=True)
-        t5000.start()
+    t_secondary = threading.Thread(target=run_server, args=(port2,), daemon=True)
+    t_secondary.start()
     
-    run_server(main_port)
+    run_server(port1)
 

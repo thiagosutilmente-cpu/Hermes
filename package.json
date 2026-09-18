@@ -2,14 +2,9 @@
   "name": "radar-coordinator",
   "version": "1.0.0",
   "description": "Radar Coordinator — Jarvis Neural Cockpit",
-  "main": "server.js",
+  "main": "app.py",
   "scripts": {
-    "dev": "node server.js",
-    "start": "node server.js",
-    "radar-express": "node radar_server.js"
-  },
-  "dependencies": {
-    "cors": "^2.8.6",
-    "express": "^5.2.1"
+    "dev": "python3 app.py",
+    "start": "python3 app.py"
   }
 }
