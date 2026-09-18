@@ -70,6 +70,21 @@ class LocationManager private constructor(private val context: Context) {
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
 
+        /**
+         * Retorna a lista de permissões necessárias dependendo da versão do Android.
+         * Para Android 10+ (Q), pode incluir ACCESS_BACKGROUND_LOCATION se solicitado.
+         */
+        fun getRequiredPermissions(includeBackground: Boolean = false): Array<String> {
+            val list = mutableListOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+            if (includeBackground && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                list.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+            return list.toTypedArray()
+        }
+
         @Volatile
         private var instance: LocationManager? = null
 
@@ -305,4 +320,68 @@ class LocationManager private constructor(private val context: Context) {
         val c = 2 * atan2(sqrt(a), sqrt(1 - a))
         return Math.round(r * c * 100.0) / 100.0
     }
+}
+
+/**
+ * Estado reativo de permissões de localização para Jetpack Compose.
+ */
+data class LocationPermissionState(
+    val hasFineLocation: Boolean,
+    val hasCoarseLocation: Boolean,
+    val requestPermission: () -> Unit
+) {
+    val isGranted: Boolean get() = hasFineLocation || hasCoarseLocation
+}
+
+/**
+ * Composable utilitário para solicitar e monitorar permissões de localização em tempo de execução.
+ *
+ * Utiliza [androidx.activity.compose.rememberLauncherForActivityResult] com
+ * [androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions].
+ */
+@androidx.compose.runtime.Composable
+fun rememberLocationPermissionState(
+    onPermissionResult: (Boolean) -> Unit = {}
+): LocationPermissionState {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var hasFine by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    var hasCoarse by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val fineGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        hasFine = fineGranted
+        hasCoarse = coarseGranted
+        val anyGranted = fineGranted || coarseGranted
+        onPermissionResult(anyGranted)
+    }
+
+    return LocationPermissionState(
+        hasFineLocation = hasFine,
+        hasCoarseLocation = hasCoarse,
+        requestPermission = {
+            launcher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    )
 }
