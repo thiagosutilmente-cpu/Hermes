@@ -41,7 +41,8 @@ import java.util.Locale
  */
 data class LocationSpeedState(
     val currentSpeedKmh: Double = 0.0,
-    val isSafetyLockActive: Boolean = false, // true quando > limiar de velocidade configurado
+    val isSafetyLockActive: Boolean = false, // true quando > 15.0 km/h (bloqueio tátil da UI)
+    val isNotificationsMuted: Boolean = false, // true quando > 15.0 km/h (silenciamento de notificações Heads-Up)
     val latitude: Double = -23.561684,
     val longitude: Double = -46.655981,
     val accuracyMeters: Float = 0f,
@@ -83,8 +84,8 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
         const val ACTION_START_LOCATION_TRACKING = "com.example.action.START_LOCATION_TRACKING"
         const val ACTION_STOP_LOCATION_TRACKING = "com.example.action.STOP_LOCATION_TRACKING"
 
-        // Limiar crítico de segurança em km/h padrão
-        const val SAFETY_SPEED_LOCK_THRESHOLD_KMH = 15.0
+        // Limiar crítico de segurança em km/h padrão (10 km/h: desativa automaticamente o aceite de ofertas)
+        const val SAFETY_SPEED_LOCK_THRESHOLD_KMH = 10.0
 
         // Limiar configurado dinamicamente pelo entregador
         @Volatile
@@ -127,15 +128,17 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
         }
 
         /**
-         * Atualiza o limiar de velocidade para a trava de segurança.
+         * Atualiza o limiar de velocidade para a trava de segurança e silenciamento de notificações.
          */
         fun updateSafetySpeedThreshold(thresholdKmh: Double) {
             dynamicSafetySpeedThresholdKmh = thresholdKmh
             val currentSpeed = _globalLocationState.value.currentSpeedKmh
             val isLock = currentSpeed > thresholdKmh
+            LocalNotificationManager.isSpeedMuteActive = isLock
             if (_globalLocationState.value.isSafetyLockActive != isLock) {
                 _globalLocationState.value = _globalLocationState.value.copy(
-                    isSafetyLockActive = isLock
+                    isSafetyLockActive = isLock,
+                    isNotificationsMuted = isLock
                 )
             }
         }
@@ -143,11 +146,16 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
         /**
          * Permite simular velocidade para fins de teste no emulador / modo de desenvolvimento.
          */
-        fun updateSimulatedSpeed(speedKmh: Double) {
+        fun updateSimulatedSpeed(speedKmh: Double, context: Context? = null) {
             val isLock = speedKmh > dynamicSafetySpeedThresholdKmh
+            LocalNotificationManager.isSpeedMuteActive = isLock
+            if (isLock && context != null) {
+                LocalNotificationManager.cancelAllActiveOfferNotifications(context)
+            }
             _globalLocationState.value = _globalLocationState.value.copy(
                 currentSpeedKmh = speedKmh,
                 isSafetyLockActive = isLock,
+                isNotificationsMuted = isLock,
                 speedSource = "Simulação Manual",
                 lastUpdateTimeMillis = System.currentTimeMillis()
             )
@@ -326,10 +334,12 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
         val previousLock = _globalLocationState.value.isSafetyLockActive
         val speedKmh = calculateSpeedKmh(location)
         val isSafetyLockActive = speedKmh > dynamicSafetySpeedThresholdKmh
+        val isNotificationsMuted = isSafetyLockActive
 
         val newState = LocationSpeedState(
             currentSpeedKmh = speedKmh,
             isSafetyLockActive = isSafetyLockActive,
+            isNotificationsMuted = isNotificationsMuted,
             latitude = location.latitude,
             longitude = location.longitude,
             accuracyMeters = location.accuracy,
@@ -343,14 +353,20 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
         _globalLocationState.value = newState
         lastValidLocation = location
 
+        // Atualiza silenciador de notificações globais e cancela flutuantes pendentes em movimento
+        LocalNotificationManager.isSpeedMuteActive = isNotificationsMuted
+        if (isNotificationsMuted) {
+            LocalNotificationManager.cancelAllActiveOfferNotifications(applicationContext)
+        }
+
         // Disparo de alertas sensoriais (Áudio TTS + Vibração Tática) quando a trava é ativada ou liberada
         if (previousLock != isSafetyLockActive) {
             val limit = dynamicSafetySpeedThresholdKmh.toInt()
             triggerVibrationAlert(isSafetyLockActive)
             if (isSafetyLockActive) {
-                speakAlert("Atenção: veículo em movimento acima de $limit por hora. Trava de segurança ativada.")
+                speakAlert("Atenção: veículo acima de $limit por hora detectado por GPS. Aceite de ofertas desativado por segurança.")
             } else {
-                speakAlert("Velocidade reduzida abaixo de $limit por hora. Interface de pedidos liberada.")
+                speakAlert("Velocidade abaixo de $limit por hora. Aceite de ofertas e tela liberados.")
             }
         }
 

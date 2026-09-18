@@ -35,6 +35,7 @@ sealed class SafetyThresholdEvent {
 data class SpeedSafetyUiState(
     val currentSpeedKmh: Double = 0.0,
     val isSafetyLockActive: Boolean = false,
+    val isNotificationsMuted: Boolean = false,
     val speedSource: String = "GPS Fused",
     val accuracyMeters: Float = 0f,
     val isServiceConnected: Boolean = false,
@@ -95,6 +96,7 @@ class SpeedSafetyViewModel(application: Application) : AndroidViewModel(applicat
                 _uiState.value = _uiState.value.copy(
                     currentSpeedKmh = locationState.currentSpeedKmh,
                     isSafetyLockActive = newLockState,
+                    isNotificationsMuted = locationState.isNotificationsMuted,
                     speedSource = locationState.speedSource,
                     accuracyMeters = locationState.accuracyMeters,
                     isTracking = locationState.isTracking,

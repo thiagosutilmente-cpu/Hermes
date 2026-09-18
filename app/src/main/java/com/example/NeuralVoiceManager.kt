@@ -135,6 +135,23 @@ class NeuralVoiceManager(private val context: Context) : TextToSpeech.OnInitList
     }
 
     /**
+     * Anúncio rápido mãos-livres para o piloto em movimento aceitar ou recusar no viva-voz
+     */
+    fun announceDrivingHandsFreeOffer(
+        appName: String,
+        restaurant: String,
+        value: Double,
+        distanceKm: Double,
+        gainPerKm: Double
+    ) {
+        val formattedVal = String.format(Locale.GERMANY, "%.2f", value).replace(".", ",")
+        val formattedKm = String.format(Locale.GERMANY, "%.1f", distanceKm).replace(".", ",")
+        val formattedGain = String.format(Locale.GERMANY, "%.2f", gainPerKm).replace(".", ",")
+        val speech = "Atenção piloto. Nova oferta $appName no $restaurant: $formattedVal reais para $formattedKm quilômetros, rendendo $formattedGain por quilômetro. Diga ACEITAR ou RECUSAR."
+        speak(speech)
+    }
+
+    /**
      * Anúncio de aceite
      */
     fun announceAccept(restaurant: String, value: Double) {

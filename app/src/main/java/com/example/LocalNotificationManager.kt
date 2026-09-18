@@ -39,6 +39,26 @@ class LocalNotificationManager(private val context: Context) {
         const val EXTRA_OFFER_GAIN_KM = "com.example.EXTRA_OFFER_GAIN_KM"
 
         const val NOTIFICATION_ID_BASE = 7000
+
+        /**
+         * Flag ativada automaticamente pelo LocationService quando a velocidade excede 15 km/h.
+         * Suprime notificações visuais e sonoras intrusivas durante a pilotagem.
+         */
+        @Volatile
+        var isSpeedMuteActive: Boolean = false
+
+        /**
+         * Cancela todas as notificações de ofertas pendentes quando o piloto acelera acima de 15 km/h.
+         */
+        fun cancelAllActiveOfferNotifications(context: Context) {
+            try {
+                val manager = NotificationManagerCompat.from(context)
+                manager.cancelAll()
+                android.util.Log.d("LocalNotificationManager", "Notificações ativas canceladas por segurança (> 15 km/h).")
+            } catch (e: Exception) {
+                android.util.Log.e("LocalNotificationManager", "Erro ao cancelar notificações: ${e.message}")
+            }
+        }
     }
 
     private val notificationManager = NotificationManagerCompat.from(context)
@@ -84,10 +104,38 @@ class LocalNotificationManager(private val context: Context) {
 
     /**
      * Emite uma notificação Heads-Up flutuante de alta prioridade para o entregador.
+     * Se a velocidade calculada pelo LocationService exceder 15 km/h, as notificações são silenciadas/bloqueadas
+     * para garantir a segurança no trânsito (Zero Distração ao Piloto).
      */
     @SuppressLint("MissingPermission")
-    fun showHighPriorityOfferNotification(offer: RadarOffer) {
-        if (!hasNotificationPermission()) return
+    fun showHighPriorityOfferNotification(
+        offer: RadarOffer,
+        filterCriteria: OfferFilterCriteria? = null
+    ): Boolean {
+        if (!hasNotificationPermission()) return false
+
+        // 0. TRAVA DE SEGURANÇA POR VELOCIDADE: Silencia notificações caso > 15 km/h
+        val currentSpeed = LocationService.globalLocationState.value.currentSpeedKmh
+        val isSafetyLock = LocationService.globalLocationState.value.isSafetyLockActive
+        if (isSpeedMuteActive || isSafetyLock || currentSpeed > 15.0) {
+            android.util.Log.d(
+                "LocalNotificationManager",
+                "Notificação de oferta suprimida/silenciada por segurança em alta velocidade ($currentSpeed km/h > 15 km/h)."
+            )
+            return false
+        }
+
+        // 1. FILTRAGEM AUTOMÁTICA DE NOTIFICAÇÃO POR LIMITE DE PREÇO/KM
+        if (filterCriteria != null) {
+            val passes = NotificationFilterManager.evaluateAndRecord(offer, filterCriteria)
+            if (!passes) {
+                android.util.Log.d(
+                    "LocalNotificationManager",
+                    "Notificação filtrada e bloqueada automaticamente: R$ ${offer.gainPerKm}/km < piso R$ ${filterCriteria.notificationMinGainPerKm}/km."
+                )
+                return false
+            }
+        }
 
         val formattedValue = String.format(Locale.GERMANY, "R$ %.2f", offer.value)
         val formattedPerKm = String.format(Locale.GERMANY, "R$ %.2f/km", offer.gainPerKm)
@@ -181,6 +229,7 @@ class LocalNotificationManager(private val context: Context) {
             )
 
         notificationManager.notify(notificationId, builder.build())
+        return true
     }
 
     /**

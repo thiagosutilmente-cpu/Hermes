@@ -133,6 +133,9 @@ fun GoogleMapsPickupCard(
     offer: RadarOffer = LiveDispatchSimulator.getInitialOffers().first(),
     onAcceptWithNavigation: (RadarOffer) -> Unit = {},
     onDismissOrNext: (() -> Unit)? = null,
+    isAcceptDisabled: Boolean = false,
+    speedLimitKmh: Double = 10.0,
+    isGloveMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -553,39 +556,60 @@ fun GoogleMapsPickupCard(
                     )
                 }
 
-                // Aceitar com Rota de Coleta Imediata
+                // Aceitar com Rota de Coleta Imediata (Bloqueado se velocidade > 10 km/h)
                 Button(
                     onClick = {
-                        val latency = System.currentTimeMillis() - pickupCardRenderTime
-                        HapticFeedbackHelper.vibrateAccept(context)
-                        FirebaseAnalyticsManager.logOfferAcceptClicked(
-                            offerId = offer.id,
-                            appName = offer.appName,
-                            restaurant = offer.restaurant,
-                            value = offer.value,
-                            distanceKm = offer.distanceKm,
-                            gainPerKm = offer.gainPerKm,
-                            clickSource = "maps_pickup_card",
-                            timeToClickMs = latency
-                        )
-                        launchGoogleMapsDirectPickup(context, pickupEstimate.pickupAddress)
-                        onAcceptWithNavigation(offer)
+                        if (isAcceptDisabled) {
+                            HapticFeedbackHelper.vibrateDecline(context)
+                            android.widget.Toast.makeText(
+                                context,
+                                "🚨 Aceite desativado por segurança: velocidade acima de ${speedLimitKmh.toInt()} km/h!",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            val latency = System.currentTimeMillis() - pickupCardRenderTime
+                            HapticFeedbackHelper.vibrateAccept(context)
+                            FirebaseAnalyticsManager.logOfferAcceptClicked(
+                                offerId = offer.id,
+                                appName = offer.appName,
+                                restaurant = offer.restaurant,
+                                value = offer.value,
+                                distanceKm = offer.distanceKm,
+                                gainPerKm = offer.gainPerKm,
+                                clickSource = "maps_pickup_card",
+                                timeToClickMs = latency
+                            )
+                            launchGoogleMapsDirectPickup(context, pickupEstimate.pickupAddress)
+                            onAcceptWithNavigation(offer)
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonGreen,
-                        contentColor = DarkBg
+                        containerColor = if (isAcceptDisabled) Color(0xFF262633) else NeonGreen,
+                        contentColor = if (isAcceptDisabled) Color(0xFFA0A0B8) else DarkBg
                     ),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(if (isGloveMode) 14.dp else 10.dp),
                     modifier = Modifier
                         .weight(1.3f)
-                        .height(44.dp)
+                        .height(if (isGloveMode) 54.dp else 44.dp)
                         .testTag("btn_accept_with_pickup")
                 ) {
-                    Text(
-                        text = "✅ ACEITAR",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Black
-                    )
+                    if (isAcceptDisabled) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🔒", fontSize = if (isGloveMode) 13.sp else 11.sp)
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "TRAVA (> ${speedLimitKmh.toInt()} km/h)",
+                                fontSize = if (isGloveMode) 12.sp else 10.5.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = if (isGloveMode) "🧤 ✅ ACEITAR" else "✅ ACEITAR",
+                            fontSize = if (isGloveMode) 14.sp else 12.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
                 }
             }
         }

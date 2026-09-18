@@ -5,6 +5,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -80,7 +81,13 @@ data class OfferFilterCriteria(
     val onlyAcceptedNeural: Boolean = false,
     val onlyMultiStack: Boolean = false,
     val searchQuery: String = "",
-    val safetySpeedThresholdKm: Double = 15.0
+    val safetySpeedThresholdKm: Double = 10.0,
+    val isAutoAcceptEnabled: Boolean = false,
+    val autoAcceptMinGainPerKm: Double = 5.0,
+    val isNotificationFilterEnabled: Boolean = true,
+    val notificationMinGainPerKm: Double = 5.0,
+    val notificationAllowMultiStackBypass: Boolean = true,
+    val notificationOnlyJarvisApproved: Boolean = false
 ) {
     val isActive: Boolean
         get() = minValue > 0.0 ||
@@ -91,7 +98,45 @@ data class OfferFilterCriteria(
                 onlyAcceptedNeural ||
                 onlyMultiStack ||
                 searchQuery.isNotBlank() ||
-                safetySpeedThresholdKm != 15.0
+                safetySpeedThresholdKm != 10.0 ||
+                isAutoAcceptEnabled ||
+                isNotificationFilterEnabled
+
+    /**
+     * Avalia se uma oferta atende ao filtro automático de notificações por piso de preço/km:
+     * - Se o filtro estiver desativado, permite todas as notificações
+     * - Se a entrega for mesclada (Multi-Stack) e o bypass estiver ativo, permite
+     * - Se configurado apenas aprovadas pelo Jarvis, bloqueia ofertas recusadas
+     * - Bloqueia automaticamente se o valor por quilômetro (R$/km) for menor que o limite configurado
+     */
+    fun matchesNotification(offer: RadarOffer): Boolean {
+        if (!isNotificationFilterEnabled) return true
+        if (notificationAllowMultiStackBypass && offer.isMultiStack) return true
+        if (notificationOnlyJarvisApproved && !offer.neuralDecision.isAccept) return false
+        if (offer.gainPerKm < notificationMinGainPerKm) return false
+        return true
+    }
+
+    /**
+     * Avalia se uma oferta atende aos filtros pré-definidos para Auto-Aceite imediato sem intervenção manual:
+     * - O ganho por quilômetro (R$/km) deve ser maior ou igual ao mínimo configurado (padrão R$ 5,00/km)
+     * - Respeita também valor mínimo da entrega e limite de distância caso configurados pelo entregador
+     * - Respeita restrição de somente mescladas ou somente aprovadas pelo Jarvis
+     */
+    fun matchesAutoAccept(offer: RadarOffer): Boolean {
+        if (!isAutoAcceptEnabled) return false
+        // Critério pré-definido principal: valor mínimo por quilômetro
+        if (offer.gainPerKm < autoAcceptMinGainPerKm) return false
+        // Se houver valor mínimo absoluto de corrida configurado, respeita
+        if (minValue > 0.0 && offer.value < minValue) return false
+        // Se houver distância máxima configurada, respeita
+        if (offer.distanceKm > maxDistanceKm) return false
+        // Se configurado apenas ofertas mescladas, respeita
+        if (onlyMultiStack && !offer.isMultiStack) return false
+        // Se configurado apenas aprovadas pela IA Jarvis, respeita
+        if (onlyAcceptedNeural && !offer.neuralDecision.isAccept) return false
+        return true
+    }
 
     fun matches(offer: RadarOffer): Boolean {
         if (onlyMultiStack && !offer.isMultiStack) return false
@@ -145,6 +190,12 @@ object FilterPreferencesManager {
     private const val KEY_ONLY_ACCEPTED_NEURAL = "key_only_accepted_neural"
     private const val KEY_ONLY_MULTI_STACK = "key_only_multi_stack"
     private const val KEY_SAFETY_SPEED_THRESHOLD = "key_safety_speed_threshold"
+    private const val KEY_AUTO_ACCEPT_ENABLED = "key_auto_accept_enabled"
+    private const val KEY_AUTO_ACCEPT_MIN_GAIN_PER_KM = "key_auto_accept_min_gain_per_km"
+    private const val KEY_NOTIFICATION_FILTER_ENABLED = "key_notification_filter_enabled"
+    private const val KEY_NOTIFICATION_MIN_GAIN_PER_KM = "key_notification_min_gain_per_km"
+    private const val KEY_NOTIFICATION_BYPASS_MULTISTACK = "key_notification_bypass_multistack"
+    private const val KEY_NOTIFICATION_ONLY_JARVIS = "key_notification_only_jarvis"
 
     fun loadCriteria(context: android.content.Context): OfferFilterCriteria {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
@@ -156,7 +207,13 @@ object FilterPreferencesManager {
             minHourlyMultiplier = prefs.getFloat(KEY_MIN_HOURLY_MULTIPLIER, 1.0f).toDouble(),
             onlyAcceptedNeural = prefs.getBoolean(KEY_ONLY_ACCEPTED_NEURAL, false),
             onlyMultiStack = prefs.getBoolean(KEY_ONLY_MULTI_STACK, false),
-            safetySpeedThresholdKm = prefs.getFloat(KEY_SAFETY_SPEED_THRESHOLD, 15.0f).toDouble()
+            safetySpeedThresholdKm = prefs.getFloat(KEY_SAFETY_SPEED_THRESHOLD, 10.0f).toDouble(),
+            isAutoAcceptEnabled = prefs.getBoolean(KEY_AUTO_ACCEPT_ENABLED, false),
+            autoAcceptMinGainPerKm = prefs.getFloat(KEY_AUTO_ACCEPT_MIN_GAIN_PER_KM, 5.0f).toDouble(),
+            isNotificationFilterEnabled = prefs.getBoolean(KEY_NOTIFICATION_FILTER_ENABLED, true),
+            notificationMinGainPerKm = prefs.getFloat(KEY_NOTIFICATION_MIN_GAIN_PER_KM, 5.0f).toDouble(),
+            notificationAllowMultiStackBypass = prefs.getBoolean(KEY_NOTIFICATION_BYPASS_MULTISTACK, true),
+            notificationOnlyJarvisApproved = prefs.getBoolean(KEY_NOTIFICATION_ONLY_JARVIS, false)
         )
     }
 
@@ -171,6 +228,12 @@ object FilterPreferencesManager {
             .putBoolean(KEY_ONLY_ACCEPTED_NEURAL, criteria.onlyAcceptedNeural)
             .putBoolean(KEY_ONLY_MULTI_STACK, criteria.onlyMultiStack)
             .putFloat(KEY_SAFETY_SPEED_THRESHOLD, criteria.safetySpeedThresholdKm.toFloat())
+            .putBoolean(KEY_AUTO_ACCEPT_ENABLED, criteria.isAutoAcceptEnabled)
+            .putFloat(KEY_AUTO_ACCEPT_MIN_GAIN_PER_KM, criteria.autoAcceptMinGainPerKm.toFloat())
+            .putBoolean(KEY_NOTIFICATION_FILTER_ENABLED, criteria.isNotificationFilterEnabled)
+            .putFloat(KEY_NOTIFICATION_MIN_GAIN_PER_KM, criteria.notificationMinGainPerKm.toFloat())
+            .putBoolean(KEY_NOTIFICATION_BYPASS_MULTISTACK, criteria.notificationAllowMultiStackBypass)
+            .putBoolean(KEY_NOTIFICATION_ONLY_JARVIS, criteria.notificationOnlyJarvisApproved)
             .apply()
     }
 }
@@ -226,6 +289,8 @@ fun TopFilterSlidersPanel(
     } else {
         "1.0x (Padrão)"
     }
+
+    val formattedAutoAcceptGain = String.format(Locale("pt", "BR"), "R$ %.2f/km", criteria.autoAcceptMinGainPerKm)
 
     Card(
         shape = RoundedCornerShape(bottomStart = 22.dp, bottomEnd = 22.dp),
@@ -349,6 +414,100 @@ fun TopFilterSlidersPanel(
                 }
             }
 
+            // ========================================================
+            // BOTÃO DE AUTO-ACEITE COM FILTRO PRÉ-DEFINIDO DE R$/KM
+            // ========================================================
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable {
+                        onCriteriaChange(criteria.copy(isAutoAcceptEnabled = !criteria.isAutoAcceptEnabled))
+                    }
+                    .testTag("btn_toggle_auto_accept"),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (criteria.isAutoAcceptEnabled) NeonGreen.copy(alpha = 0.16f) else DarkCardElevated
+                ),
+                border = BorderStroke(
+                    width = if (criteria.isAutoAcceptEnabled) 1.5.dp else 1.dp,
+                    color = if (criteria.isAutoAcceptEnabled) NeonGreen else DarkBorder
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(if (criteria.isAutoAcceptEnabled) NeonGreen else DarkBorder),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = "⚡", fontSize = 16.sp)
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "AUTO-ACEITE INTELIGENTE",
+                                    color = if (criteria.isAutoAcceptEnabled) NeonGreen else TextLight,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(if (criteria.isAutoAcceptEnabled) NeonGreen else DarkBorder)
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = if (criteria.isAutoAcceptEnabled) "ATIVADO" else "DESATIVADO",
+                                        color = if (criteria.isAutoAcceptEnabled) DarkBg else TextMuted,
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                            }
+                            Text(
+                                text = if (criteria.isAutoAcceptEnabled) {
+                                    "Aceitando sem intervenção: ganho ≥ $formattedAutoAcceptGain"
+                                } else {
+                                    "Toque para ativar aceite automático (≥ $formattedAutoAcceptGain)"
+                                },
+                                color = if (criteria.isAutoAcceptEnabled) TextLight else TextMuted,
+                                fontSize = 10.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    Switch(
+                        checked = criteria.isAutoAcceptEnabled,
+                        onCheckedChange = { isEnabled ->
+                            onCriteriaChange(criteria.copy(isAutoAcceptEnabled = isEnabled))
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = NeonGreen,
+                            checkedTrackColor = NeonGreen.copy(alpha = 0.4f),
+                            uncheckedThumbColor = TextMuted,
+                            uncheckedTrackColor = DarkBorder
+                        ),
+                        modifier = Modifier.testTag("switch_auto_accept")
+                    )
+                }
+            }
+
             // SE RECOLHIDO: Exibe barra resumo compacta
             if (isCollapsed) {
                 Spacer(modifier = Modifier.height(6.dp))
@@ -358,6 +517,9 @@ fun TopFilterSlidersPanel(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    if (criteria.isAutoAcceptEnabled) {
+                        FilterSummaryChip(label = "⚡ Auto-Aceite: ≥ $formattedAutoAcceptGain", isActive = true)
+                    }
                     if (criteria.onlyMultiStack) {
                         FilterSummaryChip(label = "✨ Só Mescladas", isActive = true)
                     }
@@ -887,6 +1049,94 @@ fun TopFilterSlidersPanel(
                         }
                         QuickValueChip(label = "25 km/h", isSelected = criteria.safetySpeedThresholdKm == 25.0) {
                             onCriteriaChange(criteria.copy(safetySpeedThresholdKm = 25.0))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // ========================================================
+                    // 5.5. CONTROLE ESPECÍFICO: VALOR MÍNIMO POR KM DO AUTO-ACEITE
+                    // ========================================================
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (criteria.isAutoAcceptEnabled) NeonGreen.copy(alpha = 0.08f) else DarkCardElevated
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (criteria.isAutoAcceptEnabled) NeonGreen.copy(alpha = 0.5f) else DarkBorder
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(text = "⚡", fontSize = 13.sp)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Column {
+                                        Text(
+                                            text = "Gatilho Mínimo por Km do Auto-Aceite:",
+                                            color = TextLight,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Aceita ofertas automaticamente sem tocar na tela",
+                                            color = TextMuted,
+                                            fontSize = 9.sp
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = formattedAutoAcceptGain,
+                                    color = NeonGreen,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+
+                            Slider(
+                                value = criteria.autoAcceptMinGainPerKm.toFloat(),
+                                onValueChange = { newGain ->
+                                    val rounded = (newGain.toDouble() * 2).toInt() / 2.0
+                                    onCriteriaChange(criteria.copy(autoAcceptMinGainPerKm = rounded))
+                                },
+                                valueRange = 3f..10f,
+                                steps = 13,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = NeonGreen,
+                                    activeTrackColor = NeonGreen,
+                                    inactiveTrackColor = DarkBorder
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(30.dp)
+                                    .testTag("slider_auto_accept_min_gain")
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                QuickValueChip(label = "R$ 4,00/km", isSelected = criteria.autoAcceptMinGainPerKm == 4.0) {
+                                    onCriteriaChange(criteria.copy(autoAcceptMinGainPerKm = 4.0))
+                                }
+                                QuickValueChip(label = "R$ 5,00/km (Padrão)", isSelected = criteria.autoAcceptMinGainPerKm == 5.0) {
+                                    onCriteriaChange(criteria.copy(autoAcceptMinGainPerKm = 5.0))
+                                }
+                                QuickValueChip(label = "R$ 6,50/km", isSelected = criteria.autoAcceptMinGainPerKm == 6.5) {
+                                    onCriteriaChange(criteria.copy(autoAcceptMinGainPerKm = 6.5))
+                                }
+                                QuickValueChip(label = "R$ 8,00/km", isSelected = criteria.autoAcceptMinGainPerKm == 8.0) {
+                                    onCriteriaChange(criteria.copy(autoAcceptMinGainPerKm = 8.0))
+                                }
+                            }
                         }
                     }
 

@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.Context
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
@@ -265,3 +266,29 @@ fun DeliveryHighContrastTheme(
         )
     }
 }
+
+// =============================================================================
+// GERENCIADOR DE PREFERÊNCIAS DE TEMA & VISIBILIDADE DO ENTREGADOR
+// =============================================================================
+object ThemePreferencesManager {
+    private const val PREFS_NAME = "radar_theme_preferences"
+    private const val KEY_NIGHT_MODE = "radar_night_mode_active"
+
+    /**
+     * Retorna se o Modo Noturno está ativado.
+     * O padrão é true (Modo Cockpit Noturno com Preto OLED anti-reflexo para entregas à noite).
+     */
+    fun isNightMode(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_NIGHT_MODE, true)
+    }
+
+    /**
+     * Salva a preferência de tema do piloto (Noturno ou Modo Sol).
+     */
+    fun setNightMode(context: Context, isNight: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_NIGHT_MODE, isNight).apply()
+    }
+}
+

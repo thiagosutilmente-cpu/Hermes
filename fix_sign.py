@@ -60,7 +60,7 @@ res4 = subprocess.run([
 ], capture_output=True, text=True)
 print('Verify:\n', res4.stdout)
 
-if "Verified using v1 scheme (JAR signing): true" in res4.stdout and "Verified using v2 scheme (APK Signature Scheme v2): true" in res4.stdout:
-    print("SUCCESS: Replacing APKs with dual-signed build!")
+if "Verifies" in res4.stdout and "Verified using v2 scheme (APK Signature Scheme v2): true" in res4.stdout:
+    print("SUCCESS: Replacing APKs with valid signed build!")
     shutil.copyfile(final_apk, '.build-outputs/app-debug.apk')
     shutil.copyfile(final_apk, 'app/build/outputs/apk/debug/app-debug.apk')

@@ -2,6 +2,7 @@ package com.example
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -22,6 +23,7 @@ import java.util.Locale
  */
 data class VoiceCommandState(
     val isListening: Boolean = false,
+    val rmsDb: Float = 0f,
     val lastRecognizedText: String = "",
     val detectedCommand: VoiceActionCommand? = null,
     val isPermissionGranted: Boolean = false,
@@ -31,6 +33,14 @@ data class VoiceCommandState(
 enum class VoiceActionCommand {
     ACCEPT,
     DECLINE,
+    ACCEPT_IFOOD,
+    DECLINE_IFOOD,
+    ACCEPT_RAPPI,
+    DECLINE_RAPPI,
+    ACCEPT_UBER,
+    DECLINE_UBER,
+    ACCEPT_99,
+    DECLINE_99,
     FOCUS_ON,
     FOCUS_OFF,
     RADAR_ON,
@@ -51,13 +61,17 @@ enum class VoiceActionCommand {
     FILTER_ONLY_JARVIS,
     FILTER_MIN_15,
     FILTER_MIN_20,
-    FILTER_MIN_30
+    FILTER_MIN_30,
+    // Comandos de Auto-Aceite Inteligente por Voz
+    AUTO_ACCEPT_ON,
+    AUTO_ACCEPT_OFF,
+    AUTO_ACCEPT_TOGGLE
 }
 
 /**
  * Gerenciador mãos-livres (Hands-Free) com SpeechRecognizer nativo do Android.
- * Permite ao entregador aceitar ("aceitar", "sim", "pegar", "confirma")
- * ou rejeitar ("recusar", "não", "pular", "cancela") chamadas de voz com capacete/fone Bluetooth.
+ * Permite ao entregador aceitar ("aceitar", "sim", "pegar", "confirma", "bora")
+ * ou rejeitar ("recusar", "não", "pular", "cancela", "deixa passar") chamadas de voz com capacete/fone Bluetooth.
  */
 class HandsFreeSpeechManager(
     private val context: Context,
@@ -67,6 +81,7 @@ class HandsFreeSpeechManager(
     private var isShouldBeListening: Boolean = false
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private var restartJob: Job? = null
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
 
     private val _state = MutableStateFlow(VoiceCommandState())
     val state: StateFlow<VoiceCommandState> = _state.asStateFlow()
@@ -80,6 +95,11 @@ class HandsFreeSpeechManager(
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+            // Prioriza modelo offline no aparelho caso disponível para baixa latência em trânsito
+            putExtra("android.speech.extra.PREFER_OFFLINE", true)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 800L)
         }
     }
 
@@ -88,31 +108,60 @@ class HandsFreeSpeechManager(
             _state.value = _state.value.copy(isListening = true, errorMessage = null)
         }
 
-        override fun onBeginningOfSpeech() {}
+        override fun onBeginningOfSpeech() {
+            _state.value = _state.value.copy(isListening = true)
+        }
 
-        override fun onRmsChanged(rmsdB: Float) {}
+        override fun onRmsChanged(rmsdB: Float) {
+            if (rmsdB > 0f) {
+                _state.value = _state.value.copy(rmsDb = rmsdB)
+            }
+        }
 
         override fun onBufferReceived(buffer: ByteArray?) {}
 
         override fun onEndOfSpeech() {
-            _state.value = _state.value.copy(isListening = false)
+            _state.value = _state.value.copy(isListening = false, rmsDb = 0f)
         }
 
         override fun onError(error: Int) {
-            _state.value = _state.value.copy(isListening = false)
+            _state.value = _state.value.copy(isListening = false, rmsDb = 0f)
             Log.d("HandsFreeSpeech", "SpeechRecognizer error: $error")
-            // Se ainda deve estar ouvindo, reinicia após uma pausa curta
-            scheduleRestartListening()
+            when (error) {
+                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
+                    try {
+                        speechRecognizer?.cancel()
+                    } catch (_: Exception) {}
+                    scheduleRestartListening(1000L)
+                }
+                SpeechRecognizer.ERROR_CLIENT -> {
+                    recreateRecognizer()
+                    scheduleRestartListening(1200L)
+                }
+                SpeechRecognizer.ERROR_NO_MATCH,
+                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
+                    // Sem voz detectada no intervalo (situação comum em condução de moto)
+                    scheduleRestartListening(600L)
+                }
+                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
+                    _state.value = _state.value.copy(
+                        errorMessage = "Permissão de microfone necessária"
+                    )
+                }
+                else -> {
+                    scheduleRestartListening(1500L)
+                }
+            }
         }
 
         override fun onResults(results: Bundle?) {
-            _state.value = _state.value.copy(isListening = false)
+            _state.value = _state.value.copy(isListening = false, rmsDb = 0f)
             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             if (!matches.isNullOrEmpty()) {
                 val fullText = matches.first().lowercase(Locale.getDefault())
                 processSpokenText(fullText)
             }
-            scheduleRestartListening()
+            scheduleRestartListening(800L)
         }
 
         override fun onPartialResults(partialResults: Bundle?) {
@@ -129,20 +178,33 @@ class HandsFreeSpeechManager(
 
     init {
         scope.launch {
-            try {
-                if (SpeechRecognizer.isRecognitionAvailable(context)) {
-                    speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-                        setRecognitionListener(listener)
-                    }
-                } else {
-                    _state.value = _state.value.copy(
-                        errorMessage = "SpeechRecognizer indisponível no dispositivo"
-                    )
-                }
-            } catch (e: Exception) {
-                Log.e("HandsFreeSpeech", "Erro inicializando SpeechRecognizer: ${e.message}")
-            }
+            initRecognizerInternal()
         }
+    }
+
+    private fun initRecognizerInternal() {
+        try {
+            if (SpeechRecognizer.isRecognitionAvailable(context)) {
+                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+                    setRecognitionListener(listener)
+                }
+            } else {
+                _state.value = _state.value.copy(
+                    errorMessage = "SpeechRecognizer indisponível no dispositivo"
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("HandsFreeSpeech", "Erro inicializando SpeechRecognizer: ${e.message}")
+        }
+    }
+
+    private fun recreateRecognizer() {
+        try {
+            speechRecognizer?.cancel()
+            speechRecognizer?.destroy()
+        } catch (_: Exception) {}
+        speechRecognizer = null
+        initRecognizerInternal()
     }
 
     /**
@@ -151,15 +213,19 @@ class HandsFreeSpeechManager(
     fun startListening() {
         isShouldBeListening = true
         restartJob?.cancel()
+        enableBluetoothScoIfAvailable()
         scope.launch {
             try {
                 if (speechRecognizer == null && SpeechRecognizer.isRecognitionAvailable(context)) {
-                    speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-                        setRecognitionListener(listener)
-                    }
+                    initRecognizerInternal()
                 }
+                // Cancela qualquer sessão residual pendente antes de disparar nova escuta
+                try {
+                    speechRecognizer?.cancel()
+                } catch (_: Exception) {}
+
                 speechRecognizer?.startListening(recognitionIntent)
-                _state.value = _state.value.copy(isListening = true)
+                _state.value = _state.value.copy(isListening = true, errorMessage = null)
             } catch (e: Exception) {
                 Log.e("HandsFreeSpeech", "Erro ao iniciar escuta: ${e.message}")
                 scheduleRestartListening()
@@ -178,7 +244,8 @@ class HandsFreeSpeechManager(
         scope.launch {
             try {
                 speechRecognizer?.stopListening()
-                _state.value = _state.value.copy(isListening = false)
+                speechRecognizer?.cancel()
+                _state.value = _state.value.copy(isListening = false, rmsDb = 0f)
             } catch (_: Exception) {}
         }
     }
@@ -193,7 +260,8 @@ class HandsFreeSpeechManager(
         scope.launch {
             try {
                 speechRecognizer?.stopListening()
-                _state.value = _state.value.copy(isListening = false)
+                speechRecognizer?.cancel()
+                _state.value = _state.value.copy(isListening = false, rmsDb = 0f)
             } catch (_: Exception) {}
         }
     }
@@ -208,13 +276,14 @@ class HandsFreeSpeechManager(
         }
     }
 
-    private fun scheduleRestartListening(delayMs: Long = 1200L) {
+    private fun scheduleRestartListening(delayMs: Long = 1000L) {
         if (!isShouldBeListening || isMutedForTts) return
         restartJob?.cancel()
         restartJob = scope.launch {
-            delay(delayMs) // Pausa de recuperação para não sobrecarregar o microfone
+            delay(delayMs)
             if (isShouldBeListening && !isMutedForTts) {
                 try {
+                    speechRecognizer?.cancel()
                     speechRecognizer?.startListening(recognitionIntent)
                     _state.value = _state.value.copy(isListening = true)
                 } catch (e: Exception) {
@@ -222,6 +291,36 @@ class HandsFreeSpeechManager(
                 }
             }
         }
+    }
+
+    /**
+     * Habilita áudio de capacete / fone Bluetooth SCO se conectado
+     */
+    private fun enableBluetoothScoIfAvailable() {
+        try {
+            audioManager?.let { am ->
+                if (am.isBluetoothScoAvailableOffCall && !am.isBluetoothScoOn) {
+                    am.startBluetoothSco()
+                    am.isBluetoothScoOn = true
+                }
+            }
+        } catch (e: Exception) {
+            Log.d("HandsFreeSpeech", "Bluetooth SCO setup: ${e.message}")
+        }
+    }
+
+    /**
+     * Desliga áudio Bluetooth SCO
+     */
+    private fun disableBluetoothSco() {
+        try {
+            audioManager?.let { am ->
+                if (am.isBluetoothScoOn) {
+                    am.isBluetoothScoOn = false
+                    am.stopBluetoothSco()
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     /**
@@ -268,23 +367,60 @@ class HandsFreeSpeechManager(
     private fun parseCommand(text: String): VoiceActionCommand? {
         val t = text.lowercase(Locale.getDefault()).trim()
 
-        // 1. Palavras de Aceite (Prioridade: 'aceitar')
+        // 1. Aceite Específico de Aplicativo (Multi-app)
+        if (t.contains("ifood") && (t.contains("aceit") || t.contains("peg") || t.contains("confirm") || t.contains("sim") || t.contains("bora"))) {
+            return VoiceActionCommand.ACCEPT_IFOOD
+        }
+        if (t.contains("rappi") && (t.contains("aceit") || t.contains("peg") || t.contains("confirm") || t.contains("sim") || t.contains("bora"))) {
+            return VoiceActionCommand.ACCEPT_RAPPI
+        }
+        if (t.contains("uber") && (t.contains("aceit") || t.contains("peg") || t.contains("confirm") || t.contains("sim") || t.contains("bora"))) {
+            return VoiceActionCommand.ACCEPT_UBER
+        }
+        if ((t.contains("99") || t.contains("noventa e nove")) && (t.contains("aceit") || t.contains("peg") || t.contains("confirm") || t.contains("sim") || t.contains("bora"))) {
+            return VoiceActionCommand.ACCEPT_99
+        }
+
+        // 2. Recusa Específica de Aplicativo
+        if (t.contains("ifood") && (t.contains("recus") || t.contains("cancel") || t.contains("rejeit") || t.contains("não") || t.contains("nao") || t.contains("pul") || t.contains("descart"))) {
+            return VoiceActionCommand.DECLINE_IFOOD
+        }
+        if (t.contains("rappi") && (t.contains("recus") || t.contains("cancel") || t.contains("rejeit") || t.contains("não") || t.contains("nao") || t.contains("pul") || t.contains("descart"))) {
+            return VoiceActionCommand.DECLINE_RAPPI
+        }
+        if (t.contains("uber") && (t.contains("recus") || t.contains("cancel") || t.contains("rejeit") || t.contains("não") || t.contains("nao") || t.contains("pul") || t.contains("descart"))) {
+            return VoiceActionCommand.DECLINE_UBER
+        }
+        if ((t.contains("99") || t.contains("noventa e nove")) && (t.contains("recus") || t.contains("cancel") || t.contains("rejeit") || t.contains("não") || t.contains("nao") || t.contains("pul") || t.contains("descart"))) {
+            return VoiceActionCommand.DECLINE_99
+        }
+
+        // 3. Palavras de Aceite Geral (Prioridade Máxima do Entregador)
         if (t == "aceitar" || t == "aceita" || t == "aceito" || t == "aceite" ||
             t.contains("aceitar") || t.contains("aceito") || t.contains("aceita") ||
-            t == "sim" || t == "confirmar" || t == "confirma" ||
+            t == "sim" || t == "confirmar" || t == "confirma" || t == "confirmado" ||
             t.contains("confirmar") || t.contains("confirma") ||
-            t.contains("pegar") || t.contains("vou aceitar") || t.contains("pode aceitar")
+            t.contains("pegar") || t.contains("pega") || t.contains("pego") || t.contains("vou aceitar") ||
+            t.contains("pode aceitar") || t.contains("pode pegar") || t.contains("bora") ||
+            t.contains("topo") || t.contains("aceita ai") || t.contains("aceitar corrida") ||
+            t.contains("aceitar pedido") || t.contains("pegar corrida") || t.contains("fechou") ||
+            t.contains("manda") || t.contains("positivo") || t.contains("partiu") ||
+            t.contains("vamos") || t.contains("vamo") || t.contains("vou") || t.contains("pega essa")
         ) {
             return VoiceActionCommand.ACCEPT
         }
 
-        // 2. Palavras de Recusa / Cancelamento (Prioridade: 'cancelar')
+        // 4. Palavras de Recusa / Cancelamento Geral
         if (t == "cancelar" || t == "cancela" || t == "cancelado" ||
             t.contains("cancelar") || t.contains("cancela") ||
-            t == "recusar" || t == "recusa" || t == "rejeitar" ||
+            t == "recusar" || t == "recusa" || t == "recuso" || t == "rejeitar" || t == "rejeita" ||
             t.contains("recusar") || t.contains("recusa") || t.contains("rejeitar") ||
-            t == "não" || t == "nao" || t.contains("deixa passar") ||
-            t.contains("descartar") || t.contains("dispensar") || t.contains("pular")
+            t == "não" || t == "nao" || t.contains("deixa passar") || t.contains("passo") ||
+            t.contains("descartar") || t.contains("descarta") || t.contains("dispensar") ||
+            t.contains("dispensa") || t.contains("pular") || t.contains("pula") ||
+            t.contains("negar") || t.contains("nega") || t.contains("recusar corrida") ||
+            t.contains("recusar pedido") || t.contains("ruim") || t.contains("fora") ||
+            t.contains("muito longe") || t.contains("longe demais") || t.contains("cancela essa")
         ) {
             return VoiceActionCommand.DECLINE
         }
@@ -385,14 +521,36 @@ class HandsFreeSpeechManager(
             return VoiceActionCommand.SEARCH_MERGED
         }
 
+        // Comandos de Auto-Aceite Inteligente
+        if (t.contains("ativar auto aceite") || t.contains("ligar auto aceite") ||
+            t.contains("ativar auto-aceite") || t.contains("ligar auto-aceite") ||
+            t.contains("ligar aceite automático") || t.contains("ativar aceite automático")
+        ) {
+            return VoiceActionCommand.AUTO_ACCEPT_ON
+        }
+        if (t.contains("desativar auto aceite") || t.contains("desligar auto aceite") ||
+            t.contains("desativar auto-aceite") || t.contains("desligar auto-aceite") ||
+            t.contains("parar auto aceite") || t.contains("parar auto-aceite") ||
+            t.contains("desligar aceite automático")
+        ) {
+            return VoiceActionCommand.AUTO_ACCEPT_OFF
+        }
+        if (t.contains("auto aceite") || t.contains("auto-aceite") ||
+            t.contains("aceite automático") || t.contains("aceite automatico")
+        ) {
+            return VoiceActionCommand.AUTO_ACCEPT_TOGGLE
+        }
+
         return null
     }
 
     fun destroy() {
         isShouldBeListening = false
         restartJob?.cancel()
+        disableBluetoothSco()
         scope.launch {
             try {
+                speechRecognizer?.cancel()
                 speechRecognizer?.destroy()
                 speechRecognizer = null
             } catch (_: Exception) {}

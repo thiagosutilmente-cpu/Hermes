@@ -92,6 +92,12 @@ fun FilterSettingsScreen(
     var onlyAcceptedNeural by remember { mutableStateOf(currentCriteria.onlyAcceptedNeural) }
     var onlyMultiStack by remember { mutableStateOf(currentCriteria.onlyMultiStack) }
     var safetySpeedThresholdKm by remember { mutableDoubleStateOf(currentCriteria.safetySpeedThresholdKm) }
+    var isAutoAcceptEnabled by remember { mutableStateOf(currentCriteria.isAutoAcceptEnabled) }
+    var autoAcceptMinGainPerKm by remember { mutableDoubleStateOf(currentCriteria.autoAcceptMinGainPerKm) }
+    var isNotificationFilterEnabled by remember { mutableStateOf(currentCriteria.isNotificationFilterEnabled) }
+    var notificationMinGainPerKm by remember { mutableDoubleStateOf(currentCriteria.notificationMinGainPerKm) }
+    var notificationAllowMultiStackBypass by remember { mutableStateOf(currentCriteria.notificationAllowMultiStackBypass) }
+    var notificationOnlyJarvisApproved by remember { mutableStateOf(currentCriteria.notificationOnlyJarvisApproved) }
 
     val formattedMinVal = if (minValue > 0.0) String.format(Locale("pt", "BR"), "R$ %.2f", minValue) else "Sem Mínimo"
     val formattedMaxDist = if (maxDistanceKm < 15.0) String.format(Locale("pt", "BR"), "%.1f km", maxDistanceKm) else "Sem Limite"
@@ -99,6 +105,7 @@ fun FilterSettingsScreen(
     val formattedGainKm = if (minGainPerKm > 0.0) String.format(Locale("pt", "BR"), "R$ %.2f/km", minGainPerKm) else "Sem Mínimo"
     val formattedHourlyMult = if (minHourlyMultiplier > 1.0) String.format(Locale("pt", "BR"), "%.1fx (~R$ %.0f/h)", minHourlyMultiplier, 35.0 * minHourlyMultiplier) else "1.0x (Padrão)"
     val formattedSpeedLimit = "${safetySpeedThresholdKm.toInt()} km/h"
+    val formattedAutoAcceptGain = String.format(Locale("pt", "BR"), "R$ %.2f/km", autoAcceptMinGainPerKm)
 
     Scaffold(
         containerColor = DarkBg,
@@ -145,7 +152,9 @@ fun FilterSettingsScreen(
                             minHourlyMultiplier = 1.0
                             onlyAcceptedNeural = false
                             onlyMultiStack = false
-                            safetySpeedThresholdKm = 15.0
+                            safetySpeedThresholdKm = 10.0
+                            isAutoAcceptEnabled = false
+                            autoAcceptMinGainPerKm = 5.0
                             HapticFeedbackHelper.vibrateClick(context)
                             Toast.makeText(context, "Filtros redefinidos para padrão!", Toast.LENGTH_SHORT).show()
                         },
@@ -593,6 +602,37 @@ fun FilterSettingsScreen(
                 }
             }
 
+            // =========================================================================
+            // 6.5. FILTRO AUTOMÁTICO DE NOTIFICAÇÕES POR PISO DE PREÇO POR KM (R$/KM)
+            // =========================================================================
+            item {
+                PricePerKmNotificationFilterLayout(
+                    criteria = OfferFilterCriteria(
+                        minValue = minValue,
+                        maxDistanceKm = maxDistanceKm,
+                        minDeliveryBonus = minDeliveryBonus,
+                        minGainPerKm = minGainPerKm,
+                        minHourlyMultiplier = minHourlyMultiplier,
+                        onlyAcceptedNeural = onlyAcceptedNeural,
+                        onlyMultiStack = onlyMultiStack,
+                        safetySpeedThresholdKm = safetySpeedThresholdKm,
+                        searchQuery = currentCriteria.searchQuery,
+                        isAutoAcceptEnabled = isAutoAcceptEnabled,
+                        autoAcceptMinGainPerKm = autoAcceptMinGainPerKm,
+                        isNotificationFilterEnabled = isNotificationFilterEnabled,
+                        notificationMinGainPerKm = notificationMinGainPerKm,
+                        notificationAllowMultiStackBypass = notificationAllowMultiStackBypass,
+                        notificationOnlyJarvisApproved = notificationOnlyJarvisApproved
+                    ),
+                    onCriteriaChange = { updated ->
+                        isNotificationFilterEnabled = updated.isNotificationFilterEnabled
+                        notificationMinGainPerKm = updated.notificationMinGainPerKm
+                        notificationAllowMultiStackBypass = updated.notificationAllowMultiStackBypass
+                        notificationOnlyJarvisApproved = updated.notificationOnlyJarvisApproved
+                    }
+                )
+            }
+
             // ==========================================
             // 7. SWITCHES DE AUTOMAÇÃO INTELIGENTE
             // ==========================================
@@ -687,6 +727,119 @@ fun FilterSettingsScreen(
                                 modifier = Modifier.testTag("switch_screen_multistack_filter")
                             )
                         }
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(0.8.dp)
+                                .background(DarkBorder)
+                        )
+
+                        // Switch 3: Auto-Aceite Inteligente com Filtros Pré-definidos
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isAutoAcceptEnabled) NeonGreen.copy(alpha = 0.08f) else Color.Transparent)
+                                .padding(if (isAutoAcceptEnabled) 8.dp else 0.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "⚡ Auto-Aceite Inteligente",
+                                            color = if (isAutoAcceptEnabled) NeonGreen else TextLight,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(if (isAutoAcceptEnabled) NeonGreen else DarkBorder)
+                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                        ) {
+                                            Text(
+                                                text = if (isAutoAcceptEnabled) "ATIVO" else "OFF",
+                                                color = if (isAutoAcceptEnabled) DarkBg else TextMuted,
+                                                fontSize = 8.5.sp,
+                                                fontWeight = FontWeight.Black
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "Aceita automaticamente ofertas sem intervenção manual quando atingirem o ganho mínimo/km",
+                                        color = TextMuted,
+                                        fontSize = 10.5.sp
+                                    )
+                                }
+                                Switch(
+                                    checked = isAutoAcceptEnabled,
+                                    onCheckedChange = { isAutoAcceptEnabled = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = NeonGreen,
+                                        checkedTrackColor = NeonGreen.copy(alpha = 0.4f),
+                                        uncheckedThumbColor = TextMuted,
+                                        uncheckedTrackColor = DarkBorder
+                                    ),
+                                    modifier = Modifier.testTag("switch_screen_auto_accept")
+                                )
+                            }
+
+                            if (isAutoAcceptEnabled) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Filtro pré-definido: Mínimo por Km",
+                                        color = TextLight,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = formattedAutoAcceptGain,
+                                        color = NeonGreen,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+
+                                Slider(
+                                    value = autoAcceptMinGainPerKm.toFloat(),
+                                    onValueChange = {
+                                        val rounded = (it.toDouble() * 2).toInt() / 2.0
+                                        autoAcceptMinGainPerKm = rounded
+                                    },
+                                    valueRange = 3f..10f,
+                                    steps = 13,
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = NeonGreen,
+                                        activeTrackColor = NeonGreen,
+                                        inactiveTrackColor = DarkBorder
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("slider_screen_auto_accept_min_gain")
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    QuickChip(label = "R$ 4,00/km", isSelected = autoAcceptMinGainPerKm == 4.0) { autoAcceptMinGainPerKm = 4.0 }
+                                    QuickChip(label = "R$ 5,00/km (Padrão)", isSelected = autoAcceptMinGainPerKm == 5.0) { autoAcceptMinGainPerKm = 5.0 }
+                                    QuickChip(label = "R$ 6,50/km", isSelected = autoAcceptMinGainPerKm == 6.5) { autoAcceptMinGainPerKm = 6.5 }
+                                    QuickChip(label = "R$ 8,00/km", isSelected = autoAcceptMinGainPerKm == 8.0) { autoAcceptMinGainPerKm = 8.0 }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -724,8 +877,8 @@ fun FilterSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        QuickChip(label = "10 km/h", isSelected = safetySpeedThresholdKm == 10.0) { safetySpeedThresholdKm = 10.0 }
-                        QuickChip(label = "15 km/h (Padrão)", isSelected = safetySpeedThresholdKm == 15.0) { safetySpeedThresholdKm = 15.0 }
+                        QuickChip(label = "10 km/h (Padrão)", isSelected = safetySpeedThresholdKm == 10.0) { safetySpeedThresholdKm = 10.0 }
+                        QuickChip(label = "15 km/h", isSelected = safetySpeedThresholdKm == 15.0) { safetySpeedThresholdKm = 15.0 }
                         QuickChip(label = "20 km/h", isSelected = safetySpeedThresholdKm == 20.0) { safetySpeedThresholdKm = 20.0 }
                         QuickChip(label = "25 km/h", isSelected = safetySpeedThresholdKm == 25.0) { safetySpeedThresholdKm = 25.0 }
                     }
@@ -872,6 +1025,19 @@ fun FilterSettingsScreen(
                                     fontSize = 11.sp
                                 )
                             }
+                            if (isAutoAcceptEnabled) {
+                                val passesAuto = sampleGainKm >= autoAcceptMinGainPerKm
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(text = if (passesAuto) "⚡" else "⚠️", color = if (passesAuto) NeonGreen else RedDecline, fontSize = 11.sp)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Auto-Aceite: R$ 5,71/km ${if (passesAuto) "≥" else "<"} Gatilho $formattedAutoAcceptGain (${if (passesAuto) "Aceite Automático Dispararia!" else "Requer toque manual"})",
+                                        color = if (passesAuto) NeonGreen else RedDecline,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -896,7 +1062,13 @@ fun FilterSettingsScreen(
                             minHourlyMultiplier = 1.0
                             onlyAcceptedNeural = false
                             onlyMultiStack = false
-                            safetySpeedThresholdKm = 15.0
+                            safetySpeedThresholdKm = 10.0
+                            isAutoAcceptEnabled = false
+                            autoAcceptMinGainPerKm = 5.0
+                            isNotificationFilterEnabled = true
+                            notificationMinGainPerKm = 5.0
+                            notificationAllowMultiStackBypass = true
+                            notificationOnlyJarvisApproved = false
                             HapticFeedbackHelper.vibrateClick(context)
                         },
                         modifier = Modifier
@@ -924,7 +1096,13 @@ fun FilterSettingsScreen(
                                 onlyAcceptedNeural = onlyAcceptedNeural,
                                 onlyMultiStack = onlyMultiStack,
                                 safetySpeedThresholdKm = safetySpeedThresholdKm,
-                                searchQuery = currentCriteria.searchQuery
+                                searchQuery = currentCriteria.searchQuery,
+                                isAutoAcceptEnabled = isAutoAcceptEnabled,
+                                autoAcceptMinGainPerKm = autoAcceptMinGainPerKm,
+                                isNotificationFilterEnabled = isNotificationFilterEnabled,
+                                notificationMinGainPerKm = notificationMinGainPerKm,
+                                notificationAllowMultiStackBypass = notificationAllowMultiStackBypass,
+                                notificationOnlyJarvisApproved = notificationOnlyJarvisApproved
                             )
                             // Salva no SharedPreferences
                             FilterPreferencesManager.saveCriteria(context, newCriteria)

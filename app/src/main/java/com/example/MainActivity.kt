@@ -143,11 +143,28 @@ class MainActivity : ComponentActivity() {
         voiceManager = vm
 
         setContent {
-            DeliveryHighContrastTheme {
+            val context = LocalContext.current
+            var isNightMode by remember { mutableStateOf(ThemePreferencesManager.isNightMode(context)) }
+
+            DeliveryHighContrastTheme(
+                sunlightMode = !isNightMode,
+                darkTheme = isNightMode
+            ) {
                 RadarDeliveryDashboard(
                     voiceManager = vm,
                     notificationIntent = currentIntentState.value,
-                    onIntentConsumed = { currentIntentState.value = null }
+                    onIntentConsumed = { currentIntentState.value = null },
+                    isNightMode = isNightMode,
+                    onToggleNightMode = {
+                        val next = !isNightMode
+                        isNightMode = next
+                        ThemePreferencesManager.setNightMode(context, next)
+                        if (next) {
+                            vm.speak("Modo Noturno Cockpit ativado. Visibilidade anti-reflexo otimizada para entrega à noite.")
+                        } else {
+                            vm.speak("Modo Sol ativado. Alto contraste para luz solar direta.")
+                        }
+                    }
                 )
             }
         }
@@ -174,7 +191,9 @@ class MainActivity : ComponentActivity() {
 fun RadarDeliveryDashboard(
     voiceManager: NeuralVoiceManager? = null,
     notificationIntent: Intent? = null,
-    onIntentConsumed: () -> Unit = {}
+    onIntentConsumed: () -> Unit = {},
+    isNightMode: Boolean = true,
+    onToggleNightMode: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -305,6 +324,13 @@ fun RadarDeliveryDashboard(
     }
     var showFilterSettingsModal by remember { mutableStateOf(false) }
     var showFilterSettingsScreen by remember { mutableStateOf(false) }
+
+    // Estado tático do motoboy: Modo Luva, Gasolina/Lucro Real e Presets Rápidos
+    var isGloveModeEnabled by remember { mutableStateOf(false) }
+    var showNetFuelProfit by remember { mutableStateOf(true) }
+    var activeTacticalPreset by remember { mutableStateOf("PADRAO") }
+    var kmPerLiter by remember { mutableDoubleStateOf(35.0) }
+    var fuelPricePerLiter by remember { mutableDoubleStateOf(5.89) }
 
     // 8. Reconhecedor de Fala Nativo (SpeechRecognizer) - Mãos Livres no Capacete
     var hasMicPermission by remember {
@@ -449,6 +475,27 @@ fun RadarDeliveryDashboard(
 
     // Ações de Aceitar e Rejeitar reutilizáveis pelo Toque, Card de Coleta e Comando de Voz
     val onAcceptOffer: (RadarOffer, String) -> Unit = { targetOffer, source ->
+        val currentSpeed = maxOf(speedState.currentSpeedKmh, LocationService.globalLocationState.value.currentSpeedKmh)
+        val safetyThreshold = speedState.safetySpeedThresholdKmh
+        val isSpeedLocked = speedState.isSafetyLockActive || currentSpeed > safetyThreshold || LocationService.globalLocationState.value.isSafetyLockActive
+
+        if (isSpeedLocked) {
+            // TRAVA DE SEGURANÇA BASEADA EM LOCALIZAÇÃO (FUSED LOCATION):
+            // Desativa automaticamente o aceite de ofertas se a velocidade ultrapassar 10 km/h (ou limiar configurado)
+            HapticFeedbackHelper.vibrateDecline(context)
+            val speedFmt = String.format(Locale("pt", "BR"), "%.1f", currentSpeed)
+            val limitFmt = String.format(Locale("pt", "BR"), "%.0f", safetyThreshold)
+            Toast.makeText(
+                context,
+                "🚨 Aceite desativado por segurança: velocidade detectada ($speedFmt km/h) excede $limitFmt km/h!",
+                Toast.LENGTH_LONG
+            ).show()
+            if (isVoiceEnabled && voiceManager != null) {
+                voiceManager.speak("Aceite de corrida desativado por segurança. Velocidade de $speedFmt por hora detectada por GPS. Pare ou reduza a velocidade para menos de $limitFmt por hora para aceitar.")
+            }
+            return@onAcceptOffer
+        }
+
         // Feedback Háptico Tático de Aceite (Pulso duplo de alta energia)
         HapticFeedbackHelper.vibrateAccept(context)
 
@@ -552,6 +599,25 @@ fun RadarDeliveryDashboard(
     }
 
     val onAcceptCurrentBestOffer: () -> Unit = {
+        val currentSpeed = maxOf(speedState.currentSpeedKmh, LocationService.globalLocationState.value.currentSpeedKmh)
+        val safetyThreshold = speedState.safetySpeedThresholdKmh
+        val isSpeedLocked = speedState.isSafetyLockActive || currentSpeed > safetyThreshold || LocationService.globalLocationState.value.isSafetyLockActive
+
+        if (isSpeedLocked) {
+            HapticFeedbackHelper.vibrateDecline(context)
+            val speedFmt = String.format(Locale("pt", "BR"), "%.1f", currentSpeed)
+            val limitFmt = String.format(Locale("pt", "BR"), "%.0f", safetyThreshold)
+            if (isVoiceEnabled && voiceManager != null) {
+                voiceManager.speak("Aceite por voz desativado por segurança. Velocidade de $speedFmt por hora excede o limite de $limitFmt km por hora. Pare a moto para aceitar.")
+            }
+            Toast.makeText(
+                context,
+                "🚨 Aceite por voz desativado (> $limitFmt km/h)",
+                Toast.LENGTH_SHORT
+            ).show()
+            return@onAcceptCurrentBestOffer
+        }
+
         val targetOffer = offersList.firstOrNull { filterCriteria.matches(it) } ?: offersList.firstOrNull()
         if (targetOffer != null) {
             onAcceptOffer(targetOffer, "Comando de Voz")
@@ -606,6 +672,70 @@ fun RadarDeliveryDashboard(
                 }
                 VoiceActionCommand.DECLINE -> {
                     onDeclineCurrentBestOffer()
+                }
+                VoiceActionCommand.ACCEPT_IFOOD -> {
+                    val target = offersList.firstOrNull { it.appName.contains("iFood", ignoreCase = true) }
+                    if (target != null) {
+                        onAcceptOffer(target, "Comando de Voz (iFood)")
+                    } else {
+                        onAcceptCurrentBestOffer()
+                    }
+                }
+                VoiceActionCommand.DECLINE_IFOOD -> {
+                    val target = offersList.firstOrNull { it.appName.contains("iFood", ignoreCase = true) }
+                    if (target != null) {
+                        onDeclineOffer(target, "Comando de Voz (iFood)")
+                    } else {
+                        onDeclineCurrentBestOffer()
+                    }
+                }
+                VoiceActionCommand.ACCEPT_RAPPI -> {
+                    val target = offersList.firstOrNull { it.appName.contains("Rappi", ignoreCase = true) }
+                    if (target != null) {
+                        onAcceptOffer(target, "Comando de Voz (Rappi)")
+                    } else {
+                        onAcceptCurrentBestOffer()
+                    }
+                }
+                VoiceActionCommand.DECLINE_RAPPI -> {
+                    val target = offersList.firstOrNull { it.appName.contains("Rappi", ignoreCase = true) }
+                    if (target != null) {
+                        onDeclineOffer(target, "Comando de Voz (Rappi)")
+                    } else {
+                        onDeclineCurrentBestOffer()
+                    }
+                }
+                VoiceActionCommand.ACCEPT_UBER -> {
+                    val target = offersList.firstOrNull { it.appName.contains("Uber", ignoreCase = true) }
+                    if (target != null) {
+                        onAcceptOffer(target, "Comando de Voz (Uber)")
+                    } else {
+                        onAcceptCurrentBestOffer()
+                    }
+                }
+                VoiceActionCommand.DECLINE_UBER -> {
+                    val target = offersList.firstOrNull { it.appName.contains("Uber", ignoreCase = true) }
+                    if (target != null) {
+                        onDeclineOffer(target, "Comando de Voz (Uber)")
+                    } else {
+                        onDeclineCurrentBestOffer()
+                    }
+                }
+                VoiceActionCommand.ACCEPT_99 -> {
+                    val target = offersList.firstOrNull { it.appName.contains("99", ignoreCase = true) }
+                    if (target != null) {
+                        onAcceptOffer(target, "Comando de Voz (99 Food)")
+                    } else {
+                        onAcceptCurrentBestOffer()
+                    }
+                }
+                VoiceActionCommand.DECLINE_99 -> {
+                    val target = offersList.firstOrNull { it.appName.contains("99", ignoreCase = true) }
+                    if (target != null) {
+                        onDeclineOffer(target, "Comando de Voz (99 Food)")
+                    } else {
+                        onDeclineCurrentBestOffer()
+                    }
                 }
                 VoiceActionCommand.READ_OFFER -> {
                     HapticFeedbackHelper.vibrateTap(context)
@@ -767,6 +897,29 @@ fun RadarDeliveryDashboard(
                     FilterPreferencesManager.saveCriteria(context, filterCriteria)
                     voiceManager?.speak("Filtro alterado: valor mínimo trinta reais.")
                 }
+                VoiceActionCommand.AUTO_ACCEPT_ON -> {
+                    HapticFeedbackHelper.vibrateSuccess(context)
+                    filterCriteria = filterCriteria.copy(isAutoAcceptEnabled = true)
+                    FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                    voiceManager?.speak("Auto aceite ativado. Ofertas com ganho mínimo de ${String.format(Locale("pt", "BR"), "R$ %.2f", filterCriteria.autoAcceptMinGainPerKm)} por quilômetro serão aceitas automaticamente.")
+                }
+                VoiceActionCommand.AUTO_ACCEPT_OFF -> {
+                    HapticFeedbackHelper.vibrateTap(context)
+                    filterCriteria = filterCriteria.copy(isAutoAcceptEnabled = false)
+                    FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                    voiceManager?.speak("Auto aceite desativado.")
+                }
+                VoiceActionCommand.AUTO_ACCEPT_TOGGLE -> {
+                    HapticFeedbackHelper.vibrateTap(context)
+                    val newState = !filterCriteria.isAutoAcceptEnabled
+                    filterCriteria = filterCriteria.copy(isAutoAcceptEnabled = newState)
+                    FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                    if (newState) {
+                        voiceManager?.speak("Auto aceite ativado. Gatilho de ${String.format(Locale("pt", "BR"), "R$ %.2f", filterCriteria.autoAcceptMinGainPerKm)} por quilômetro.")
+                    } else {
+                        voiceManager?.speak("Auto aceite desativado.")
+                    }
+                }
             }
         }
         speechManager = manager
@@ -836,22 +989,73 @@ fun RadarDeliveryDashboard(
                     cacheRepository.cacheOffer(cachedOfferEntity)
                 }
 
-                // Anúncio Neural por Voz no Fone Bluetooth (respeita os filtros ativos do entregador)
-                if (isVoiceEnabled && voiceManager != null && filterCriteria.matches(newOffer)) {
-                    voiceManager.announceNewOffer(
-                        appName = newOffer.appName,
-                        restaurant = newOffer.restaurant,
-                        value = newOffer.value,
-                        distanceKm = newOffer.distanceKm,
-                        gainPerKm = newOffer.gainPerKm,
-                        neuralDecision = newOffer.neuralDecision.decision
+                // =========================================================================
+                // 1. RECURSO CRÍTICO: AUTO-ACEITE INTELIGENTE COM FILTROS PRÉ-DEFINIDOS
+                // =========================================================================
+                if (filterCriteria.matchesAutoAccept(newOffer)) {
+                    // Oferta cumpre o critério estrito de ganho mínimo por km (ex: >= R$ 5,00/km)
+                    // Aceita automaticamente sem intervenção manual do entregador!
+                    delay(500L) // Breve estabilização de 500ms
+                    onAcceptOffer(
+                        newOffer,
+                        "Auto-Aceite Inteligente (Gatilho ≥ R$ ${String.format(Locale("pt", "BR"), "%.2f", filterCriteria.autoAcceptMinGainPerKm)}/km)"
                     )
-                }
+                    if (isVoiceEnabled && voiceManager != null) {
+                        voiceManager.speak(
+                            "Auto aceite ativado: ${newOffer.restaurant}, ${newOffer.appName}, ${String.format(Locale("pt", "BR"), "R$ %.2f", newOffer.value)}, ganho de ${String.format(Locale("pt", "BR"), "R$ %.2f", newOffer.gainPerKm)} por quilômetro. Aceito automaticamente!"
+                        )
+                    }
+                } else {
+                    // Anúncio Neural por Voz no Fone Bluetooth (respeita os filtros ativos do entregador)
+                    // Em condução de moto (> 15 km/h), usa anúncio ágil mãos-livres direcionado à resposta por voz
+                    val isSpeedSafety = speedState.isSafetyLockActive || speedState.currentSpeedKmh > 15.0 || LocationService.globalLocationState.value.isSafetyLockActive
+                    if (isVoiceEnabled && voiceManager != null && filterCriteria.matches(newOffer)) {
+                        if (isSpeedSafety) {
+                            voiceManager.announceDrivingHandsFreeOffer(
+                                appName = newOffer.appName,
+                                restaurant = newOffer.restaurant,
+                                value = newOffer.value,
+                                distanceKm = newOffer.distanceKm,
+                                gainPerKm = newOffer.gainPerKm
+                            )
+                        } else {
+                            voiceManager.announceNewOffer(
+                                appName = newOffer.appName,
+                                restaurant = newOffer.restaurant,
+                                value = newOffer.value,
+                                distanceKm = newOffer.distanceKm,
+                                gainPerKm = newOffer.gainPerKm,
+                                neuralDecision = newOffer.neuralDecision.decision
+                            )
+                        }
+                    }
 
-                // Disparo de Notificação Local em Segundo Plano para Ofertas de Alta Prioridade
-                val isHighPriority = newOffer.gainPerKm >= 5.0 || newOffer.neuralDecision.decisionEnum == RadarDecision.ACCEPT
-                if (isAppInBackground && isHighPriority && filterCriteria.matches(newOffer)) {
-                    localNotificationManager.showHighPriorityOfferNotification(newOffer)
+                    // Disparo de Notificação Local em Segundo Plano para Ofertas de Alta Prioridade
+                    // TRAVA DE SEGURANÇA: Muta e suprime notificações se a velocidade ultrapassar 15 km/h
+                    // FILTRO DE NOTIFICAÇÃO AUTOMÁTICO: Filtra chamadas abaixo do piso de preço/km
+                    if (isAppInBackground && !isSpeedMuted) {
+                        localNotificationManager.showHighPriorityOfferNotification(newOffer, filterCriteria)
+                    }
+                }
+            }
+        }
+    }
+
+    // Observador Reativo de Auto-Aceite: Quando o entregador ativa o Auto-Aceite ou reduz o gatilho de ganho/km,
+    // verifica se já existe alguma oferta em espera que atenda aos critérios pré-definidos
+    LaunchedEffect(filterCriteria.isAutoAcceptEnabled, filterCriteria.autoAcceptMinGainPerKm, offersList.size) {
+        if (filterCriteria.isAutoAcceptEnabled) {
+            val eligibleOffer = offersList.firstOrNull { filterCriteria.matchesAutoAccept(it) }
+            if (eligibleOffer != null) {
+                delay(400L)
+                onAcceptOffer(
+                    eligibleOffer,
+                    "Auto-Aceite Reativo (Gatilho ≥ R$ ${String.format(Locale("pt", "BR"), "%.2f", filterCriteria.autoAcceptMinGainPerKm)}/km)"
+                )
+                if (isVoiceEnabled && voiceManager != null) {
+                    voiceManager.speak(
+                        "Auto aceite: ${eligibleOffer.restaurant} por ${String.format(Locale("pt", "BR"), "R$ %.2f", eligibleOffer.value)}. Aceito automaticamente sem toque!"
+                    )
                 }
             }
         }
@@ -893,9 +1097,13 @@ fun RadarDeliveryDashboard(
     }
 
     Scaffold(
-        containerColor = DarkBg,
+        containerColor = if (isNightMode) CockpitOledBlack else SunlightOffWhite,
         topBar = {
             CenterAlignedTopAppBar(
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = if (isNightMode) CockpitSurface else SunlightPureWhite,
+                    titleContentColor = if (isNightMode) CockpitTextPrimary else SunlightTextPrimary
+                ),
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -906,14 +1114,14 @@ fun RadarDeliveryDashboard(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 text = "RADAR DELIVERY",
-                                color = TextLight,
+                                color = if (isNightMode) TextLight else SunlightTextPrimary,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 1.2.sp
                             )
                             Text(
-                                text = "Jarvis Neural Cockpit",
-                                color = NeonGreen,
+                                text = if (isNightMode) "Jarvis Neural Cockpit • Noite" else "Jarvis Neural Cockpit • Sol",
+                                color = if (isNightMode) NeonGreen else SunlightEmeraldGreen,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -1024,6 +1232,20 @@ fun RadarDeliveryDashboard(
                     ) {
                         Text(
                             text = "🔥",
+                            fontSize = 18.sp
+                        )
+                    }
+
+                    // Botão Global de Alternância de Tema (Modo Noturno Anti-Reflexo vs Modo Sol)
+                    IconButton(
+                        onClick = {
+                            onToggleNightMode()
+                            HapticFeedbackHelper.vibrateTap(context)
+                        },
+                        modifier = Modifier.testTag("action_theme_toggle")
+                    ) {
+                        Text(
+                            text = if (isNightMode) "🌙" else "☀️",
                             fontSize = 18.sp
                         )
                     }
@@ -1139,6 +1361,73 @@ fun RadarDeliveryDashboard(
                 contentPadding = PaddingValues(top = 14.dp, bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Banner de Visibilidade & Alternância Global de Tema (Noturno vs Sol)
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("banner_theme_visibility_control"),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isNightMode) Color(0xFF0C1017) else Color(0xFFF1F8E9)
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isNightMode) Color(0xFF00FF88).copy(alpha = 0.4f) else Color(0xFF007A3D).copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = if (isNightMode) "🌙" else "☀️",
+                                    fontSize = 20.sp
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = if (isNightMode) "COCKPIT NOTURNO (ANTI-REFLEXO)" else "MODO SOL (ALTO CONTRASTE)",
+                                        color = if (isNightMode) Color(0xFF00FF88) else Color(0xFF007A3D),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                    Text(
+                                        text = if (isNightMode) "Otimizado para entrega noturna: zero reflexo na viseira e economia OLED" else "Otimizado para luz solar intensa: contraste máximo WCAG AAA",
+                                        color = if (isNightMode) Color(0xFF9EABB8) else Color(0xFF374151),
+                                        fontSize = 10.sp,
+                                        lineHeight = 13.sp
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    onToggleNightMode()
+                                    HapticFeedbackHelper.vibrateTap(context)
+                                },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                modifier = Modifier.testTag("btn_toggle_theme_banner")
+                            ) {
+                                Text(
+                                    text = if (isNightMode) "☀️ Modo Sol" else "🌙 Modo Noite",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isNightMode) Color(0xFF00FF88) else Color(0xFF007A3D)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Banner Promocional Plano Pro / Upgrade
                 if (!subscriptionState.isActive) {
                     item {
@@ -1397,8 +1686,27 @@ fun RadarDeliveryDashboard(
                                 fuelCost = 0.71,
                                 netProfit = 37.79
                             )
-                            localNotificationManager.showHighPriorityOfferNotification(testOffer)
+                            localNotificationManager.showHighPriorityOfferNotification(testOffer, filterCriteria)
                             Toast.makeText(context, "Notificação de alta prioridade enviada! Verifique o banner no topo da tela.", Toast.LENGTH_LONG).show()
+                        }
+                    )
+                }
+
+                // 9.1. FILTRO AUTOMÁTICO DE NOTIFICAÇÕES POR PREÇO/KM (R$/KM)
+                item {
+                    PricePerKmNotificationFilterLayout(
+                        criteria = filterCriteria,
+                        onCriteriaChange = { updatedCriteria ->
+                            filterCriteria = updatedCriteria
+                            FilterPreferencesManager.saveCriteria(context, updatedCriteria)
+                        },
+                        isGloveMode = isGloveMode,
+                        onTestNotificationAllowed = { allowedOffer ->
+                            localNotificationManager.showHighPriorityOfferNotification(allowedOffer, filterCriteria)
+                            Toast.makeText(context, "🔔 Notificação enviada: R$ ${String.format(Locale.GERMANY, "%.2f", allowedOffer.gainPerKm)}/km", Toast.LENGTH_SHORT).show()
+                        },
+                        onTestNotificationBlocked = { blockedOffer ->
+                            Toast.makeText(context, "🚫 Notificação barrada automaticamente pelo filtro!", Toast.LENGTH_SHORT).show()
                         }
                     )
                 }
@@ -1524,6 +1832,253 @@ fun RadarDeliveryDashboard(
                     }
                 }
 
+                // 5.5. BARRA DE COMANDOS TÁTICOS DO MOTOBOY (CHUVA, TIRO CURTO, LUCRO MÁX, MODO LUVA E GASOLINA)
+                if (isTrackingActive) {
+                    item(key = "motoboy_tactical_quick_bar") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Preset Chuva
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (activeTacticalPreset == "CHUVA") Color(0xFF1E88E5).copy(alpha = 0.35f) else DarkBg)
+                                        .border(1.dp, if (activeTacticalPreset == "CHUVA") Color(0xFF64B5F6) else DarkBorder, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            HapticFeedbackHelper.vibrateTap(context)
+                                            if (activeTacticalPreset == "CHUVA") {
+                                                activeTacticalPreset = "PADRAO"
+                                                filterCriteria = OfferFilterCriteria()
+                                                FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                                                voiceManager?.speak("Modo chuva desativado.")
+                                            } else {
+                                                activeTacticalPreset = "CHUVA"
+                                                filterCriteria = OfferFilterCriteria(
+                                                    minValue = 22.0,
+                                                    maxDistanceKm = 5.0,
+                                                    minGainPerKm = 6.0,
+                                                    minDeliveryBonus = 5.0,
+                                                    onlyAcceptedNeural = true
+                                                )
+                                                FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                                                voiceManager?.speak("Modo chuva ativado. Mínimo vinte e dois reais.")
+                                            }
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        .testTag("chip_preset_chuva")
+                                ) {
+                                    Text(
+                                        text = "🌧️ Chuva (R$ 22+)",
+                                        color = if (activeTacticalPreset == "CHUVA") Color(0xFF90CAF9) else TextLight,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                // Preset Tiro Curto
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (activeTacticalPreset == "TIRO_CURTO") NeonGreen.copy(alpha = 0.25f) else DarkBg)
+                                        .border(1.dp, if (activeTacticalPreset == "TIRO_CURTO") NeonGreen else DarkBorder, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            HapticFeedbackHelper.vibrateTap(context)
+                                            if (activeTacticalPreset == "TIRO_CURTO") {
+                                                activeTacticalPreset = "PADRAO"
+                                                filterCriteria = OfferFilterCriteria()
+                                                FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                                                voiceManager?.speak("Filtro padrão restaurado.")
+                                            } else {
+                                                activeTacticalPreset = "TIRO_CURTO"
+                                                filterCriteria = OfferFilterCriteria(
+                                                    minValue = 12.0,
+                                                    maxDistanceKm = 3.5,
+                                                    minGainPerKm = 5.0,
+                                                    minDeliveryBonus = 0.0,
+                                                    onlyAcceptedNeural = false
+                                                )
+                                                FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                                                voiceManager?.speak("Tiro curto ativado. Raio máximo de três quilômetros e meio.")
+                                            }
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        .testTag("chip_preset_curto")
+                                ) {
+                                    Text(
+                                        text = "⚡ Tiro Curto (<=3.5km)",
+                                        color = if (activeTacticalPreset == "TIRO_CURTO") NeonGreen else TextLight,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                // Preset Lucro Máximo
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (activeTacticalPreset == "LUCRO_MAX") Color(0xFFFFD700).copy(alpha = 0.25f) else DarkBg)
+                                        .border(1.dp, if (activeTacticalPreset == "LUCRO_MAX") Color(0xFFFFD700) else DarkBorder, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            HapticFeedbackHelper.vibrateTap(context)
+                                            if (activeTacticalPreset == "LUCRO_MAX") {
+                                                activeTacticalPreset = "PADRAO"
+                                                filterCriteria = OfferFilterCriteria()
+                                                FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                                            } else {
+                                                activeTacticalPreset = "LUCRO_MAX"
+                                                filterCriteria = OfferFilterCriteria(
+                                                    minValue = 30.0,
+                                                    maxDistanceKm = 7.0,
+                                                    minGainPerKm = 7.0,
+                                                    minDeliveryBonus = 8.0,
+                                                    onlyAcceptedNeural = true
+                                                )
+                                                FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                                                voiceManager?.speak("Lucro máximo ativado. Mínimo sete por quilômetro.")
+                                            }
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        .testTag("chip_preset_lucro")
+                                ) {
+                                    Text(
+                                        text = "💰 Lucro Máx (R$ 7+/km)",
+                                        color = if (activeTacticalPreset == "LUCRO_MAX") Color(0xFFFFD700) else TextLight,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                // Modo Luva (Touch Gigante)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isGloveModeEnabled) Color(0xFFFF9800).copy(alpha = 0.25f) else DarkBg)
+                                        .border(1.dp, if (isGloveModeEnabled) Color(0xFFFF9800) else DarkBorder, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            isGloveModeEnabled = !isGloveModeEnabled
+                                            if (isGloveModeEnabled) {
+                                                HapticFeedbackHelper.vibrateSuccess(context)
+                                                Toast.makeText(context, "🧤 Modo Luva Ativado: Botões ampliados para pilotagem!", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                HapticFeedbackHelper.vibrateTap(context)
+                                            }
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        .testTag("chip_modo_luva")
+                                ) {
+                                    Text(
+                                        text = if (isGloveModeEnabled) "🧤 Luva ATIVO" else "🧤 Luva OFF",
+                                        color = if (isGloveModeEnabled) Color(0xFFFFB74D) else TextMuted,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                // Dedução de Gasolina
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (showNetFuelProfit) Color(0xFF00E5FF).copy(alpha = 0.15f) else DarkBg)
+                                        .border(1.dp, if (showNetFuelProfit) Color(0xFF00E5FF) else DarkBorder, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            HapticFeedbackHelper.vibrateTap(context)
+                                            showNetFuelProfit = !showNetFuelProfit
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        .testTag("chip_toggle_gasolina")
+                                ) {
+                                    Text(
+                                        text = if (showNetFuelProfit) "⛽ Gasolina Ativa" else "⛽ Gasolina Oculta",
+                                        color = if (showNetFuelProfit) Color(0xFF80D8FF) else TextMuted,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                // Reset
+                                if (activeTacticalPreset != "PADRAO") {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(DarkBg)
+                                            .border(1.dp, DarkBorder, RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                HapticFeedbackHelper.vibrateTap(context)
+                                                activeTacticalPreset = "PADRAO"
+                                                filterCriteria = OfferFilterCriteria()
+                                                FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                                            }
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Text("🔄 Reset", color = TextMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 5.6. BANNER TÁTICO: MODO SEMÁFORO (MOTO PARADA EM SINAL VERMELHO)
+                val bestOfferForSprint = displayedOffers.firstOrNull()
+                if (isTrackingActive && !speedState.isSafetyLockActive && speedState.currentSpeedKmh <= 3.0 && bestOfferForSprint != null) {
+                    item(key = "motoboy_traffic_light_sprint_card") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(NeonGreen.copy(alpha = 0.14f))
+                                .border(1.2.dp, NeonGreen, RoundedCornerShape(12.dp))
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(text = "🚦", fontSize = 14.sp)
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "MODO SEMÁFORO • MOTO PARADA",
+                                        color = NeonGreen,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Melhor corrida: ${bestOfferForSprint.restaurant} (R$ ${String.format(Locale.GERMANY, "%.2f", bestOfferForSprint.value)})",
+                                    color = TextLight,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    HapticFeedbackHelper.vibrateSuccess(context)
+                                    onAcceptOffer(bestOfferForSprint, "Modo Semáforo 1 Toque")
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = NeonGreen, contentColor = DarkBg),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier
+                                    .height(if (isGloveModeEnabled) 48.dp else 40.dp)
+                                    .testTag("btn_traffic_light_sprint_accept")
+                            ) {
+                                Text("⚡ 1 TOQUE", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+                }
+
                 // 6. LISTA DE OFERTAS OU MENSAGEM DE STATUS
             if (!isTrackingActive) {
                 item {
@@ -1536,13 +2091,18 @@ fun RadarDeliveryDashboard(
             } else if (speedState.isSafetyLockActive) {
                 // VELOCIDADE > LIMITE CONFIGURADO (GPS): DESATIVA E BLOQUEIA AUTOMATICAMENTE A INTERFACE PARA SEGURANÇA
                 item {
+                    val activePendingOffer = displayedOffers.firstOrNull() ?: offersList.firstOrNull()
                     SpeedSafetyLockCard(
                         speedKmh = speedState.currentSpeedKmh,
                         thresholdKmh = speedState.safetySpeedThresholdKmh,
                         isListeningVoice = currentVoiceState.isListening,
                         lastVoiceCommand = currentVoiceState.lastRecognizedText,
+                        pendingOffer = activePendingOffer,
+                        rmsDb = currentVoiceState.rmsDb,
                         onSimulateVoiceCommand = { speechManager?.simulateVoiceCommand(it) },
-                        onTestSpeedChanged = { speedMonitor?.setSimulatedSpeed(it) }
+                        onTestSpeedChanged = { speedMonitor?.setSimulatedSpeed(it) },
+                        onAcceptCurrentOffer = onAcceptCurrentBestOffer,
+                        onDeclineCurrentOffer = onDeclineCurrentBestOffer
                     )
                 }
             } else if (offersList.isEmpty()) {
@@ -1624,6 +2184,8 @@ fun RadarDeliveryDashboard(
                     }
                 }
 
+                val isSpeedLockActive = speedState.isSafetyLockActive || speedState.currentSpeedKmh > speedState.safetySpeedThresholdKmh || LocationService.globalLocationState.value.isSafetyLockActive
+
                 // Card de Estimativa e Telemetria de Coleta Google Maps para a oferta em análise
                 val activePickupOffer = displayedOffers.find { it.id == selectedPickupOfferId }
                     ?: displayedOffers.firstOrNull()
@@ -1635,6 +2197,9 @@ fun RadarDeliveryDashboard(
                             onAcceptWithNavigation = { offerToAccept ->
                                 onAcceptOffer(offerToAccept, "Navegação Maps")
                             },
+                            isAcceptDisabled = isSpeedLockActive,
+                            speedLimitKmh = speedState.safetySpeedThresholdKmh,
+                            isGloveMode = isGloveModeEnabled,
                             modifier = Modifier.padding(bottom = 6.dp)
                         )
                     }
@@ -1648,6 +2213,13 @@ fun RadarDeliveryDashboard(
                         onInspectPickup = {
                             selectedPickupOfferId = offer.id
                         },
+                        isAcceptDisabled = isSpeedLockActive,
+                        speedKmh = speedState.currentSpeedKmh,
+                        speedLimitKmh = speedState.safetySpeedThresholdKmh,
+                        isGloveMode = isGloveModeEnabled,
+                        showFuelCost = showNetFuelProfit,
+                        kmPerLiter = kmPerLiter,
+                        fuelPricePerLiter = fuelPricePerLiter,
                         onSpeakOffer = {
                             if (voiceManager != null) {
                                 voiceManager.readOfferAloud(
@@ -2209,7 +2781,14 @@ fun OfferCard(
     onAccept: () -> Unit = {},
     onDecline: () -> Unit = {},
     onInspectPickup: (() -> Unit)? = null,
-    onSpeakOffer: (() -> Unit)? = null
+    onSpeakOffer: (() -> Unit)? = null,
+    isAcceptDisabled: Boolean = false,
+    speedKmh: Double = 0.0,
+    speedLimitKmh: Double = 10.0,
+    isGloveMode: Boolean = false,
+    showFuelCost: Boolean = true,
+    kmPerLiter: Double = 35.0,
+    fuelPricePerLiter: Double = 5.89
 ) {
     val context = LocalContext.current
     val formattedPrice = String.format(Locale.GERMANY, "R$ %.2f", offer.value)
@@ -2524,6 +3103,86 @@ fun OfferCard(
                             fontWeight = FontWeight.Bold
                         )
                     }
+                }
+            }
+
+            // 4.1. ESTIMATIVA DE COMBUSTÍVEL E LUCRO LÍQUIDO REAL NO BOLSO
+            if (showFuelCost) {
+                val estimatedFuelCost = if (kmPerLiter > 0.0) (offer.distanceKm / kmPerLiter) * fuelPricePerLiter else 0.0
+                val realNetProfit = (offer.value - estimatedFuelCost).coerceAtLeast(0.0)
+                val realNetGainPerKm = if (offer.distanceKm > 0.0) realNetProfit / offer.distanceKm else 0.0
+                val formattedFuel = String.format(Locale.GERMANY, "R$ %.2f", estimatedFuelCost)
+                val formattedNet = String.format(Locale.GERMANY, "R$ %.2f", realNetProfit)
+                val formattedNetPerKm = String.format(Locale.GERMANY, "R$ %.2f/km", realNetGainPerKm)
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF161824))
+                        .border(1.dp, Color(0xFF2B2F44), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "⛽", fontSize = 11.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Gasolina: -$formattedFuel",
+                            color = Color(0xFFFFB74D),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "LÍQUIDO:",
+                            color = TextMuted,
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "$formattedNet ($formattedNetPerKm)",
+                            color = NeonGreen,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
+            }
+
+            // 4.2. DESTAQUE MODO SEMÁFORO (MOTO PARADA EM SINAL VERMELHO)
+            if (speedKmh <= 3.0 && !isAcceptDisabled) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(NeonGreen.copy(alpha = 0.12f))
+                        .border(1.dp, NeonGreen.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "🚦", fontSize = 12.sp)
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "MODO SEMÁFORO: Moto Parada",
+                            color = NeonGreen,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                    Text(
+                        text = "1 TOQUE RÁPIDO ⚡",
+                        color = NeonGreen,
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Black
+                    )
                 }
             }
 
@@ -2867,7 +3526,52 @@ fun OfferCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 5.5 DICA DE COMANDO POR VOZ MÃOS-LIVRES (PILOTAGEM SEGURA)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF0F1E16))
+                    .border(1.dp, NeonGreen.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🎙️", fontSize = 12.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Voz Mãos-Livres:",
+                        color = NeonGreen,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Diga \"Aceitar\" ou \"Recusar\"",
+                        color = TextLight,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(NeonGreen.copy(alpha = 0.2f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "AO VIVO",
+                        color = NeonGreen,
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 6. BOTÕES DE AÇÃO COM ALTURA MÍNIMA DE 48DP (ACID ACCESSIBILITY & TOQUE DE LUVA)
             Row(
@@ -2900,13 +3604,13 @@ fun OfferCard(
                     },
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFFFD700)),
                     border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFFFFD700).copy(alpha = 0.65f)),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(if (isGloveMode) 14.dp else 12.dp),
                     modifier = Modifier
                         .weight(0.75f)
-                        .height(48.dp)
+                        .height(if (isGloveMode) 56.dp else 48.dp)
                         .testTag("btn_tts_offer_${offer.id}")
                 ) {
-                    Text("🔊 OUVIR", fontWeight = FontWeight.Black, fontSize = 10.5.sp)
+                    Text("🔊 OUVIR", fontWeight = FontWeight.Black, fontSize = if (isGloveMode) 11.5.sp else 10.5.sp)
                 }
                 // Botão Navegação GPS
                 OutlinedButton(
@@ -2922,20 +3626,33 @@ fun OfferCard(
                     },
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF00D2FF)),
                     border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF00D2FF).copy(alpha = 0.6f)),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(if (isGloveMode) 14.dp else 12.dp),
                     modifier = Modifier
                         .weight(0.85f)
-                        .height(48.dp)
+                        .height(if (isGloveMode) 56.dp else 48.dp)
                         .testTag("btn_maps_offer_${offer.id}")
                 ) {
-                    Text("🗺️ MAPA", fontWeight = FontWeight.Black, fontSize = 11.sp)
+                    Text("🗺️ MAPA", fontWeight = FontWeight.Black, fontSize = if (isGloveMode) 12.sp else 11.sp)
                 }
 
                 // Botão Aceitar com Alto Contraste Neon
                 Button(
                     onClick = {
+                        if (isAcceptDisabled) {
+                            HapticFeedbackHelper.vibrateDecline(context)
+                            Toast.makeText(
+                                context,
+                                "⚠️ Bloqueio por Velocidade: Aceite desativado acima de ${speedLimitKmh.toInt()} km/h para sua segurança.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@Button
+                        }
                         val latencyMs = System.currentTimeMillis() - cardRenderTime
-                        HapticFeedbackHelper.vibrateAccept(context)
+                        if (isGloveMode) {
+                            HapticFeedbackHelper.vibrateSuccess(context)
+                        } else {
+                            HapticFeedbackHelper.vibrateAccept(context)
+                        }
                         FirebaseAnalyticsManager.logOfferAcceptClicked(
                             offerId = offer.id,
                             appName = offer.appName,
@@ -2943,7 +3660,7 @@ fun OfferCard(
                             value = offer.value,
                             distanceKm = offer.distanceKm,
                             gainPerKm = offer.gainPerKm,
-                            clickSource = "feed_card_accept_button",
+                            clickSource = if (isGloveMode) "glove_touch" else "feed_card_accept_button",
                             timeToClickMs = latencyMs
                         )
                         val waypoint = if (offer.isMultiStack) "Pizza Hut Al. Santos, Sao Paulo" else null
@@ -2956,17 +3673,25 @@ fun OfferCard(
                         onAccept()
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonGreen,
-                        contentColor = DarkBg
+                        containerColor = if (isAcceptDisabled) Color(0xFF262633) else NeonGreen,
+                        contentColor = if (isAcceptDisabled) Color(0xFFA0A0B8) else DarkBg
                     ),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp),
+                    shape = RoundedCornerShape(if (isGloveMode) 14.dp else 12.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = if (isAcceptDisabled) 0.dp else 4.dp),
                     modifier = Modifier
                         .weight(1.3f)
-                        .height(48.dp)
+                        .height(if (isGloveMode) 56.dp else 48.dp)
                         .testTag("btn_accept_offer_${offer.id}")
                 ) {
-                    Text("✅ ACEITAR", fontWeight = FontWeight.Black, fontSize = 13.sp)
+                    if (isAcceptDisabled) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("🔒", fontSize = if (isGloveMode) 13.sp else 11.sp)
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text("TRAVA (> ${speedLimitKmh.toInt()} km/h)", fontWeight = FontWeight.Black, fontSize = if (isGloveMode) 11.5.sp else 10.5.sp)
+                        }
+                    } else {
+                        Text(if (isGloveMode) "🧤 ✅ ACEITAR" else "✅ ACEITAR", fontWeight = FontWeight.Black, fontSize = if (isGloveMode) 14.5.sp else 13.sp)
+                    }
                 }
             }
         }

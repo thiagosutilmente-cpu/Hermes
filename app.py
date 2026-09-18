@@ -252,6 +252,14 @@ def haversine_distance_meters(lat1, lon1, lat2, lon2):
 
 def get_geofences_data(lat=-23.561684, lng=-46.655981):
     global ACTIVE_GEOFENCE_ZONE_ID
+    try:
+        lat = float(lat)
+    except (ValueError, TypeError):
+        lat = -23.561684
+    try:
+        lng = float(lng)
+    except (ValueError, TypeError):
+        lng = -46.655981
     conn = get_db()
     rows = conn.execute("SELECT * FROM geofence_zones").fetchall()
     conn.close()
@@ -817,8 +825,14 @@ def ai_chat_copilot(message, history=None):
     return {"reply": reply, "source": "jarvis-neural-engine", "success": True}
 
 def ai_analyze_stack_data(data):
-    val = float(data.get("value", 0.0))
-    dist = float(data.get("distance", 1.0))
+    try:
+        val = float(data.get("value", 0.0) or 0.0)
+    except (ValueError, TypeError):
+        val = 0.0
+    try:
+        dist = float(data.get("distance", 1.0) or 1.0)
+    except (ValueError, TypeError):
+        dist = 1.0
     dist = max(dist, 0.5)
     apps = data.get("apps", "iFood")
     restaurant = data.get("restaurant", "Restaurante Local")
@@ -1044,8 +1058,14 @@ if FLASK_AVAILABLE:
         return flask_jsonify(res), code
     @app.route("/api/geofences", methods=["GET"])
     def f_geofences_get():
-        lat = float(flask_request.args.get("lat", -23.561684))
-        lng = float(flask_request.args.get("lng", -46.655981))
+        try:
+            lat = float(flask_request.args.get("lat", -23.561684))
+        except (ValueError, TypeError):
+            lat = -23.561684
+        try:
+            lng = float(flask_request.args.get("lng", -46.655981))
+        except (ValueError, TypeError):
+            lng = -46.655981
         return flask_jsonify(get_geofences_data(lat, lng))
     @app.route("/api/geofences/evaluate", methods=["POST"])
     def f_geofences_eval():
@@ -1092,6 +1112,7 @@ if FLASK_AVAILABLE:
     def f_apk():
         apk_paths = [
             file_path for file_path in [
+                os.path.abspath("RadarCoordinator.apk"),
                 os.path.abspath(".build-outputs/app-debug.apk"),
                 os.path.abspath("app/build/outputs/apk/debug/app-debug.apk"),
                 os.path.abspath("build/outputs/apk/debug/app-debug.apk")
@@ -1173,6 +1194,7 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
         elif path == "/download/apk" or path == "/api/download-apk":
             apk_paths = [
                 file_path for file_path in [
+                    os.path.abspath("RadarCoordinator.apk"),
                     os.path.abspath(".build-outputs/app-debug.apk"),
                     os.path.abspath("app/build/outputs/apk/debug/app-debug.apk"),
                     os.path.abspath("build/outputs/apk/debug/app-debug.apk")
@@ -1238,8 +1260,14 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif path == "/api/geofences":
-            lat = float(qs.get("lat", [-23.561684])[0])
-            lng = float(qs.get("lng", [-46.655981])[0])
+            try:
+                lat = float(qs.get("lat", [-23.561684])[0])
+            except (ValueError, TypeError, IndexError):
+                lat = -23.561684
+            try:
+                lng = float(qs.get("lng", [-46.655981])[0])
+            except (ValueError, TypeError, IndexError):
+                lng = -46.655981
             body = json.dumps(get_geofences_data(lat, lng)).encode("utf-8")
             self.send_response(200)
             self.send_cors_headers("application/json")
@@ -1393,20 +1421,202 @@ HTML_CONTENT = """<!DOCTYPE html>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js"></script>
   <style>
     :root {
-      --bg: #0a0a0f;
-      --surface: #111118;
-      --surface-card: rgba(22, 22, 32, 0.9);
+      --bg: #05050a;
+      --surface: #0e0e16;
+      --surface-card: rgba(18, 18, 28, 0.95);
       --surface-border: rgba(255, 255, 255, 0.08);
       --primary: #00ff88;
       --primary-glow: rgba(0, 255, 136, 0.4);
       --text: #f0f3f8;
       --text-muted: #8e95a5;
+      --text-heading: #ffffff;
       --ifood: #ea1d2c;
       --rappi: #ff441f;
       --uber: #ffffff;
       --99: #f7c200;
       --danger: #ff4757;
       --font-stack: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --topbar-bg: rgba(10, 10, 15, 0.95);
+      --bottomhud-bg: rgba(10, 10, 15, 0.95);
+    }
+
+    /* Otimização de Visibilidade Noturna (Cockpit Noturno Anti-Reflexo) */
+    body.theme-dark, body:not(.theme-light) {
+      --bg: #05050a;
+      --surface: #0e0e16;
+      --surface-card: rgba(18, 18, 28, 0.95);
+      --surface-border: rgba(255, 255, 255, 0.08);
+      --primary: #00ff88;
+      --primary-glow: rgba(0, 255, 136, 0.4);
+      --text: #f0f3f8;
+      --text-muted: #8e95a5;
+      --text-heading: #ffffff;
+      --uber: #ffffff;
+      --topbar-bg: rgba(10, 10, 15, 0.96);
+      --bottomhud-bg: rgba(10, 10, 15, 0.96);
+      background-color: var(--bg);
+      color: var(--text);
+    }
+
+    /* Otimização de Visibilidade Diurna (Modo Sol - Alto Contraste WCAG AAA) */
+    body.theme-light {
+      --bg: #f4f6f9;
+      --surface: #ffffff;
+      --surface-card: #ffffff;
+      --surface-border: rgba(15, 23, 42, 0.14);
+      --primary: #007a3d;
+      --primary-glow: rgba(0, 122, 61, 0.25);
+      --text: #0b0f19;
+      --text-muted: #475569;
+      --text-heading: #0b0f19;
+      --uber: #0b0f19;
+      --topbar-bg: rgba(255, 255, 255, 0.98);
+      --bottomhud-bg: rgba(255, 255, 255, 0.98);
+      background-color: var(--bg);
+      color: var(--text);
+    }
+
+    body.theme-light h1,
+    body.theme-light h2,
+    body.theme-light h3,
+    body.theme-light .brand-name {
+      color: #0b0f19 !important;
+    }
+    body.theme-light .glass {
+      background: #ffffff !important;
+      border-color: rgba(0, 0, 0, 0.12) !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+    }
+    body.theme-light .top-bar {
+      background: var(--topbar-bg) !important;
+      border-bottom-color: rgba(0, 0, 0, 0.1) !important;
+    }
+    body.theme-light .bottom-hud {
+      background: var(--bottomhud-bg) !important;
+      border-top-color: rgba(0, 0, 0, 0.12) !important;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08) !important;
+    }
+    body.theme-light .hud-sensors {
+      color: #334155 !important;
+    }
+    body.theme-light .hud-sensors strong {
+      color: #0b0f19 !important;
+    }
+    body.theme-light .status-row {
+      background: #ffffff !important;
+      border-color: rgba(0, 0, 0, 0.12) !important;
+    }
+    body.theme-light .stack-card {
+      background: #ffffff !important;
+      border-color: rgba(0, 0, 0, 0.14) !important;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05) !important;
+    }
+    body.theme-light .stack-card.multi {
+      background: #f8fafc !important;
+      border-color: #007a3d !important;
+    }
+    body.theme-light .stack-route-display {
+      background: #edf2f7 !important;
+      color: #0b0f19 !important;
+    }
+    body.theme-light .nav-pill {
+      background: #edf2f7 !important;
+      color: #475569 !important;
+      border-color: rgba(0, 0, 0, 0.1) !important;
+    }
+    body.theme-light .nav-pill.active {
+      background: #007a3d !important;
+      color: #ffffff !important;
+    }
+    body.theme-light .btn-green {
+      background: #007a3d !important;
+      color: #ffffff !important;
+    }
+    body.theme-light .constellation-map {
+      background: radial-gradient(circle at center, #e2e8f0 0%, #cbd5e1 100%) !important;
+      border-color: #007a3d !important;
+    }
+    body.theme-light .const-node-icon {
+      background: #ffffff !important;
+      border-color: #0b0f19 !important;
+      color: #0b0f19 !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+    }
+    body.theme-light .const-node-lbl {
+      color: #0b0f19 !important;
+      background: rgba(255, 255, 255, 0.95) !important;
+      border-color: rgba(0, 0, 0, 0.12) !important;
+    }
+    body.theme-light .ghost-overlay {
+      background: rgba(248, 250, 252, 0.95) !important;
+      border-color: rgba(0, 0, 0, 0.12) !important;
+    }
+    body.theme-light .ghost-tag {
+      color: #0b0f19 !important;
+    }
+    body.theme-light .ghost-bar-track {
+      background: #e2e8f0 !important;
+    }
+    body.theme-light .plan-box {
+      background: #ffffff !important;
+      border-color: rgba(0, 0, 0, 0.12) !important;
+    }
+    body.theme-light .ai-chat-box {
+      background: #f8fafc !important;
+      border-color: rgba(0, 0, 0, 0.1) !important;
+    }
+    body.theme-light .ai-bubble-jarvis {
+      background: #ffffff !important;
+      color: #0b0f19 !important;
+      border-color: rgba(0, 180, 216, 0.5) !important;
+    }
+    body.theme-light .ai-modal-card {
+      background: #ffffff !important;
+      color: #0b0f19 !important;
+      border-color: #007a3d !important;
+    }
+    body.theme-light input, 
+    body.theme-light select {
+      background: #f8fafc !important;
+      color: #0b0f19 !important;
+      border-color: rgba(0, 0, 0, 0.15) !important;
+    }
+    body.theme-light #voice-toast {
+      background: #0b0f19 !important;
+      color: #ffffff !important;
+    }
+
+    /* Estilo do Botão Global de Tema (Theme Toggle Pill) */
+    .theme-toggle-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      border: 1px solid var(--surface-border);
+      background: var(--surface);
+      color: var(--text);
+      transition: all 0.25s ease;
+      user-select: none;
+    }
+    .theme-toggle-pill:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+    .theme-toggle-pill.mode-dark {
+      background: rgba(18, 18, 28, 0.95);
+      border-color: #00ff88;
+      color: #00ff88;
+      box-shadow: 0 0 10px rgba(0, 255, 136, 0.25);
+    }
+    .theme-toggle-pill.mode-light {
+      background: #ffffff;
+      border-color: #007a3d;
+      color: #007a3d;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 
     * {
@@ -1799,6 +2009,35 @@ HTML_CONTENT = """<!DOCTYPE html>
     }
     .btn-red:hover { background: rgba(255, 71, 87, 0.25); }
 
+    /* Modo Luva (Touch Gigante para Luvas de Motoboy) */
+    body.glove-mode .btn {
+      padding: 16px 14px;
+      font-size: 15px;
+      min-height: 54px;
+      border-radius: 14px;
+      letter-spacing: 0.3px;
+    }
+    body.glove-mode .stack-card {
+      padding: 18px;
+    }
+    body.glove-mode .nav-pill {
+      padding: 12px 18px;
+      font-size: 14px;
+    }
+
+    /* Barra Tática de Combustível */
+    .fuel-profit-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(22, 24, 36, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 6px 10px;
+      margin-top: 8px;
+      font-size: 11px;
+    }
+
     /* Bottom Bar HUD */
     .bottom-hud {
       position: sticky;
@@ -2101,8 +2340,8 @@ HTML_CONTENT = """<!DOCTYPE html>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 24px;" class="holo-glow">🤖</span>
           <div>
-            <div style="font-size: 13px; font-weight: 900; color: #00d2ff; letter-spacing: 0.5px;">JARVIS AI STACK ANALYZER</div>
-            <div style="font-size: 10px; color: var(--text-muted);">Auditoria Neural 4D com Gemini & Telemetria</div>
+            <div id="ai-modal-header-title" style="font-size: 13px; font-weight: 900; color: #00d2ff; letter-spacing: 0.5px;">JARVIS AI STACK ANALYZER</div>
+            <div id="ai-modal-header-sub" style="font-size: 10px; color: var(--text-muted);">Auditoria Neural 4D com Gemini & Telemetria</div>
           </div>
         </div>
         <button class="btn" style="padding: 4px 8px; font-size: 12px; background: rgba(255,255,255,0.06);" onclick="closeAiStackModal()">✕</button>
@@ -2111,30 +2350,30 @@ HTML_CONTENT = """<!DOCTYPE html>
       <!-- Veredito & Score Principal -->
       <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--surface-border); border-radius: 14px; padding: 14px; margin-bottom: 14px; text-align: center;">
         <div style="font-size: 10px; color: var(--text-muted); font-weight: 800; text-transform: uppercase; margin-bottom: 4px;">Score de Viabilidade Quântica</div>
-        <div id="modal-ai-score" class="tabular" style="font-size: 38px; font-weight: 900; color: #00ff88; line-height: 1;">--</div>
-        <div id="modal-ai-verdict" style="font-size: 13px; font-weight: 800; color: #00ff88; margin-top: 6px;">Analisando proposta...</div>
+        <div id="ai-modal-score" class="tabular" style="font-size: 38px; font-weight: 900; color: #00ff88; line-height: 1;">--</div>
+        <div id="ai-modal-verdict-badge" style="font-size: 13px; font-weight: 800; color: #00ff88; margin-top: 6px;">Analisando proposta...</div>
       </div>
 
       <!-- Grid de Métricas Financeiras & Táticas -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
         <div class="glass" style="padding: 10px 12px;">
           <div style="font-size: 10px; color: var(--text-muted);">Lucro Líquido Real</div>
-          <div id="modal-ai-netprofit" class="tabular" style="font-size: 16px; font-weight: 900; color: #ffffff;">--</div>
-          <div id="modal-ai-fuel" style="font-size: 9px; color: #ff9f1c;">Gasolina: --</div>
+          <div id="ai-modal-netprofit" class="tabular" style="font-size: 16px; font-weight: 900; color: #ffffff;">--</div>
+          <div id="ai-modal-fuel" style="font-size: 9px; color: #ff9f1c;">Gasolina: --</div>
         </div>
         <div class="glass" style="padding: 10px 12px;">
           <div style="font-size: 10px; color: var(--text-muted);">Ganho Líquido / KM</div>
-          <div id="modal-ai-netgainkm" class="tabular" style="font-size: 16px; font-weight: 900; color: var(--primary);">--</div>
+          <div id="ai-modal-netgainkm" class="tabular" style="font-size: 16px; font-weight: 900; color: var(--primary);">--</div>
           <div style="font-size: 9px; color: var(--text-muted);">Descontado desgaste</div>
         </div>
         <div class="glass" style="padding: 10px 12px;">
           <div style="font-size: 10px; color: var(--text-muted);">Tempo Total Previsto</div>
-          <div id="modal-ai-time" class="tabular" style="font-size: 16px; font-weight: 900; color: #ffffff;">--</div>
-          <div id="modal-ai-kitchen" style="font-size: 9px; color: #00d2ff;">Cozinha: --</div>
+          <div id="ai-modal-time" class="tabular" style="font-size: 16px; font-weight: 900; color: #ffffff;">--</div>
+          <div id="ai-modal-kitchen" style="font-size: 9px; color: #00d2ff;">Cozinha: --</div>
         </div>
         <div class="glass" style="padding: 10px 12px;">
           <div style="font-size: 10px; color: var(--text-muted);">Rentabilidade / Hora</div>
-          <div id="modal-ai-hourly" class="tabular" style="font-size: 16px; font-weight: 900; color: #ffd700;">--</div>
+          <div id="ai-modal-hourly" class="tabular" style="font-size: 16px; font-weight: 900; color: #ffd700;">--</div>
           <div style="font-size: 9px; color: var(--text-muted);">Ritmo projetado</div>
         </div>
       </div>
@@ -2142,7 +2381,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       <!-- Explicação Tática do Jarvis -->
       <div class="glass" style="padding: 12px 14px; margin-bottom: 16px; border-left: 3px solid #00d2ff;">
         <div style="font-size: 11px; font-weight: 800; color: #00d2ff; margin-bottom: 4px;">PARECER TÁTICO DO JARVIS:</div>
-        <div id="modal-ai-summary" style="font-size: 12px; color: #e0e0ff; line-height: 1.4;">
+        <div id="ai-modal-summary" style="font-size: 12px; color: #e0e0ff; line-height: 1.4;">
           Calculando parâmetros ideais de rota e tempos de semáforo...
         </div>
       </div>
@@ -2168,9 +2407,16 @@ HTML_CONTENT = """<!DOCTYPE html>
         <div style="font-size: 10px; color: var(--primary); font-weight: 700;">JARVIS NEURAL COCKPIT</div>
       </div>
     </div>
-    <div class="top-earning-box" onclick="location.hash='#analytics'">
-      <div class="top-earning-val tabular" id="top-ganho">R$ 284,50</div>
-      <div class="top-earning-lbl">Ganhos de Hoje</div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <!-- Botão Global de Alternância de Tema (Modo Noturno Anti-Reflexo vs Modo Sol) -->
+      <button id="theme-toggle-btn" class="theme-toggle-pill mode-dark" onclick="toggleTheme()" title="Alternar entre Modo Noturno (Anti-Reflexo) e Modo Sol">
+        <span id="theme-toggle-icon" class="theme-toggle-icon">🌙</span>
+        <span id="theme-toggle-label" class="theme-toggle-label">Noite</span>
+      </button>
+      <div class="top-earning-box" onclick="location.hash='#analytics'">
+        <div class="top-earning-val tabular" id="top-ganho">R$ 284,50</div>
+        <div class="top-earning-lbl">Ganhos de Hoje</div>
+      </div>
     </div>
   </header>
 
@@ -2257,12 +2503,17 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     <!-- Status: GPS 4.2m, Firebase Sync, 4 Apps (bolinhas pulsantes) -->
     <div class="status-row">
-      <div class="status-badge">
+      <div class="status-badge" id="gps-status-badge" onclick="initGeoLocationTracking()" style="cursor: pointer;" title="Toque para ativar/sintonizar GPS Real">
         <span class="status-dot"></span>
-        <span>GPS: <strong style="color:#ffffff;">4.2m</strong></span>
+        <span>GPS: <strong style="color:#ffffff;" id="gps-accuracy-display">4.2m</strong></span>
+        <span id="gps-tracking-indicator" style="color: var(--primary); font-size: 9px; margin-left: 2px;">● LIVE</span>
       </div>
       <div class="status-badge">
         <span>🔥 Firebase Sync: <strong style="color:var(--primary);">Ativo</strong></span>
+      </div>
+      <div id="hud-night-mode-indicator" style="display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 800; color: #00ff88; background: rgba(0, 255, 136, 0.12); border: 1px solid rgba(0, 255, 136, 0.35); padding: 3px 8px; border-radius: 8px;">
+        <span>🌙</span>
+        <span>COCKPIT NOTURNO (ANTI-REFLEXO)</span>
       </div>
       <div class="apps-badges">
         <span class="app-dot app-ifood">iFood</span>
@@ -2320,9 +2571,9 @@ HTML_CONTENT = """<!DOCTYPE html>
         <span style="font-size: 10px; font-weight: 700; color: var(--text-muted);">Testar Velocidade:</span>
         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
           <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255,255,255,0.08);" onclick="updateSpeed(0, 'Simulado')">0 km/h</button>
-          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid #00ff88;" onclick="updateSpeed(8, 'Simulado')">8 km/h (Livre)</button>
-          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255, 71, 87, 0.2); color: #ff4757; border: 1px solid #ff4757;" onclick="updateSpeed(15, 'Simulado')">15 km/h (Trava)</button>
-          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255, 71, 87, 0.25); color: #ff4757; border: 1px solid #ff4757;" onclick="updateSpeed(35, 'Simulado')">35 km/h (Trânsito)</button>
+          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid #00ff88;" onclick="updateSpeed(6, 'Simulado')">6 km/h (Livre)</button>
+          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255, 71, 87, 0.2); color: #ff4757; border: 1px solid #ff4757;" onclick="updateSpeed(12, 'Simulado')">12 km/h (Trava)</button>
+          <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(255, 71, 87, 0.25); color: #ff4757; border: 1px solid #ff4757;" onclick="updateSpeed(25, 'Simulado')">25 km/h (Trânsito)</button>
           <button class="btn" style="padding: 4px 8px; font-size: 10px; background: rgba(0, 255, 136, 0.15); color: #00ff88; border: 1px solid #00ff88;" onclick="initGeoLocationTracking()">🛰️ GPS Real</button>
         </div>
       </div>
@@ -2645,6 +2896,27 @@ HTML_CONTENT = """<!DOCTYPE html>
          1. Multi-app iFood+Rappi = R$33, 4.2km, R$7.86/km, rota ●BK→●PH→🏠→🏢, botões ✅❌
          2. iFood solo R$15
          3. Rappi solo R$18 -->
+    <!-- Barra de Comandos Táticos do Motoboy (Chuva, Tiro Curto, Lucro Máx, Modo Luva e Gasolina) -->
+    <div style="margin-bottom: 12px; display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none;">
+      <button class="nav-pill" id="btn-preset-chuva" onclick="applyTacticalPreset('CHUVA')">🌧️ Chuva (R$ 22+)</button>
+      <button class="nav-pill" id="btn-preset-curto" onclick="applyTacticalPreset('TIRO_CURTO')">⚡ Tiro Curto (&le;3.5km)</button>
+      <button class="nav-pill" id="btn-preset-lucro" onclick="applyTacticalPreset('LUCRO_MAX')">💰 Lucro Máx (&ge;R$ 7/km)</button>
+      <button class="nav-pill" id="btn-toggle-luva" onclick="toggleGloveMode()">🧤 Modo Luva</button>
+      <button class="nav-pill" id="btn-toggle-gasolina" onclick="toggleFuelCost()">⛽ Gasolina Real</button>
+      <button class="nav-pill" onclick="applyTacticalPreset('PADRAO')">🔄 Padrão</button>
+    </div>
+
+    <!-- Destaque: Modo Semáforo (Moto Parada no Farol Vermelho) -->
+    <div id="dash-traffic-light-sprint-banner" style="display: flex; justify-content: space-between; align-items: center; background: rgba(0, 255, 136, 0.12); border: 1.5px solid var(--primary); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px;">
+      <div>
+        <div style="font-size: 11px; font-weight: 900; color: var(--primary);">🚦 MODO SEMÁFORO • MOTO PARADA</div>
+        <div style="font-size: 11px; color: #ffffff; font-weight: 700; margin-top: 2px;">Melhor corrida: Burger King Paulista (R$ 33,00)</div>
+      </div>
+      <button class="btn btn-green" style="flex: initial; padding: 8px 14px; font-size: 12px; font-weight: 900;" onclick="acceptStack(document.querySelector('#card-stk_01 .btn-green'), 33.00, 'stk_01')">
+        ⚡ 1 TOQUE
+      </button>
+    </div>
+
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
       <h3 style="font-size: 14px; font-weight: 800; color: #ffffff;">Oportunidades em Destaque</h3>
       <a href="#stacks" style="font-size: 11px; color: var(--primary); text-decoration: none; font-weight: 700;">Ver todos ➔</a>
@@ -2672,6 +2944,10 @@ HTML_CONTENT = """<!DOCTYPE html>
           <span>🏢 Edifício</span>
           <span style="margin-left: auto; color: var(--text-muted);">4.2 km • 18 min</span>
         </div>
+        <div class="fuel-profit-bar card-fuel-box">
+          <span style="color: #ffb74d; font-weight: 700;">⛽ Gasolina: -R$ 0,71</span>
+          <span style="color: var(--primary); font-weight: 800;">LÍQUIDO: R$ 32,29 (R$ 7,69/km)</span>
+        </div>
         <div class="stack-btn-row">
           <button class="btn btn-red" onclick="declineStack(this, 'stk_01')">❌ Recusar</button>
           <button class="btn" style="background: rgba(0, 210, 255, 0.15); color: #00d2ff; border: 1px solid #00d2ff;" onclick="openStackAiAnalysis(33.00, 4.2, 'iFood + Rappi', 'Burger King Paulista e Pizza Hut', 'stk_01')">🧠 IA</button>
@@ -2697,6 +2973,10 @@ HTML_CONTENT = """<!DOCTYPE html>
           <span>● McD</span> <span class="route-arrow">➔</span>
           <span>🏠 Rua Augusta</span>
           <span style="margin-left: auto; color: var(--text-muted);">2.8 km • 12 min</span>
+        </div>
+        <div class="fuel-profit-bar card-fuel-box">
+          <span style="color: #ffb74d; font-weight: 700;">⛽ Gasolina: -R$ 0,47</span>
+          <span style="color: var(--primary); font-weight: 800;">LÍQUIDO: R$ 14,53 (R$ 5,19/km)</span>
         </div>
         <div class="stack-btn-row">
           <button class="btn btn-red" onclick="declineStack(this, 'stk_02')">❌ Recusar</button>
@@ -2724,6 +3004,10 @@ HTML_CONTENT = """<!DOCTYPE html>
           <span>● Starbucks</span> <span class="route-arrow">➔</span>
           <span>🏢 Av. Consolação</span>
           <span style="margin-left: auto; color: var(--text-muted);">3.1 km • 14 min</span>
+        </div>
+        <div class="fuel-profit-bar card-fuel-box">
+          <span style="color: #ffb74d; font-weight: 700;">⛽ Gasolina: -R$ 0,52</span>
+          <span style="color: var(--primary); font-weight: 800;">LÍQUIDO: R$ 17,48 (R$ 5,64/km)</span>
         </div>
         <div class="stack-btn-row">
           <button class="btn btn-red" onclick="declineStack(this, 'stk_03')">❌ Recusar</button>
@@ -2765,6 +3049,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         <button class="btn" style="padding: 5px 10px; font-size: 10px; background: rgba(0,255,136,0.12); color: var(--primary); border: 1px solid var(--primary);" onclick="applyStrategyPreset(18, 5, 4.5)">🎯 Rentável</button>
         <button class="btn" style="padding: 5px 10px; font-size: 10px; background: rgba(255,215,0,0.12); color: #ffd700; border: 1px solid #ffd700;" onclick="applyStrategyPreset(25, 6, 6)">👑 Pro Top</button>
         <button id="btn-filter-multistack" class="btn" style="padding: 5px 10px; font-size: 10px; background: rgba(0,255,136,0.12); color: var(--primary); border: 1px solid var(--primary);" onclick="toggleFilterOnlyMultiStack()">✨ Só Mescladas</button>
+        <button id="btn-auto-accept" class="btn" style="padding: 5px 10px; font-size: 10px; background: rgba(0,255,136,0.12); color: var(--primary); border: 1px solid var(--primary); font-weight: 700;" onclick="toggleAutoAccept()">⚡ Auto-Aceite: OFF</button>
       </div>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
@@ -3079,6 +3364,28 @@ HTML_CONTENT = """<!DOCTYPE html>
       </div>
 
       <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px; display: flex; flex-direction: column; gap: 12px;">
+        <!-- TEMA E VISIBILIDADE DE TELA (NOTURNA / DIURNA) -->
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 13px; font-weight: 700; color: #ffffff;">🎨 Tema & Otimização Visual</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Noturno (Anti-Reflexo OLED) ou Diurno (Sol WCAG AAA)</div>
+          </div>
+          <select id="cfg-theme-select" onchange="setThemeFromSettings(this.value)" class="glass" style="padding: 6px 10px; font-size: 12px; color: #ffffff; border-radius: 8px; border: 1px solid var(--surface-border); background: var(--surface);">
+            <option value="dark" style="background:#0e0e16; color:#ffffff;">🌙 Modo Noturno (Anti-Reflexo)</option>
+            <option value="light" style="background:#ffffff; color:#0b0f19;">☀️ Modo Diurno (Sol / WCAG AAA)</option>
+            <option value="auto" style="background:#0e0e16; color:#ffffff;">🔄 Automático (Dia / Noite)</option>
+          </select>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-sm" style="flex: 1; font-size: 11px; padding: 7px; background: rgba(0, 255, 136, 0.15); border: 1px solid #00ff88; color: #00ff88;" onclick="setThemeFromSettings('dark')">
+            🌙 Ativar Modo Noturno
+          </button>
+          <button class="btn btn-sm" style="flex: 1; font-size: 11px; padding: 7px; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.2); color: #ffffff;" onclick="setThemeFromSettings('light')">
+            ☀️ Ativar Modo Sol
+          </button>
+        </div>
+
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div>
             <div style="font-size: 13px; font-weight: 700; color: #ffffff;">Voz Jarvis (pt-BR)</div>
@@ -3093,6 +3400,31 @@ HTML_CONTENT = """<!DOCTYPE html>
             <div style="font-size: 11px; color: var(--text-muted);">Silencia distrações em trânsito</div>
           </div>
           <input type="checkbox" id="cfg-f" checked onchange="toggleModoFoco()" style="width: 20px; height: 20px; accent-color: var(--primary);">
+        </div>
+      </div>
+
+      <!-- INSTALAÇÃO NO CELULAR: DOWNLOAD DO APK & TRANSFERÊNCIA USB -->
+      <div style="border-top: 1px solid rgba(0,255,136,0.3); margin-top: 16px; padding-top: 16px;">
+        <div style="font-size: 14px; font-weight: 800; color: #00ff88; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+          <span>📲</span> Instalação no Celular (APK Direto ou via USB)
+        </div>
+        <p style="font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-bottom: 12px;">
+          O aplicativo nativo Android está 100% pronto para uso com integração de voz pelo fone, navegação Google Maps, Auto-Aceite e trava de segurança por velocidade.
+        </p>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px;">
+          <a href="/download/apk" class="btn btn-green" style="padding: 10px 18px; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 8px;" download>
+            <span>⬇️</span> Baixar RadarCoordinator.apk (25 MB)
+          </a>
+          <button class="btn" style="padding: 10px 14px; font-size: 12px; background: rgba(0, 210, 255, 0.15); color: #00d2ff; border: 1px solid #00d2ff;" onclick="alert('Como instalar via USB:\n1. Conecte o celular ao computador via cabo USB.\n2. Escolha Transferência de Arquivos (MTP).\n3. Copie RadarCoordinator.apk para a pasta Downloads do celular.\n4. No celular, toque no arquivo e clique em Instalar.')">
+            📋 Ver Instruções USB
+          </button>
+        </div>
+
+        <div class="glass" style="padding: 12px; font-size: 11px; line-height: 1.5; color: #cbd5e1; border-radius: 10px;">
+          <strong style="color: #ffffff; display: block; margin-bottom: 4px;">🚀 2 Formas Práticas de Instalar:</strong>
+          <strong>Opção A — Pelo Navegador do Celular:</strong> Abra este site no Chrome do celular, toque no botão <em>"Baixar APK Direto"</em> e abra o arquivo baixado para instalar.<br>
+          <strong>Opção B — Pelo Computador via USB:</strong> Baixe o arquivo <code>RadarCoordinator.apk</code> no PC, conecte o celular via cabo USB e copie o APK para a pasta <code>Downloads</code> do smartphone. Depois, toque no arquivo pelo app "Meus Arquivos" no celular e confirme a instalação.
         </div>
       </div>
     </div>
@@ -3278,6 +3610,7 @@ HTML_CONTENT = """<!DOCTYPE html>
       <button class="hud-btn" style="color: #00d2ff; border-color: rgba(0, 210, 255, 0.5);" title="Jarvis Copilot IA" onclick="location.hash='#ai-copilot'">🤖</button>
       <button class="hud-btn active" id="btn-voz" title="Voz Jarvis" onclick="toggleVoz()">🎙️</button>
       <button class="hud-btn" id="btn-foco" title="Modo Foco" onclick="toggleModoFoco()">🛡️</button>
+      <button class="hud-btn active" id="btn-theme" title="Alternar Modo Noturno (Anti-Reflexo) / Modo Sol" onclick="toggleTheme()">🌙</button>
       <button class="hud-btn" title="Configurações" onclick="location.hash='#settings'">⚙️</button>
       <button class="btn-route-start" onclick="iniciarRota()">▶ Rota</button>
     </div>
@@ -3399,6 +3732,155 @@ HTML_CONTENT = """<!DOCTYPE html>
       location.hash = '#dashboard';
     }
 
+    // Sistema Global de Alternância de Tema (Modo Noturno Anti-Reflexo vs Modo Sol)
+    function applyTheme(themeName, announce = false) {
+      if (!themeName) themeName = (window.AppState && window.AppState.config && window.AppState.config.theme) || 'dark';
+      
+      let effectiveTheme = themeName;
+      if (themeName === 'auto') {
+        const hour = new Date().getHours();
+        // Modo noturno das 18h às 06h (Anti-Reflexo para pilotagem noturna)
+        effectiveTheme = (hour >= 18 || hour < 6) ? 'dark' : 'light';
+      }
+
+      const isDark = effectiveTheme !== 'light';
+
+      if (isDark) {
+        document.body.classList.remove('theme-light');
+        document.body.classList.add('theme-dark');
+      } else {
+        document.body.classList.remove('theme-dark');
+        document.body.classList.add('theme-light');
+      }
+
+      // Atualiza meta tag theme-color no Android / PWA
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) {
+        meta.setAttribute('content', isDark ? '#05050a' : '#f4f6f9');
+      }
+
+      // Atualiza botão no cabeçalho
+      const topBtn = document.getElementById('theme-toggle-btn');
+      const topIcon = document.getElementById('theme-toggle-icon');
+      const topLabel = document.getElementById('theme-toggle-label');
+      if (topBtn) {
+        topBtn.className = isDark ? 'theme-toggle-pill mode-dark' : 'theme-toggle-pill mode-light';
+        topBtn.setAttribute('title', isDark ? 'Modo Noturno (Anti-Reflexo) ativo • Toque para Modo Sol' : 'Modo Sol (Alto Contraste) ativo • Toque para Modo Noite');
+      }
+      if (topIcon) topIcon.textContent = isDark ? '🌙' : '☀️';
+      if (topLabel) topLabel.textContent = isDark ? 'Noite' : 'Sol';
+
+      // Atualiza botão no HUD inferior
+      const hudBtn = document.getElementById('btn-theme');
+      if (hudBtn) {
+        hudBtn.textContent = isDark ? '🌙' : '☀️';
+        hudBtn.classList.toggle('active', isDark);
+        hudBtn.setAttribute('title', isDark ? 'Modo Noturno (Anti-Reflexo) Ativo' : 'Modo Sol (Alto Contraste) Ativo');
+      }
+
+      // Atualiza select de configurações
+      const cfgSelect = document.getElementById('cfg-theme-select');
+      if (cfgSelect && window.AppState && window.AppState.config) {
+        cfgSelect.value = window.AppState.config.theme || 'dark';
+      }
+
+      // Atualiza indicador visual de modo noturno
+      const nightIndicator = document.getElementById('hud-night-mode-indicator');
+      if (nightIndicator) {
+        nightIndicator.style.display = isDark ? 'inline-flex' : 'none';
+      }
+
+      if (announce) {
+        const announcement = isDark 
+          ? 'Modo Noturno Cockpit ativado. Fundo anti-reflexo otimizado para visibilidade na entrega noturna.' 
+          : 'Modo Diurno Sol ativado. Fundo de alto contraste para visibilidade sob luz solar.';
+        speak(announcement);
+      }
+    }
+
+    function toggleTheme() {
+      const current = (window.AppState && window.AppState.config && window.AppState.config.theme) === 'light' ? 'light' : 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      window.AppState.config.theme = next;
+      saveState();
+      applyTheme(next, true);
+    }
+
+    function setThemeFromSettings(themeName) {
+      window.AppState.config.theme = themeName;
+      saveState();
+      applyTheme(themeName, true);
+    }
+
+    // Modo Luva (Touch Aumentado para Luvas de Pilotagem)
+    function toggleGloveMode() {
+      const active = document.body.classList.toggle('glove-mode');
+      if (window.AppState && window.AppState.config) {
+        window.AppState.config.gloveMode = active;
+      }
+      const btn = document.getElementById('btn-toggle-luva');
+      if (btn) {
+        btn.classList.toggle('active', active);
+        btn.innerHTML = active ? '🧤 Luva ATIVO' : '🧤 Modo Luva';
+      }
+      speak(active ? 'Modo luva ativado. Botões ampliados para pilotagem.' : 'Modo luva desativado.');
+      saveState();
+    }
+
+    // Alternância de Estimativa de Combustível / Lucro Líquido Real
+    function toggleFuelCost() {
+      const active = !(window.AppState && window.AppState.config && window.AppState.config.showFuelCost === false);
+      const next = !active;
+      if (window.AppState && window.AppState.config) {
+        window.AppState.config.showFuelCost = next;
+      }
+      document.querySelectorAll('.card-fuel-box').forEach(box => {
+        box.style.display = next ? 'flex' : 'none';
+      });
+      const btn = document.getElementById('btn-toggle-gasolina');
+      if (btn) {
+        btn.classList.toggle('active', next);
+        btn.innerHTML = next ? '⛽ Gasolina Ativa' : '⛽ Gasolina Oculta';
+      }
+      speak(next ? 'Dedução de gasolina ativada.' : 'Dedução de gasolina ocultada.');
+      saveState();
+    }
+
+    // Presets Táticos do Motoboy (Chuva, Tiro Curto, Lucro Máximo e Padrão)
+    function applyTacticalPreset(preset) {
+      if (!window.AppState.stacks) window.AppState.stacks = {};
+      if (preset === 'CHUVA') {
+        window.AppState.stacks.minValue = 22.0;
+        window.AppState.stacks.maxDistance = 5.0;
+        window.AppState.stacks.minGainPerKm = 6.0;
+        speak('Modo chuva ativado. Mínimo vinte e dois reais e seis reais por quilômetro.');
+      } else if (preset === 'TIRO_CURTO') {
+        window.AppState.stacks.minValue = 12.0;
+        window.AppState.stacks.maxDistance = 3.5;
+        window.AppState.stacks.minGainPerKm = 5.0;
+        speak('Tiro curto ativado. Raio máximo de três quilômetros e meio.');
+      } else if (preset === 'LUCRO_MAX') {
+        window.AppState.stacks.minValue = 30.0;
+        window.AppState.stacks.maxDistance = 7.0;
+        window.AppState.stacks.minGainPerKm = 7.0;
+        speak('Modo lucro máximo ativado. Mínimo sete reais por quilômetro.');
+      } else {
+        window.AppState.stacks.minValue = 0.0;
+        window.AppState.stacks.maxDistance = 8.0;
+        window.AppState.stacks.minGainPerKm = 0.0;
+        speak('Filtros restaurados para o padrão.');
+      }
+      ['btn-preset-chuva', 'btn-preset-curto', 'btn-preset-lucro'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.classList.remove('active');
+      });
+      if (preset === 'CHUVA') document.getElementById('btn-preset-chuva')?.classList.add('active');
+      if (preset === 'TIRO_CURTO') document.getElementById('btn-preset-curto')?.classList.add('active');
+      if (preset === 'LUCRO_MAX') document.getElementById('btn-preset-lucro')?.classList.add('active');
+      saveState();
+      if (window.AppState.stacks.pending) renderFullStacks(window.AppState.stacks.pending);
+    }
+
     // Monitor de Velocidade e Trava de Segurança em Movimento (Android Location API)
     function updateSpeed(speedKmh, source = 'GPS') {
       const prevLock = window.AppState.health.isSafetyLock || false;
@@ -3432,6 +3914,11 @@ HTML_CONTENT = """<!DOCTYPE html>
         lockBanner.style.display = isLock ? 'block' : 'none';
       }
 
+      const sprintBanner = document.getElementById('dash-traffic-light-sprint-banner');
+      if (sprintBanner) {
+        sprintBanner.style.display = (!isLock && speedKmh <= 3.0) ? 'flex' : 'none';
+      }
+
       const lockBadge = document.getElementById('speed-lock-badge');
       if (lockBadge) {
         lockBadge.innerHTML = isLock 
@@ -3460,6 +3947,35 @@ HTML_CONTENT = """<!DOCTYPE html>
       }
 
       saveState();
+    }
+
+    // Controle do Botão de Auto-Aceite com Filtros Pré-definidos
+    function toggleAutoAccept(forceState) {
+      if (typeof forceState === 'boolean') {
+        window.AppState.stacks.autoAccept = forceState;
+      } else {
+        window.AppState.stacks.autoAccept = !window.AppState.stacks.autoAccept;
+      }
+      if (!window.AppState.stacks.autoAcceptMinGain) {
+        window.AppState.stacks.autoAcceptMinGain = 5.0;
+      }
+      saveState();
+
+      const btn = document.getElementById('btn-auto-accept');
+      if (btn) {
+        const active = window.AppState.stacks.autoAccept;
+        btn.innerHTML = active ? `⚡ Auto-Aceite: ON (≥ R$ ${window.AppState.stacks.autoAcceptMinGain.toFixed(1)}/km)` : '⚡ Auto-Aceite: OFF';
+        btn.style.background = active ? 'var(--primary)' : 'rgba(0, 255, 136, 0.12)';
+        btn.style.color = active ? '#0a0a0f' : 'var(--primary)';
+        btn.style.fontWeight = active ? '900' : '700';
+      }
+
+      if (window.AppState.stacks.autoAccept) {
+        speak(`Auto-aceite ativado. Ofertas com ganho mínimo de ${window.AppState.stacks.autoAcceptMinGain.toFixed(1)} reais por quilômetro serão aceitas automaticamente.`);
+        if (window.AppState.stacks.pending) renderFullStacks(window.AppState.stacks.pending);
+      } else {
+        speak('Auto-aceite desativado.');
+      }
     }
 
     // Sistema de Reconhecimento de Comandos de Voz Mãos-Livres (Web Speech API)
@@ -3589,6 +4105,12 @@ HTML_CONTENT = """<!DOCTYPE html>
       } else if (cmd.includes('mínimo 30') || cmd.includes('minimo 30') || cmd.includes('trinta reais') || cmd.includes('30 reais')) {
         updateFilterMinValue(30);
         speak('Filtro alterado: valor mínimo 30 reais.');
+      } else if (cmd.includes('ativar auto aceite') || cmd.includes('ligar auto aceite') || cmd.includes('auto aceite ligar') || cmd.includes('ativar auto-aceite')) {
+        toggleAutoAccept(true);
+      } else if (cmd.includes('desativar auto aceite') || cmd.includes('desligar auto aceite') || cmd.includes('auto aceite desligar') || cmd.includes('desativar auto-aceite')) {
+        toggleAutoAccept(false);
+      } else if (cmd.includes('auto aceite') || cmd.includes('autoaceite') || cmd.includes('auto-aceite')) {
+        toggleAutoAccept();
       // 2. Comandos de Ação de Corrida e Navegação
       } else if (cmd.includes('ler') || cmd.includes('ouvir') || cmd.includes('falar') || cmd.includes('detalhes') || cmd.includes('anunciar')) {
         triggerVoiceCommand('ouvir');
@@ -3640,6 +4162,10 @@ HTML_CONTENT = """<!DOCTYPE html>
           speak("Lendo melhor oferta pendente.");
         }
       } else if (action === 'aceitar') {
+        if (window.AppState.health.isSafetyLock || (window.AppState.health.speed && window.AppState.health.speed > 10.0)) {
+          speak("Aceite por voz bloqueado por segurança. Velocidade acima de 10 por hora. Reduza a velocidade para aceitar.");
+          return;
+        }
         const acceptBtn = firstCard.querySelector('.btn-green');
         if (acceptBtn) {
           speak("Comando de voz reconhecido: Aceitando oferta!");
@@ -3688,8 +4214,32 @@ HTML_CONTENT = """<!DOCTYPE html>
             }
             lastGpsCoords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
             lastGpsTimestamp = pos.timestamp;
+
+            // Atualiza indicador visual de precisão do GPS
+            const accEl = document.getElementById('gps-accuracy-display');
+            if (accEl && pos.coords.accuracy) {
+              accEl.innerText = `${pos.coords.accuracy.toFixed(1)}m`;
+            }
+
             updateSpeed(spd, 'GPS Fused');
             evaluateGeofenceLocation(pos.coords.latitude, pos.coords.longitude);
+
+            // Sincroniza localização em tempo real com o backend Express /api/driver/location
+            try {
+              fetch('/api/driver/location', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  latitude: pos.coords.latitude,
+                  longitude: pos.coords.longitude,
+                  accuracy: pos.coords.accuracy || 4.2,
+                  speed: spd,
+                  heading: pos.coords.heading || 0.0,
+                  altitude: pos.coords.altitude || 780.0,
+                  source: 'navigator_watch_position'
+                })
+              }).catch(() => {});
+            } catch (e) {}
           },
           err => {
             console.log("GPS local:", err.message);
@@ -3958,6 +4508,16 @@ HTML_CONTENT = """<!DOCTYPE html>
         btnMulti.style.color = window.AppState.stacks.onlyMultiStack ? '#0a0a0f' : 'var(--primary)';
         btnMulti.style.fontWeight = window.AppState.stacks.onlyMultiStack ? '900' : '700';
       }
+
+      const btnAuto = document.getElementById('btn-auto-accept');
+      if (btnAuto) {
+        const active = !!window.AppState.stacks.autoAccept;
+        const autoMin = window.AppState.stacks.autoAcceptMinGain || 5.0;
+        btnAuto.innerHTML = active ? `⚡ Auto-Aceite: ON (≥ R$ ${autoMin.toFixed(1)}/km)` : '⚡ Auto-Aceite: OFF';
+        btnAuto.style.background = active ? 'var(--primary)' : 'rgba(0, 255, 136, 0.12)';
+        btnAuto.style.color = active ? '#0a0a0f' : 'var(--primary)';
+        btnAuto.style.fontWeight = active ? '900' : '700';
+      }
     }
 
     function triggerGhostSweep() {
@@ -4003,7 +4563,13 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     // acceptStack(btn, valor): destaca verde, atualiza ganhos, remove outros, chama POST /api/stacks/accept
     async function acceptStack(btn, valor, stackId, shouldOpenMaps = true) {
-      const card = btn.closest('.stack-card');
+      if (window.AppState.health.isSafetyLock || (window.AppState.health.speed && window.AppState.health.speed > 10.0)) {
+        speak("Aceite de corrida bloqueado por segurança. Velocidade acima de 10 por hora detectada. Pare ou reduza a velocidade para aceitar.");
+        alert("🚨 Aceite bloqueado por segurança: velocidade detectada excede 10 km/h!");
+        return;
+      }
+
+      const card = btn ? btn.closest('.stack-card') : null;
       if (card) card.classList.add('accepted');
 
       trackAnalyticsEvent('offer_accept_clicked', { stack_id: stackId, amount: valor, source: 'web_cockpit' });
@@ -4196,6 +4762,24 @@ HTML_CONTENT = """<!DOCTYPE html>
       if (stWeek) stWeek.innerText = `R$ ${window.AppState.earnings.week.toFixed(2).replace('.', ',')}`;
       if (stMonth) stMonth.innerText = `R$ ${window.AppState.earnings.month.toFixed(2).replace('.', ',')}`;
       if (stProf) stProf.innerText = `R$ ${window.AppState.earnings.profit.toFixed(2).replace('.', ',')}`;
+
+      // Sincroniza estado visual do tema global
+      const isDark = (window.AppState.config.theme || 'dark') !== 'light';
+      const topBtn = document.getElementById('theme-toggle-btn');
+      const topIcon = document.getElementById('theme-toggle-icon');
+      const topLabel = document.getElementById('theme-toggle-label');
+      if (topBtn) topBtn.className = isDark ? 'theme-toggle-pill mode-dark' : 'theme-toggle-pill mode-light';
+      if (topIcon) topIcon.textContent = isDark ? '🌙' : '☀️';
+      if (topLabel) topLabel.textContent = isDark ? 'Noite' : 'Sol';
+      const hudBtn = document.getElementById('btn-theme');
+      if (hudBtn) {
+        hudBtn.textContent = isDark ? '🌙' : '☀️';
+        hudBtn.classList.toggle('active', isDark);
+      }
+      const nightBadge = document.getElementById('hud-night-mode-indicator');
+      if (nightBadge) {
+        nightBadge.style.display = isDark ? 'inline-flex' : 'none';
+      }
     }
 
     function renderFullStacks(list) {
@@ -4224,6 +4808,21 @@ HTML_CONTENT = """<!DOCTYPE html>
       if (badge) {
         badge.innerText = `${filtered.length} de ${list.length} disponíveis${onlyMulti ? ' (✨ Só Mescladas)' : ''}`;
         badge.style.color = (onlyMulti || minVal > 0 || maxDist < 8.0 || minGain > 0 || minBonus > 0) ? 'var(--primary)' : 'var(--text-muted)';
+      }
+
+      // Auto-Aceite Inteligente automático se habilitado
+      if (window.AppState.stacks.autoAccept && !window._autoAccepting) {
+        const autoMin = window.AppState.stacks.autoAcceptMinGain || 5.0;
+        const autoEligible = filtered.find(s => (s.total_value / s.distance_km) >= autoMin);
+        if (autoEligible) {
+          window._autoAccepting = true;
+          setTimeout(() => {
+            speak(`Auto-aceite: ${autoEligible.restaurant} por R$ ${autoEligible.total_value.toFixed(2).replace('.', ',')}. Aceito automaticamente!`);
+            const mockBtn = document.createElement('button');
+            acceptStack(mockBtn, autoEligible.total_value, autoEligible.id, false);
+            setTimeout(() => { window._autoAccepting = false; }, 1200);
+          }, 400);
+        }
       }
 
       if (filtered.length === 0) {
@@ -5505,6 +6104,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     }
 
     window.addEventListener('DOMContentLoaded', () => {
+      applyTheme(window.AppState.config.theme || 'dark', false);
       handleRouting();
       render();
       initFilterUI();
@@ -5549,12 +6149,12 @@ def run_server(port):
 
 if __name__ == "__main__":
     init_database()
-    print("Radar Coordinator — Jarvis Neural Cockpit iniciando nas portas 3000 e 5000...")
+    main_port = int(os.environ.get("PYTHON_PORT", "5000"))
+    print(f"Radar Coordinator — Jarvis Neural Cockpit iniciando na porta {main_port}...")
     
-    # Inicia porta 5000 (requisito do prompt) em thread background
-    t5000 = threading.Thread(target=run_server, args=(5000,), daemon=True)
-    t5000.start()
+    if main_port != 5000:
+        t5000 = threading.Thread(target=run_server, args=(5000,), daemon=True)
+        t5000.start()
     
-    # Inicia porta 3000 (requisito de proxy da plataforma AI Studio / nginx) no processo principal
-    run_server(3000)
+    run_server(main_port)
 

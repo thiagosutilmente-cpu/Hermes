@@ -70,8 +70,17 @@ data class SystemHealthData(
  */
 object RadarDecisionEngine {
 
-    private const val API_BASE_URL_EMULATOR = "http://10.0.2.2:5000"
-    private const val API_BASE_URL_LOCAL = "http://localhost:5000"
+    private const val API_BASE_URL_EMULATOR_5000 = "http://10.0.2.2:5000"
+    private const val API_BASE_URL_EMULATOR_3000 = "http://10.0.2.2:3000"
+    private const val API_BASE_URL_LOCAL_5000 = "http://localhost:5000"
+    private const val API_BASE_URL_LOCAL_3000 = "http://localhost:3000"
+
+    private fun buildEndpoints(path: String): List<String> = listOf(
+        "$API_BASE_URL_LOCAL_5000$path",
+        "$API_BASE_URL_LOCAL_3000$path",
+        "$API_BASE_URL_EMULATOR_5000$path",
+        "$API_BASE_URL_EMULATOR_3000$path"
+    )
 
     /**
      * Avalia uma oferta instantaneamente usando as regras de negócio do Radar
@@ -122,10 +131,7 @@ object RadarDecisionEngine {
         userId: Int = 1
     ): NeuralDecision = withContext(Dispatchers.IO) {
         val fallback = evaluate(value, distanceKm, appName)
-        val endpoints = listOf(
-            "$API_BASE_URL_LOCAL/api/decision",
-            "$API_BASE_URL_EMULATOR/api/decision"
-        )
+        val endpoints = buildEndpoints("/api/decision")
 
         for (endpoint in endpoints) {
             try {
@@ -171,10 +177,7 @@ object RadarDecisionEngine {
      */
     suspend fun fetchSystemHealth(): SystemHealthData = withContext(Dispatchers.IO) {
         val fallback = SystemHealthData()
-        val endpoints = listOf(
-            "$API_BASE_URL_LOCAL/api/health",
-            "$API_BASE_URL_EMULATOR/api/health"
-        )
+        val endpoints = buildEndpoints("/api/health")
         for (endpoint in endpoints) {
             try {
                 val url = URL(endpoint)
@@ -214,10 +217,7 @@ object RadarDecisionEngine {
     }
 
     private fun notifyStackAction(path: String, stackId: String) {
-        val endpoints = listOf(
-            "$API_BASE_URL_LOCAL$path",
-            "$API_BASE_URL_EMULATOR$path"
-        )
+        val endpoints = buildEndpoints(path)
         for (endpoint in endpoints) {
             try {
                 val url = URL(endpoint)
@@ -247,10 +247,7 @@ object RadarDecisionEngine {
      * Retorna uma lista de dados estruturados com as ofertas interceptadas no backend.
      */
     suspend fun fetchPendingStacks(): List<JSONObject> = withContext(Dispatchers.IO) {
-        val endpoints = listOf(
-            "$API_BASE_URL_LOCAL/api/stacks",
-            "$API_BASE_URL_EMULATOR/api/stacks"
-        )
+        val endpoints = buildEndpoints("/api/stacks")
         val result = mutableListOf<JSONObject>()
         for (endpoint in endpoints) {
             try {
