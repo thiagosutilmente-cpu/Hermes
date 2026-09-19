@@ -104,19 +104,33 @@ fun OfferListScreen(
     val context = LocalContext.current
     var offers by remember { mutableStateOf(initialOffers) }
     var minPriceFilter by remember { mutableFloatStateOf(0f) }
+    var maxRadiusKm by remember { mutableFloatStateOf(6.0f) }
+    var isGeoRadiusEnabled by remember { mutableStateOf(true) }
+    var selectedHotspot by remember { mutableStateOf("Todos") }
+
+    val driverLat = -23.561684
+    val driverLng = -46.655981
 
     // Estados para controle do SpeechRecognizer
     var isListening by remember { mutableStateOf(false) }
     var lastVoiceCommand by remember { mutableStateOf<String?>(null) }
     var voiceStatusFeedback by remember { mutableStateOf("Toque no microfone para comandos de voz ('Aceitar' ou 'Recusar')") }
 
-    val filteredOffers by remember(offers, minPriceFilter) {
+    val filteredOffers by remember(offers, minPriceFilter, maxRadiusKm, isGeoRadiusEnabled, selectedHotspot) {
         derivedStateOf {
-            offers.filter { it.valor >= minPriceFilter }
+            offers.filter { offer ->
+                val passesValue = offer.valor >= minPriceFilter
+                val distKm = offer.distanceTo(driverLat, driverLng)
+                val passesRadius = !isGeoRadiusEnabled || distKm <= maxRadiusKm
+                val passesHotspot = selectedHotspot == "Todos" || offer.poloGastronomico.contains(selectedHotspot, ignoreCase = true)
+                passesValue && passesRadius && passesHotspot
+            }
         }
     }
 
     val quickFilterValues = listOf(0f, 15f, 20f, 25f, 30f)
+    val quickRadiusValues = listOf(2.0f, 4.0f, 6.0f, 10.0f, 15.0f)
+    val hotspotsList = listOf("Todos", "Paulista", "Jardins", "Pinheiros", "Faria Lima", "Moema")
 
     // Inicialização do SpeechRecognizer nativo do Android
     val speechRecognizer = remember {
@@ -271,13 +285,9 @@ fun OfferListScreen(
                     letterSpacing = 0.5.sp
                 )
                 Text(
-                    text = if (minPriceFilter > 0f) {
-                        "${filteredOffers.size} de ${offers.size} ofertas (Min R$ ${String.format(Locale.GERMANY, "%.2f", minPriceFilter.toDouble())})"
-                    } else {
-                        "${offers.size} ofertas disponíveis"
-                    },
+                    text = "${filteredOffers.size} de ${offers.size} ofertas (Raio: ${if (isGeoRadiusEnabled) "≤ ${String.format(Locale.GERMANY, "%.1f", maxRadiusKm)}km" else "Livre"} • Piso: ≥ R$ ${String.format(Locale.GERMANY, "%.2f", minPriceFilter.toDouble())})",
                     color = NeonGreen,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -377,7 +387,7 @@ fun OfferListScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Painel de Filtro de Valor Mínimo
+        // Painel Integrado de Filtros: Valor Mínimo e Geolocalização
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -386,6 +396,7 @@ fun OfferListScreen(
                 .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
                 .padding(12.dp)
         ) {
+            // SEÇÃO 1: PISO DE VALOR MÍNIMO
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -400,7 +411,7 @@ fun OfferListScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Filtro de Valor Mínimo:",
+                        text = "Valor Mínimo (R$):",
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -415,9 +426,8 @@ fun OfferListScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Slider Interativo de Valor Mínimo
             Slider(
                 value = minPriceFilter,
                 onValueChange = { minPriceFilter = it },
@@ -433,7 +443,7 @@ fun OfferListScreen(
                     .testTag("slider_min_price_filter")
             )
 
-            // Chips de Seleção Rápida
+            // Chips Rápidos de Valor
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -464,6 +474,136 @@ fun OfferListScreen(
                             borderColor = if (isSelected) NeonGreen else Color.White.copy(alpha = 0.1f)
                         ),
                         modifier = Modifier.testTag("chip_filter_${filterVal.toInt()}")
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // SEÇÃO 2: GEOLOCALIZAÇÃO & RAIO MÁXIMO DE COLETA (GPS)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "📍", fontSize = 14.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Raio de Coleta (GPS):",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Text(
+                    text = if (isGeoRadiusEnabled) "≤ ${String.format(Locale.GERMANY, "%.1f", maxRadiusKm)} km" else "Sem limite",
+                    color = if (isGeoRadiusEnabled) CyberCyan else TextMuted,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Slider(
+                value = maxRadiusKm,
+                onValueChange = {
+                    maxRadiusKm = it
+                    isGeoRadiusEnabled = true
+                },
+                valueRange = 1f..15f,
+                steps = 13,
+                colors = SliderDefaults.colors(
+                    thumbColor = CyberCyan,
+                    activeTrackColor = CyberCyan,
+                    inactiveTrackColor = Color.DarkGray
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("slider_geo_radius_filter")
+            )
+
+            // Chips Rápidos de Raio Geográfico
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                quickRadiusValues.forEach { radiusVal ->
+                    val isSelected = isGeoRadiusEnabled && (maxRadiusKm == radiusVal)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = {
+                            maxRadiusKm = radiusVal
+                            isGeoRadiusEnabled = true
+                        },
+                        label = {
+                            Text(
+                                text = "≤ ${radiusVal.toInt()} km",
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = DarkBackground,
+                            labelColor = TextMuted,
+                            selectedContainerColor = CyberCyan.copy(alpha = 0.2f),
+                            selectedLabelColor = CyberCyan
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = if (isSelected) CyberCyan else Color.White.copy(alpha = 0.1f)
+                        ),
+                        modifier = Modifier.testTag("chip_radius_${radiusVal.toInt()}")
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // SEÇÃO 3: POLO GASTRONÔMICO
+            Text(
+                text = "Polo Gastronômico:",
+                color = TextMuted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                hotspotsList.forEach { hotspot ->
+                    val isSelected = (selectedHotspot == hotspot)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedHotspot = hotspot },
+                        label = {
+                            Text(
+                                text = hotspot,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = DarkBackground,
+                            labelColor = TextMuted,
+                            selectedContainerColor = NeonGreen.copy(alpha = 0.2f),
+                            selectedLabelColor = NeonGreen
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = if (isSelected) NeonGreen else Color.White.copy(alpha = 0.1f)
+                        ),
+                        modifier = Modifier.testTag("chip_hotspot_${hotspot.lowercase(Locale.ROOT)}")
                     )
                 }
             }
@@ -536,42 +676,99 @@ fun getSampleDeliveryOffers(): List<DeliveryOffer> = listOf(
         nomeRestaurante = "Burger King - Av. Paulista",
         valor = 33.00,
         distancia = 4.2,
-        tempoEstimado = 18
+        tempoEstimado = 18,
+        latitude = -23.561684,
+        longitude = -46.655981,
+        poloGastronomico = "Paulista",
+        appOrigem = "iFood"
     ),
     DeliveryOffer(
         id = "stk_02",
         nomeRestaurante = "McDonald's - Henrique Schaumann",
         valor = 15.00,
         distancia = 2.8,
-        tempoEstimado = 12
+        tempoEstimado = 12,
+        latitude = -23.559800,
+        longitude = -46.681200,
+        poloGastronomico = "Pinheiros",
+        appOrigem = "Rappi"
     ),
     DeliveryOffer(
         id = "stk_03",
         nomeRestaurante = "Starbucks - Shopping Frei Caneca",
         valor = 18.00,
         distancia = 3.1,
-        tempoEstimado = 14
+        tempoEstimado = 14,
+        latitude = -23.553200,
+        longitude = -46.652800,
+        poloGastronomico = "Paulista",
+        appOrigem = "iFood"
     ),
     DeliveryOffer(
         id = "stk_04",
         nomeRestaurante = "Pizza Hut - Jardins",
         valor = 26.50,
         distancia = 4.0,
-        tempoEstimado = 20
+        tempoEstimado = 20,
+        latitude = -23.568210,
+        longitude = -46.662150,
+        poloGastronomico = "Jardins",
+        appOrigem = "99Food"
     ),
     DeliveryOffer(
         id = "stk_05",
         nomeRestaurante = "Madero Container - Alameda Santos",
         valor = 22.00,
         distancia = 3.5,
-        tempoEstimado = 15
+        tempoEstimado = 15,
+        latitude = -23.568910,
+        longitude = -46.650120,
+        poloGastronomico = "Paulista",
+        appOrigem = "Uber Eats"
     ),
     DeliveryOffer(
         id = "stk_06",
         nomeRestaurante = "Habib's - Rebouças",
         valor = 12.00,
         distancia = 3.9,
-        tempoEstimado = 16
+        tempoEstimado = 16,
+        latitude = -23.571200,
+        longitude = -46.689000,
+        poloGastronomico = "Pinheiros",
+        appOrigem = "iFood"
+    ),
+    DeliveryOffer(
+        id = "stk_07",
+        nomeRestaurante = "Outback Steakhouse - Moema",
+        valor = 38.50,
+        distancia = 5.2,
+        tempoEstimado = 22,
+        latitude = -23.601200,
+        longitude = -46.662100,
+        poloGastronomico = "Moema",
+        appOrigem = "iFood"
+    ),
+    DeliveryOffer(
+        id = "stk_08",
+        nomeRestaurante = "Pobre Juan - Faria Lima",
+        valor = 45.00,
+        distancia = 4.8,
+        tempoEstimado = 20,
+        latitude = -23.582300,
+        longitude = -46.684100,
+        poloGastronomico = "Faria Lima",
+        appOrigem = "Rappi"
+    ),
+    DeliveryOffer(
+        id = "stk_09",
+        nomeRestaurante = "Coco Bambu - Anália Franco",
+        valor = 52.00,
+        distancia = 9.8,
+        tempoEstimado = 35,
+        latitude = -23.548200,
+        longitude = -46.562100,
+        poloGastronomico = "Anália Franco",
+        appOrigem = "iFood"
     )
 )
 

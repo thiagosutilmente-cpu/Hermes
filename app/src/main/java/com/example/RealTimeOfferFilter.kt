@@ -87,7 +87,12 @@ data class OfferFilterCriteria(
     val isNotificationFilterEnabled: Boolean = true,
     val notificationMinGainPerKm: Double = 5.0,
     val notificationAllowMultiStackBypass: Boolean = true,
-    val notificationOnlyJarvisApproved: Boolean = false
+    val notificationOnlyJarvisApproved: Boolean = false,
+    val isGeoRadiusFilterActive: Boolean = false,
+    val maxPickupRadiusKm: Double = 6.0,
+    val driverCurrentLat: Double = -23.561684,
+    val driverCurrentLng: Double = -46.655981,
+    val selectedHotspotZoneId: String? = null
 ) {
     val isActive: Boolean
         get() = minValue > 0.0 ||
@@ -100,7 +105,9 @@ data class OfferFilterCriteria(
                 searchQuery.isNotBlank() ||
                 safetySpeedThresholdKm != 10.0 ||
                 isAutoAcceptEnabled ||
-                isNotificationFilterEnabled
+                isNotificationFilterEnabled ||
+                isGeoRadiusFilterActive ||
+                selectedHotspotZoneId != null
 
     /**
      * Avalia se uma oferta atende ao filtro automático de notificações por piso de preço/km:
@@ -131,6 +138,8 @@ data class OfferFilterCriteria(
         if (minValue > 0.0 && offer.value < minValue) return false
         // Se houver distância máxima configurada, respeita
         if (offer.distanceKm > maxDistanceKm) return false
+        // Se o filtro de geolocalização por raio GPS estiver ativo, respeita raio de coleta
+        if (isGeoRadiusFilterActive && offer.distanceFromPilotKm(driverCurrentLat, driverCurrentLng) > maxPickupRadiusKm) return false
         // Se configurado apenas ofertas mescladas, respeita
         if (onlyMultiStack && !offer.isMultiStack) return false
         // Se configurado apenas aprovadas pela IA Jarvis, respeita
@@ -143,6 +152,11 @@ data class OfferFilterCriteria(
         if (offer.value < minValue) return false
         if (offer.distanceKm > maxDistanceKm) return false
         if (minGainPerKm > 0.0 && offer.gainPerKm < minGainPerKm) return false
+        // Filtro de Geolocalização (Raio de Coleta por GPS)
+        if (isGeoRadiusFilterActive) {
+            val distToPickup = offer.distanceFromPilotKm(driverCurrentLat, driverCurrentLng)
+            if (distToPickup > maxPickupRadiusKm) return false
+        }
         if (minHourlyMultiplier > 1.0) {
             val estimatedMin = if (offer.estimatedTimeMin > 0) offer.estimatedTimeMin else 15
             val projectedHourlyRate = (offer.value / estimatedMin) * 60.0
@@ -175,6 +189,13 @@ data class OfferFilterCriteria(
         }
         return true
     }
+
+    /**
+     * Avalia a oferta utilizando coordenadas do piloto fornecidas em tempo real.
+     */
+    fun matches(offer: RadarOffer, pilotLat: Double, pilotLng: Double): Boolean {
+        return copy(driverCurrentLat = pilotLat, driverCurrentLng = pilotLng).matches(offer)
+    }
 }
 
 /**
@@ -196,6 +217,9 @@ object FilterPreferencesManager {
     private const val KEY_NOTIFICATION_MIN_GAIN_PER_KM = "key_notification_min_gain_per_km"
     private const val KEY_NOTIFICATION_BYPASS_MULTISTACK = "key_notification_bypass_multistack"
     private const val KEY_NOTIFICATION_ONLY_JARVIS = "key_notification_only_jarvis"
+    private const val KEY_GEO_RADIUS_ACTIVE = "key_geo_radius_active"
+    private const val KEY_MAX_PICKUP_RADIUS_KM = "key_max_pickup_radius_km"
+    private const val KEY_SELECTED_HOTSPOT_ID = "key_selected_hotspot_id"
 
     fun loadCriteria(context: android.content.Context): OfferFilterCriteria {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
@@ -213,7 +237,10 @@ object FilterPreferencesManager {
             isNotificationFilterEnabled = prefs.getBoolean(KEY_NOTIFICATION_FILTER_ENABLED, true),
             notificationMinGainPerKm = prefs.getFloat(KEY_NOTIFICATION_MIN_GAIN_PER_KM, 5.0f).toDouble(),
             notificationAllowMultiStackBypass = prefs.getBoolean(KEY_NOTIFICATION_BYPASS_MULTISTACK, true),
-            notificationOnlyJarvisApproved = prefs.getBoolean(KEY_NOTIFICATION_ONLY_JARVIS, false)
+            notificationOnlyJarvisApproved = prefs.getBoolean(KEY_NOTIFICATION_ONLY_JARVIS, false),
+            isGeoRadiusFilterActive = prefs.getBoolean(KEY_GEO_RADIUS_ACTIVE, false),
+            maxPickupRadiusKm = prefs.getFloat(KEY_MAX_PICKUP_RADIUS_KM, 6.0f).toDouble(),
+            selectedHotspotZoneId = prefs.getString(KEY_SELECTED_HOTSPOT_ID, null)
         )
     }
 
@@ -234,6 +261,9 @@ object FilterPreferencesManager {
             .putFloat(KEY_NOTIFICATION_MIN_GAIN_PER_KM, criteria.notificationMinGainPerKm.toFloat())
             .putBoolean(KEY_NOTIFICATION_BYPASS_MULTISTACK, criteria.notificationAllowMultiStackBypass)
             .putBoolean(KEY_NOTIFICATION_ONLY_JARVIS, criteria.notificationOnlyJarvisApproved)
+            .putBoolean(KEY_GEO_RADIUS_ACTIVE, criteria.isGeoRadiusFilterActive)
+            .putFloat(KEY_MAX_PICKUP_RADIUS_KM, criteria.maxPickupRadiusKm.toFloat())
+            .putString(KEY_SELECTED_HOTSPOT_ID, criteria.selectedHotspotZoneId)
             .apply()
     }
 }

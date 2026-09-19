@@ -132,18 +132,37 @@ fun DeliveryOfferCard(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    if (offer.isAltaRentabilidade) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (offer.isAltaRentabilidade) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(NeonGreen.copy(alpha = 0.15f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "ALTA RENTABILIDADE",
+                                    color = NeonGreen,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                        }
+
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(NeonGreen.copy(alpha = 0.15f))
+                                .background(CyberCyan.copy(alpha = 0.15f))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "ALTA RENTABILIDADE",
-                                color = NeonGreen,
+                                text = "📍 ${offer.poloGastronomico}",
+                                color = CyberCyan,
                                 fontSize = 9.sp,
-                                fontWeight = FontWeight.ExtraBold
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }

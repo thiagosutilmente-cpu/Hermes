@@ -25,7 +25,9 @@ data class RadarOffer(
     val itemsCount: Int = 1,
     val quantumTelemetry: HyperQuantumTelemetry? = null,
     val highDemandZoneTag: String? = null,
-    val surgeBonusPercent: Int = 0
+    val surgeBonusPercent: Int = 0,
+    val pickupLat: Double = -23.561684,
+    val pickupLng: Double = -46.655981
 ) {
     val gainPerKm: Double
         get() = if (distanceKm > 0) value / distanceKm else value
@@ -38,6 +40,20 @@ data class RadarOffer(
 
     val netProfit: Double
         get() = (value - fuelCost).coerceAtLeast(0.0)
+
+    /**
+     * Retorna a distância em km entre o piloto e o ponto de coleta usando a fórmula de Haversine.
+     */
+    fun distanceFromPilotKm(pilotLat: Double = -23.561684, pilotLng: Double = -46.655981): Double {
+        val r = 6371.0
+        val dLat = Math.toRadians(pickupLat - pilotLat)
+        val dLon = Math.toRadians(pickupLng - pilotLng)
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(pilotLat)) * Math.cos(Math.toRadians(pickupLat)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        return Math.round(r * c * 100.0) / 100.0
+    }
 }
 
 /**
