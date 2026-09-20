@@ -57,6 +57,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -102,21 +103,25 @@ fun OfferListScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val locationManager = remember { LocationManager.getInstance(context) }
+    val gpsLocation by locationManager.currentLocation.collectAsState()
+
     var offers by remember { mutableStateOf(initialOffers) }
-    var minPriceFilter by remember { mutableFloatStateOf(0f) }
-    var maxRadiusKm by remember { mutableFloatStateOf(6.0f) }
-    var isGeoRadiusEnabled by remember { mutableStateOf(true) }
+    val savedCriteria = remember { FilterPreferencesManager.loadCriteria(context) }
+    var minPriceFilter by remember { mutableFloatStateOf(savedCriteria.minValue.toFloat()) }
+    var maxRadiusKm by remember { mutableFloatStateOf(savedCriteria.maxDistanceKm.toFloat()) }
+    var isGeoRadiusEnabled by remember { mutableStateOf(savedCriteria.isGeoRadiusFilterActive) }
     var selectedHotspot by remember { mutableStateOf("Todos") }
 
-    val driverLat = -23.561684
-    val driverLng = -46.655981
+    val driverLat = gpsLocation.latitude
+    val driverLng = gpsLocation.longitude
 
     // Estados para controle do SpeechRecognizer
     var isListening by remember { mutableStateOf(false) }
     var lastVoiceCommand by remember { mutableStateOf<String?>(null) }
     var voiceStatusFeedback by remember { mutableStateOf("Toque no microfone para comandos de voz ('Aceitar' ou 'Recusar')") }
 
-    val filteredOffers by remember(offers, minPriceFilter, maxRadiusKm, isGeoRadiusEnabled, selectedHotspot) {
+    val filteredOffers by remember(offers, minPriceFilter, maxRadiusKm, isGeoRadiusEnabled, selectedHotspot, driverLat, driverLng) {
         derivedStateOf {
             offers.filter { offer ->
                 val passesValue = offer.valor >= minPriceFilter
@@ -128,8 +133,6 @@ fun OfferListScreen(
         }
     }
 
-    val quickFilterValues = listOf(0f, 15f, 20f, 25f, 30f)
-    val quickRadiusValues = listOf(2.0f, 4.0f, 6.0f, 10.0f, 15.0f)
     val hotspotsList = listOf("Todos", "Paulista", "Jardins", "Pinheiros", "Faria Lima", "Moema")
 
     // Inicialização do SpeechRecognizer nativo do Android
@@ -242,10 +245,24 @@ fun OfferListScreen(
         }
     }
 
-    // Libera o SpeechRecognizer ao sair da tela
+    // Libera o SpeechRecognizer e LocationManager ao sair da tela
     DisposableEffect(Unit) {
+        val hasFineLocation = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasCoarseLocation = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasFineLocation || hasCoarseLocation) {
+            locationManager.startRealtimeLocationUpdates()
+        }
+
         onDispose {
             speechRecognizer?.destroy()
+            locationManager.stopLocationUpdates()
         }
     }
 
@@ -387,7 +404,42 @@ fun OfferListScreen(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Painel Integrado de Filtros: Valor Mínimo e Geolocalização
+        // PAINEL DE CONFIGURAÇÕES DE PREFERÊNCIAS DE OFERTAS (SETTINGS PANEL)
+        DeliveryOfferSettingsPanel(
+            currentMinValue = minPriceFilter.toDouble(),
+            currentMaxRadiusKm = maxRadiusKm.toDouble(),
+            onMinValueChange = { minPriceFilter = it.toFloat() },
+            onMaxRadiusKmChange = { 
+                maxRadiusKm = it.toFloat()
+                isGeoRadiusEnabled = true
+            },
+            isRadiusLimitEnabled = isGeoRadiusEnabled,
+            onToggleRadiusLimit = { isGeoRadiusEnabled = it },
+            matchingOffersCount = filteredOffers.size,
+            totalOffersCount = offers.size,
+            onSavePreferences = {
+                val currentCriteria = FilterPreferencesManager.loadCriteria(context)
+                val updated = currentCriteria.copy(
+                    minValue = minPriceFilter.toDouble(),
+                    maxDistanceKm = maxRadiusKm.toDouble(),
+                    maxPickupRadiusKm = maxRadiusKm.toDouble(),
+                    isGeoRadiusFilterActive = isGeoRadiusEnabled
+                )
+                FilterPreferencesManager.saveCriteria(context, updated)
+            },
+            onResetDefaults = {
+                minPriceFilter = 0f
+                maxRadiusKm = 6.0f
+                isGeoRadiusEnabled = true
+                selectedHotspot = "Todos"
+            },
+            isCollapsible = true,
+            initiallyExpanded = true
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Card Complementar: Status GPS em Tempo Real & Filtro de Polo Gastronômico
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -396,171 +448,37 @@ fun OfferListScreen(
                 .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
                 .padding(12.dp)
         ) {
-            // SEÇÃO 1: PISO DE VALOR MÍNIMO
+
+            // Indicador de Status do GPS em tempo real
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color.Black.copy(alpha = 0.35f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.FilterList,
-                        contentDescription = null,
-                        tint = NeonGreen,
-                        modifier = Modifier.size(16.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(if (gpsLocation.accuracy <= 50f) NeonGreen else CyberCyan)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Valor Mínimo (R$):",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        text = "GPS Ativo: ${String.format(Locale.US, "%.4f, %.4f", driverLat, driverLng)}",
+                        color = TextMuted,
+                        fontSize = 10.sp
                     )
                 }
-
                 Text(
-                    text = if (minPriceFilter == 0f) "Todos os valores" else "≥ R$ ${String.format(Locale.GERMANY, "%.2f", minPriceFilter.toDouble())}",
-                    color = if (minPriceFilter > 0f) NeonGreen else TextMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Black
+                    text = "±${gpsLocation.accuracy.toInt()}m",
+                    color = CyberCyan,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
                 )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Slider(
-                value = minPriceFilter,
-                onValueChange = { minPriceFilter = it },
-                valueRange = 0f..40f,
-                steps = 7,
-                colors = SliderDefaults.colors(
-                    thumbColor = NeonGreen,
-                    activeTrackColor = NeonGreen,
-                    inactiveTrackColor = Color.DarkGray
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("slider_min_price_filter")
-            )
-
-            // Chips Rápidos de Valor
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                quickFilterValues.forEach { filterVal ->
-                    val isSelected = (minPriceFilter == filterVal)
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { minPriceFilter = filterVal },
-                        label = {
-                            Text(
-                                text = if (filterVal == 0f) "Todos" else "≥ R$ ${filterVal.toInt()}",
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = DarkBackground,
-                            labelColor = TextMuted,
-                            selectedContainerColor = NeonGreen.copy(alpha = 0.2f),
-                            selectedLabelColor = NeonGreen
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSelected,
-                            borderColor = if (isSelected) NeonGreen else Color.White.copy(alpha = 0.1f)
-                        ),
-                        modifier = Modifier.testTag("chip_filter_${filterVal.toInt()}")
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // SEÇÃO 2: GEOLOCALIZAÇÃO & RAIO MÁXIMO DE COLETA (GPS)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "📍", fontSize = 14.sp)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Raio de Coleta (GPS):",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Text(
-                    text = if (isGeoRadiusEnabled) "≤ ${String.format(Locale.GERMANY, "%.1f", maxRadiusKm)} km" else "Sem limite",
-                    color = if (isGeoRadiusEnabled) CyberCyan else TextMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Slider(
-                value = maxRadiusKm,
-                onValueChange = {
-                    maxRadiusKm = it
-                    isGeoRadiusEnabled = true
-                },
-                valueRange = 1f..15f,
-                steps = 13,
-                colors = SliderDefaults.colors(
-                    thumbColor = CyberCyan,
-                    activeTrackColor = CyberCyan,
-                    inactiveTrackColor = Color.DarkGray
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("slider_geo_radius_filter")
-            )
-
-            // Chips Rápidos de Raio Geográfico
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                quickRadiusValues.forEach { radiusVal ->
-                    val isSelected = isGeoRadiusEnabled && (maxRadiusKm == radiusVal)
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            maxRadiusKm = radiusVal
-                            isGeoRadiusEnabled = true
-                        },
-                        label = {
-                            Text(
-                                text = "≤ ${radiusVal.toInt()} km",
-                                fontSize = 11.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            containerColor = DarkBackground,
-                            labelColor = TextMuted,
-                            selectedContainerColor = CyberCyan.copy(alpha = 0.2f),
-                            selectedLabelColor = CyberCyan
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSelected,
-                            borderColor = if (isSelected) CyberCyan else Color.White.copy(alpha = 0.1f)
-                        ),
-                        modifier = Modifier.testTag("chip_radius_${radiusVal.toInt()}")
-                    )
-                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -650,8 +568,10 @@ fun OfferListScreen(
                     items = filteredOffers,
                     key = { it.id }
                 ) { offer ->
+                    val dynamicDistance = offer.distanceTo(driverLat, driverLng)
+                    val displayOffer = offer.copy(distancia = dynamicDistance)
                     DeliveryOfferCard(
-                        offer = offer,
+                        offer = displayOffer,
                         onAccept = { accepted ->
                             onAcceptOffer(accepted)
                             offers = offers.filter { it.id != accepted.id }
