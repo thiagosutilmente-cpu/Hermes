@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -35,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -160,7 +162,7 @@ fun VoiceCommandLiveBanner(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = if (isSpeaking) "JARVIS FALANDO (TEXT-TO-SPEECH)" else "COMANDOS DE VOZ (SPEECH-TO-TEXT)",
+                                text = if (isSpeaking) "JARVIS FALANDO (TEXT-TO-SPEECH)" else "GOOGLE SPEECH-TO-TEXT (MÃOS NO GUIDÃO)",
                                 color = when {
                                     isSpeaking -> NeonBlue
                                     voiceState.isListening -> NeonGreen
@@ -170,11 +172,25 @@ fun VoiceCommandLiveBanner(
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 0.6.sp
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(if (voiceState.isListening) NeonGreen.copy(alpha = 0.2f) else DarkBg)
+                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                            ) {
+                                Text(
+                                    text = voiceState.engineName.uppercase(),
+                                    color = if (voiceState.isListening) NeonGreen else TextMuted,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                         Text(
                             text = when {
                                 isSpeaking -> "Anunciando no capacete/fone Bluetooth..."
-                                voiceState.isListening -> "Ouvindo capacete • Diga 'Aceitar', 'Cancelar', 'Ler oferta' ou 'Saldo'"
+                                voiceState.isListening -> "Ouvindo capacete • Fale 'Aceitar' ou 'Recusar' sem soltar o guidão"
                                 !voiceState.isPermissionGranted -> "Permissão de microfone necessária • Toque para autorizar"
                                 else -> "Reconhecimento pausado • Toque no microfone para ativar"
                             },
@@ -248,6 +264,49 @@ fun VoiceCommandLiveBanner(
                             )
                         }
                         Spacer(modifier = Modifier.height(6.dp))
+                    }
+
+                    if (voiceState.isListening) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "MICROFONE (CAPACETE):",
+                                color = TextMuted,
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(DarkBg)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(voiceState.audioLevelFraction.coerceAtLeast(0.06f))
+                                        .clip(RoundedCornerShape(3.dp))
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(NeonGreen.copy(alpha = 0.5f), NeonGreen, NeonBlue)
+                                            )
+                                        )
+                                )
+                            }
+                            Text(
+                                text = "${(voiceState.audioLevelFraction * 100).toInt()}%",
+                                color = if (voiceState.audioLevelFraction > 0.15f) NeonGreen else TextMuted,
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
                     }
 
                     // Chips táteis com os comandos por voz suportados

@@ -55,6 +55,9 @@ object HapticFeedbackHelper {
         }
     }
 
+    fun vibrateSuccess(context: Context) = vibrateAccept(context)
+    fun vibrateWarning(context: Context) = vibrateDecline(context)
+
     /**
      * Feedback Háptico de Recusa (Oferta Recusada ou Descartada).
      * Assinatura física: Pulso curto único e seco (80ms).
@@ -120,6 +123,29 @@ object HapticFeedbackHelper {
             }
         } catch (e: Exception) {
             Log.d("HapticFeedback", "Falha vibrateTap: ${e.message}")
+        }
+    }
+
+    /**
+     * Feedback Háptico Tático para Notificação de Oferta de Alta Prioridade em Segundo Plano.
+     * Assinatura física: 3 pulsos ritmados fortes (atenção imediata para nova corrida lucrativa).
+     */
+    fun vibrateHighPriorityOffer(context: Context) {
+        val vibrator = getVibrator(context) ?: return
+        if (!vibrator.hasVibrator()) return
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val timings = longArrayOf(0, 150, 100, 150, 100, 250)
+                val amplitudes = intArrayOf(0, 255, 0, 255, 0, 255)
+                val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+                vibrator.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(longArrayOf(0, 150, 100, 150, 100, 250), -1)
+            }
+        } catch (e: Exception) {
+            Log.d("HapticFeedback", "Falha vibrateHighPriorityOffer: ${e.message}")
         }
     }
 }

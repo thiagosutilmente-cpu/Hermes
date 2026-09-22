@@ -42,6 +42,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -100,6 +101,7 @@ fun OfferListScreen(
     initialOffers: List<DeliveryOffer> = getSampleDeliveryOffers(),
     onAcceptOffer: (DeliveryOffer) -> Unit = {},
     onDeclineOffer: (DeliveryOffer) -> Unit = {},
+    onNavigateBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -116,10 +118,14 @@ fun OfferListScreen(
     val driverLat = gpsLocation.latitude
     val driverLng = gpsLocation.longitude
 
-    // Estados para controle do SpeechRecognizer
-    var isListening by remember { mutableStateOf(false) }
+    // Estados e controle de voz mãos-livres (Google Speech-to-Text)
     var lastVoiceCommand by remember { mutableStateOf<String?>(null) }
-    var voiceStatusFeedback by remember { mutableStateOf("Toque no microfone para comandos de voz ('Aceitar' ou 'Recusar')") }
+    var hasMicPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    var speechManager: HandsFreeSpeechManager? by remember { mutableStateOf(null) }
 
     val filteredOffers by remember(offers, minPriceFilter, maxRadiusKm, isGeoRadiusEnabled, selectedHotspot, driverLat, driverLng) {
         derivedStateOf {
@@ -135,118 +141,139 @@ fun OfferListScreen(
 
     val hotspotsList = listOf("Todos", "Paulista", "Jardins", "Pinheiros", "Faria Lima", "Moema")
 
-    // Inicialização do SpeechRecognizer nativo do Android
-    val speechRecognizer = remember {
-        if (SpeechRecognizer.isRecognitionAvailable(context)) {
-            SpeechRecognizer.createSpeechRecognizer(context)
-        } else null
+    // Motor de Voz Neural para feedback por áudio no capacete (Text-to-Speech)
+    var isTtsSpeaking by remember { mutableStateOf(false) }
+    val neuralVoice = remember {
+        NeuralVoiceManager(context).apply {
+            onSpeechStarted = {
+                isTtsSpeaking = true
+                speechManager?.pauseTemporarilyForTts()
+            }
+            onSpeechFinished = {
+                isTtsSpeaking = false
+                speechManager?.resumeAfterTts()
+            }
+        }
     }
 
-    // Processa os comandos de voz reconhecidos
-    fun processVoiceCommand(command: String) {
-        val cleanCommand = command.trim().lowercase(Locale.ROOT)
-        lastVoiceCommand = command
-
+    fun handleAcceptTopOffer() {
         val targetOffer = filteredOffers.firstOrNull()
-
-        if (targetOffer == null) {
-            voiceStatusFeedback = "Comando '$command' recebido, mas não há ofertas ativas."
-            Toast.makeText(context, voiceStatusFeedback, Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        when {
-            cleanCommand.contains("aceit") || cleanCommand.contains("sim") || cleanCommand.contains("pegar") || cleanCommand.contains("ok") -> {
-                onAcceptOffer(targetOffer)
-                offers = offers.filter { it.id != targetOffer.id }
-                voiceStatusFeedback = "✅ Oferta de ${targetOffer.nomeRestaurante} ACEITA por voz!"
-                Toast.makeText(context, voiceStatusFeedback, Toast.LENGTH_SHORT).show()
-            }
-            cleanCommand.contains("recus") || cleanCommand.contains("rejeit") || cleanCommand.contains("não") || cleanCommand.contains("nao") || cleanCommand.contains("passar") -> {
-                onDeclineOffer(targetOffer)
-                offers = offers.filter { it.id != targetOffer.id }
-                voiceStatusFeedback = "❌ Oferta de ${targetOffer.nomeRestaurante} RECUSADA por voz!"
-                Toast.makeText(context, voiceStatusFeedback, Toast.LENGTH_SHORT).show()
-            }
-            else -> {
-                voiceStatusFeedback = "Comando '$command' não reconhecido. Diga 'Aceitar' ou 'Recusar'."
-                Toast.makeText(context, voiceStatusFeedback, Toast.LENGTH_SHORT).show()
-            }
+        if (targetOffer != null) {
+            onAcceptOffer(targetOffer)
+            offers = offers.filter { it.id != targetOffer.id }
+            HapticFeedbackHelper.vibrateAccept(context)
+            neuralVoice.announceAccept(targetOffer.nomeRestaurante, targetOffer.valor)
+            Toast.makeText(context, "✅ Aceito por voz: ${targetOffer.nomeRestaurante} (R$ ${String.format(Locale.GERMANY, "%.2f", targetOffer.valor)})", Toast.LENGTH_SHORT).show()
+        } else {
+            neuralVoice.speak("Nenhuma oferta ativa no radar para aceitar.")
+            Toast.makeText(context, "Nenhuma oferta no radar para aceitar", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // Inicia a escuta contínua / pontual do microfone
-    fun startListening() {
-        if (speechRecognizer == null) {
-            Toast.makeText(context, "Reconhecimento de voz não suportado neste dispositivo", Toast.LENGTH_SHORT).show()
-            return
+    fun handleDeclineTopOffer() {
+        val targetOffer = filteredOffers.firstOrNull()
+        if (targetOffer != null) {
+            onDeclineOffer(targetOffer)
+            offers = offers.filter { it.id != targetOffer.id }
+            HapticFeedbackHelper.vibrateDecline(context)
+            neuralVoice.announceDecline()
+            Toast.makeText(context, "❌ Recusado por voz: ${targetOffer.nomeRestaurante}", Toast.LENGTH_SHORT).show()
+        } else {
+            neuralVoice.speak("Nenhuma oferta ativa para recusar.")
+            Toast.makeText(context, "Nenhuma oferta no radar para recusar", Toast.LENGTH_SHORT).show()
         }
-
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "pt-BR")
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Diga 'Aceitar' ou 'Recusar'")
-        }
-
-        speechRecognizer.setRecognitionListener(object : RecognitionListener {
-            override fun onReadyForSpeech(params: Bundle?) {
-                isListening = true
-                voiceStatusFeedback = "🎙️ Ouvindo... Diga 'Aceitar' ou 'Recusar'"
-            }
-
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
-            override fun onBufferReceived(buffer: ByteArray?) {}
-            override fun onEndOfSpeech() {
-                isListening = false
-            }
-
-            override fun onError(error: Int) {
-                isListening = false
-                val errorMsg = when (error) {
-                    SpeechRecognizer.ERROR_NO_MATCH -> "Nenhum comando detectado. Tente novamente."
-                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Tempo esgotado. Fale após clicar no microfone."
-                    SpeechRecognizer.ERROR_AUDIO -> "Erro no microfone."
-                    else -> "Erro no reconhecimento ($error)."
-                }
-                voiceStatusFeedback = errorMsg
-            }
-
-            override fun onResults(results: Bundle?) {
-                isListening = false
-                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                val recognizedText = matches?.firstOrNull()
-                if (!recognizedText.isNullOrBlank()) {
-                    processVoiceCommand(recognizedText)
-                }
-            }
-
-            override fun onPartialResults(partialResults: Bundle?) {}
-            override fun onEvent(eventType: Int, params: Bundle?) {}
-        })
-
-        speechRecognizer.startListening(intent)
-    }
-
-    fun stopListening() {
-        speechRecognizer?.stopListening()
-        isListening = false
     }
 
     // Lançador de permissão do microfone
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
+        hasMicPermission = isGranted
         if (isGranted) {
-            startListening()
+            speechManager?.startListening()
+            neuralVoice.speak("Comandos viva-voz ativados. Diga aceitar ou recusar sem soltar o guidão.")
+            Toast.makeText(context, "Google Speech-to-Text ativado! Diga 'Aceitar' ou 'Recusar'", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(context, "Permissão de áudio necessária para comandos de voz", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Permissão de microfone necessária para comandos por voz", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // Libera o SpeechRecognizer e LocationManager ao sair da tela
-    DisposableEffect(Unit) {
+    // Inicialização do HandsFreeSpeechManager com API Google Speech-to-Text e LocationManager
+    DisposableEffect(context) {
+        val manager = HandsFreeSpeechManager(context) { command, spokenText ->
+            lastVoiceCommand = spokenText
+            HapticFeedbackHelper.vibrateVoiceCommandRecognized(context)
+            when (command) {
+                VoiceActionCommand.ACCEPT,
+                VoiceActionCommand.ACCEPT_IFOOD,
+                VoiceActionCommand.ACCEPT_RAPPI,
+                VoiceActionCommand.ACCEPT_UBER,
+                VoiceActionCommand.ACCEPT_99 -> {
+                    handleAcceptTopOffer()
+                }
+                VoiceActionCommand.DECLINE,
+                VoiceActionCommand.DECLINE_IFOOD,
+                VoiceActionCommand.DECLINE_RAPPI,
+                VoiceActionCommand.DECLINE_UBER,
+                VoiceActionCommand.DECLINE_99 -> {
+                    handleDeclineTopOffer()
+                }
+                VoiceActionCommand.READ_OFFER -> {
+                    val target = filteredOffers.firstOrNull()
+                    if (target != null) {
+                        neuralVoice.announceDrivingHandsFreeOffer(
+                            appName = target.appOrigem,
+                            restaurant = target.nomeRestaurante,
+                            value = target.valor,
+                            distanceKm = target.distanceTo(driverLat, driverLng),
+                            gainPerKm = target.ganhoPorKm
+                        )
+                    } else {
+                        neuralVoice.speak("Nenhuma oferta disponível nos filtros atuais.")
+                    }
+                }
+                VoiceActionCommand.FILTER_RAIN_PRESET -> {
+                    minPriceFilter = 25f
+                    maxRadiusKm = 4.0f
+                    isGeoRadiusEnabled = true
+                    neuralVoice.speak("Filtro de Chuva ativado. Piso mínimo de 25 reais e raio de 4 quilômetros.")
+                }
+                VoiceActionCommand.FILTER_SHORT_PRESET -> {
+                    maxRadiusKm = 3.0f
+                    isGeoRadiusEnabled = true
+                    neuralVoice.speak("Filtro de Corridas Curtas ativado. Raio máximo de 3 quilômetros.")
+                }
+                VoiceActionCommand.FILTER_MIN_15 -> {
+                    minPriceFilter = 15f
+                    neuralVoice.speak("Piso mínimo alterado para 15 reais.")
+                }
+                VoiceActionCommand.FILTER_MIN_20 -> {
+                    minPriceFilter = 20f
+                    neuralVoice.speak("Piso mínimo alterado para 20 reais.")
+                }
+                VoiceActionCommand.FILTER_MIN_30 -> {
+                    minPriceFilter = 30f
+                    neuralVoice.speak("Piso mínimo alterado para 30 reais.")
+                }
+                VoiceActionCommand.FILTER_RESET -> {
+                    minPriceFilter = 0f
+                    maxRadiusKm = 6.0f
+                    isGeoRadiusEnabled = true
+                    selectedHotspot = "Todos"
+                    neuralVoice.speak("Filtros redefinidos para o padrão.")
+                }
+                VoiceActionCommand.HELP -> {
+                    neuralVoice.announceHelp()
+                }
+                VoiceActionCommand.CLOSE_SCREEN -> {
+                    neuralVoice.speak("Voltando ao cockpit.")
+                    onNavigateBack?.invoke()
+                }
+                else -> {}
+            }
+        }
+        speechManager = manager
+
         val hasFineLocation = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.ACCESS_FINE_LOCATION
@@ -260,11 +287,26 @@ fun OfferListScreen(
             locationManager.startRealtimeLocationUpdates()
         }
 
+        if (hasMicPermission) {
+            manager.startListening()
+        }
+
         onDispose {
-            speechRecognizer?.destroy()
+            manager.destroy()
             locationManager.stopLocationUpdates()
+            neuralVoice.shutdown()
         }
     }
+
+    val rawVoiceState = speechManager?.state?.collectAsState()?.value
+        ?: VoiceCommandState(isPermissionGranted = hasMicPermission)
+    val currentVoiceState = remember(rawVoiceState, hasMicPermission) {
+        rawVoiceState.copy(isPermissionGranted = hasMicPermission)
+    }
+
+    // Telemetria do Sensor de Velocidade Fused Location do LocationService
+    val locationSpeedState by LocationService.globalLocationState.collectAsState()
+    val isSpeedLocked = locationSpeedState.isSafetyLockActive || locationSpeedState.currentSpeedKmh > 10.0
 
     // Animação de pulso para quando o microfone estiver ouvindo
     val infiniteTransition = rememberInfiniteTransition(label = "mic_pulse")
@@ -278,13 +320,14 @@ fun OfferListScreen(
         label = "mic_pulse_scale"
     )
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(DarkBackground)
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp)
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(DarkBackground)
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp)
+        ) {
         // Cabeçalho da Tela com Botões de Voz e Atualização
         Row(
             modifier = Modifier
@@ -293,6 +336,24 @@ fun OfferListScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (onNavigateBack != null) {
+                IconButton(
+                    onClick = onNavigateBack,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(CardSurface)
+                        .testTag("btn_back_to_dashboard")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Voltar ao Cockpit",
+                        tint = Color.White
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+            }
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "RADAR DE OFERTAS",
@@ -313,16 +374,11 @@ fun OfferListScreen(
                 // Botão de Reconhecimento de Voz
                 IconButton(
                     onClick = {
-                        if (isListening) {
-                            stopListening()
+                        if (currentVoiceState.isListening) {
+                            speechManager?.stopListening()
                         } else {
-                            val hasPermission = ContextCompat.checkSelfPermission(
-                                context,
-                                Manifest.permission.RECORD_AUDIO
-                            ) == PackageManager.PERMISSION_GRANTED
-
-                            if (hasPermission) {
-                                startListening()
+                            if (hasMicPermission) {
+                                speechManager?.startListening()
                             } else {
                                 permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                             }
@@ -330,20 +386,20 @@ fun OfferListScreen(
                     },
                     modifier = Modifier
                         .size(40.dp)
-                        .scale(if (isListening) pulseScale else 1.0f)
+                        .scale(if (currentVoiceState.isListening) pulseScale else 1.0f)
                         .clip(CircleShape)
-                        .background(if (isListening) NeonGreen else CardSurface)
+                        .background(if (currentVoiceState.isListening) NeonGreen else CardSurface)
                         .border(
                             1.dp,
-                            if (isListening) NeonGreen else Color.White.copy(alpha = 0.1f),
+                            if (currentVoiceState.isListening) NeonGreen else Color.White.copy(alpha = 0.1f),
                             CircleShape
                         )
                         .testTag("btn_voice_recognition")
                 ) {
                     Icon(
-                        imageVector = if (isListening) Icons.Default.Mic else Icons.Default.MicOff,
-                        contentDescription = if (isListening) "Ouvindo comandos de voz" else "Ativar comandos de voz",
-                        tint = if (isListening) DarkBackground else if (speechRecognizer != null) CyberCyan else TextMuted
+                        imageVector = if (currentVoiceState.isListening) Icons.Default.Mic else Icons.Default.MicOff,
+                        contentDescription = if (currentVoiceState.isListening) "Ouvindo comandos de voz" else "Ativar comandos de voz",
+                        tint = if (currentVoiceState.isListening) DarkBackground else CyberCyan
                     )
                 }
 
@@ -370,37 +426,24 @@ fun OfferListScreen(
             }
         }
 
-        // Barra de Status do Reconhecimento de Voz
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .background(if (isListening) NeonGreen.copy(alpha = 0.12f) else CardSurface)
-                .border(
-                    width = 0.5.dp,
-                    color = if (isListening) NeonGreen else Color.White.copy(alpha = 0.08f),
-                    shape = RoundedCornerShape(10.dp)
-                )
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = if (isListening) "🎙️" else "🤖",
-                    fontSize = 14.sp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = voiceStatusFeedback,
-                    color = if (isListening) NeonGreen else TextMuted,
-                    fontSize = 11.sp,
-                    fontWeight = if (isListening) FontWeight.Bold else FontWeight.Medium,
-                    maxLines = 2
-                )
+        // Banner Viva-Voz do Google Speech-to-Text (Mãos no Guidão)
+        VoiceCommandLiveBanner(
+            voiceState = currentVoiceState,
+            isSpeaking = isTtsSpeaking,
+            onToggleListening = {
+                if (currentVoiceState.isListening) {
+                    speechManager?.stopListening()
+                } else {
+                    speechManager?.startListening()
+                }
+            },
+            onRequestMicPermission = {
+                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            },
+            onSimulateCommand = { simulatedText ->
+                speechManager?.simulateVoiceCommand(simulatedText)
             }
-        }
+        )
 
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -584,6 +627,23 @@ fun OfferListScreen(
                 }
             }
         }
+
+        // Bloqueio Integral da Interface do OfferListScreen por Velocidade (> 10 km/h)
+        SpeedSafetyLockOverlay(
+            isLocked = isSpeedLocked,
+            currentSpeedKmh = locationSpeedState.currentSpeedKmh,
+            speedThresholdKmh = 10.0,
+            isListeningVoice = currentVoiceState.isListening,
+            lastVoiceCommand = currentVoiceState.lastRecognizedText,
+            rmsDb = currentVoiceState.rmsDb,
+            pendingOffer = filteredOffers.firstOrNull(),
+            onSimulateVoiceCommand = { speechManager?.simulateVoiceCommand(it) },
+            onSetSimulatedSpeed = { speed ->
+                LocationService.updateSimulatedSpeed(speed, context)
+            },
+            onAcceptCurrentOffer = { handleAcceptTopOffer() },
+            onDeclineCurrentOffer = { handleDeclineTopOffer() }
+        )
     }
 }
 

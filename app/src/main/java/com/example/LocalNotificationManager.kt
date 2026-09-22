@@ -4,28 +4,43 @@ import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.media.AudioAttributes
+import android.net.Uri
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 /**
- * Gerenciador de Notificações Locais do Radar Coordinator.
- * Responsável por emitir notificações pop-up (Heads-Up) de alta prioridade quando
- * o aplicativo estiver em segundo plano e uma oferta vantajosa (ganho/km elevado)
- * for interceptada pelo radar.
+ * Gerenciador de Notificações Push de Alta Prioridade do Radar Coordinator.
+ * Emite notificações Heads-Up flutuantes com sons personalizados em segundo plano
+ * quando uma nova oferta altamente lucrativa for interceptada.
  */
 class LocalNotificationManager(private val context: Context) {
 
     companion object {
-        const val CHANNEL_ID = "radar_high_priority_offers"
+        const val PREFS_NAME = "radar_notification_prefs"
+        const val KEY_SOUND_SELECTION = "key_notification_sound_selection"
+
+        // Canais v3 com sons personalizados incorporados
+        const val CHANNEL_ID_HIGH_PRIORITY = "radar_offers_high_priority_v3"
+        const val CHANNEL_ID_URGENT = "radar_offers_urgent_v3"
+
+        // Compatibilidade legada
+        const val CHANNEL_ID = CHANNEL_ID_HIGH_PRIORITY
         const val CHANNEL_NAME = "Ofertas de Alta Prioridade"
-        const val CHANNEL_DESC = "Alertas imediatos de pedidos com alta rentabilidade (R$/km)"
+        const val CHANNEL_DESC = "Alertas sonoros imediatos de pedidos com alta rentabilidade (R$/km)"
 
         const val EXTRA_ACTION = "com.example.EXTRA_NOTIFICATION_ACTION"
         const val ACTION_ACCEPT = "ACTION_ACCEPT_OFFER"
@@ -41,36 +56,56 @@ class LocalNotificationManager(private val context: Context) {
         const val NOTIFICATION_ID_BASE = 7000
 
         /**
-         * Flag ativada automaticamente pelo LocationService quando a velocidade excede 15 km/h.
-         * Suprime notificações visuais e sonoras intrusivas durante a pilotagem.
+         * Flag global de silenciamento por velocidade (> 10 km/h).
          */
         @Volatile
         var isSpeedMuteActive: Boolean = false
 
         /**
-         * Cancela todas as notificações de ofertas pendentes quando o piloto acelera acima de 15 km/h.
+         * Cancela todas as notificações de ofertas pendentes quando o piloto acelera acima de 10 km/h.
          */
         fun cancelAllActiveOfferNotifications(context: Context) {
             try {
                 val manager = NotificationManagerCompat.from(context)
                 manager.cancelAll()
-                android.util.Log.d("LocalNotificationManager", "Notificações ativas canceladas por segurança (> 15 km/h).")
+                Log.d("LocalNotificationManager", "Notificações ativas canceladas por segurança (> 10 km/h).")
             } catch (e: Exception) {
-                android.util.Log.e("LocalNotificationManager", "Erro ao cancelar notificações: ${e.message}")
+                Log.e("LocalNotificationManager", "Erro ao cancelar notificações: ${e.message}")
             }
+        }
+
+        fun getSelectedSoundType(context: Context): NotificationSoundType {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val id = prefs.getString(KEY_SOUND_SELECTION, NotificationSoundType.RADAR_CHIME.id)
+            return NotificationSoundType.fromId(id)
+        }
+
+        fun setSelectedSoundType(context: Context, type: NotificationSoundType) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs.edit().putString(KEY_SOUND_SELECTION, type.id).apply()
         }
     }
 
     private val notificationManager = NotificationManagerCompat.from(context)
+    private val scope = CoroutineScope(Dispatchers.Default)
 
     init {
-        createNotificationChannel()
+        createNotificationChannels()
     }
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
+            val soundOfferUri = Uri.parse("${ContentResolver.SCHEME_ANDROID_RESOURCE}://${context.packageName}/${R.raw.radar_offer_alert}")
+            val soundUrgentUri = Uri.parse("${ContentResolver.SCHEME_ANDROID_RESOURCE}://${context.packageName}/${R.raw.radar_urgent_alert}")
+
+            val audioAttributes = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_REQUEST)
+                .build()
+
+            // Canal 1: Alta Prioridade Padrão (Chime Harmônico E5-E6)
+            val highPriorityChannel = NotificationChannel(
+                CHANNEL_ID_HIGH_PRIORITY,
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
@@ -78,13 +113,31 @@ class LocalNotificationManager(private val context: Context) {
                 enableLights(true)
                 lightColor = Color.parseColor("#00FF88") // Verde Neon Jarvis
                 enableVibration(true)
-                vibrationPattern = longArrayOf(0, 250, 150, 250) // Pulso duplo tático
+                vibrationPattern = longArrayOf(0, 150, 100, 150, 100, 250)
+                setSound(soundOfferUri, audioAttributes)
+                setShowBadge(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+
+            // Canal 2: Ofertas Ultra Lucrativas / Sprint (Sonar Duplo C6-G6)
+            val urgentChannel = NotificationChannel(
+                CHANNEL_ID_URGENT,
+                "Ofertas Ultra Lucrativas (Radar Urgente)",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Alertas com sonar de alta frequência para corridas de rentabilidade extrema (> R$ 4,00/km)"
+                enableLights(true)
+                lightColor = Color.parseColor("#FF9900") // Âmbar Dourado
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 250, 80, 250, 80, 350)
+                setSound(soundUrgentUri, audioAttributes)
                 setShowBadge(true)
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
 
             val systemManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
-            systemManager?.createNotificationChannel(channel)
+            systemManager?.createNotificationChannel(highPriorityChannel)
+            systemManager?.createNotificationChannel(urgentChannel)
         }
     }
 
@@ -103,9 +156,9 @@ class LocalNotificationManager(private val context: Context) {
     }
 
     /**
-     * Emite uma notificação Heads-Up flutuante de alta prioridade para o entregador.
-     * Se a velocidade calculada pelo LocationService exceder 15 km/h, as notificações são silenciadas/bloqueadas
-     * para garantir a segurança no trânsito (Zero Distração ao Piloto).
+     * Emite uma notificação Heads-Up flutuante de alta prioridade com som personalizado.
+     * Se a velocidade calculada pelo LocationService exceder 10 km/h, as notificações são suprimidas
+     * para segurança do piloto.
      */
     @SuppressLint("MissingPermission")
     fun showHighPriorityOfferNotification(
@@ -114,13 +167,13 @@ class LocalNotificationManager(private val context: Context) {
     ): Boolean {
         if (!hasNotificationPermission()) return false
 
-        // 0. TRAVA DE SEGURANÇA POR VELOCIDADE: Silencia notificações caso > 15 km/h
+        // 0. TRAVA DE SEGURANÇA POR VELOCIDADE: Silencia e suprime notificações se > 10 km/h
         val currentSpeed = LocationService.globalLocationState.value.currentSpeedKmh
         val isSafetyLock = LocationService.globalLocationState.value.isSafetyLockActive
-        if (isSpeedMuteActive || isSafetyLock || currentSpeed > 15.0) {
-            android.util.Log.d(
+        if (isSpeedMuteActive || isSafetyLock || currentSpeed > 10.0) {
+            Log.d(
                 "LocalNotificationManager",
-                "Notificação de oferta suprimida/silenciada por segurança em alta velocidade ($currentSpeed km/h > 15 km/h)."
+                "Notificação de oferta suprimida por segurança em alta velocidade ($currentSpeed km/h > 10 km/h)."
             )
             return false
         }
@@ -129,17 +182,21 @@ class LocalNotificationManager(private val context: Context) {
         if (filterCriteria != null) {
             val passes = NotificationFilterManager.evaluateAndRecord(offer, filterCriteria)
             if (!passes) {
-                android.util.Log.d(
+                Log.d(
                     "LocalNotificationManager",
-                    "Notificação filtrada e bloqueada automaticamente: R$ ${offer.gainPerKm}/km < piso R$ ${filterCriteria.notificationMinGainPerKm}/km."
+                    "Notificação bloqueada pelo filtro: R$ ${offer.gainPerKm}/km < piso R$ ${filterCriteria.notificationMinGainPerKm}/km."
                 )
                 return false
             }
         }
 
+        val isUrgent = offer.gainPerKm >= 4.0 || offer.value >= 32.0
+        val targetChannelId = if (isUrgent) CHANNEL_ID_URGENT else CHANNEL_ID_HIGH_PRIORITY
+        val customSoundRes = if (isUrgent) R.raw.radar_urgent_alert else R.raw.radar_offer_alert
+        val soundUri = Uri.parse("${ContentResolver.SCHEME_ANDROID_RESOURCE}://${context.packageName}/$customSoundRes")
+
         val formattedValue = String.format(Locale.GERMANY, "R$ %.2f", offer.value)
         val formattedPerKm = String.format(Locale.GERMANY, "R$ %.2f/km", offer.gainPerKm)
-
         val notificationId = NOTIFICATION_ID_BASE + (offer.id.hashCode() % 1000)
 
         // 1. Intent para abrir o Radar Coordinator ao tocar no corpo da notificação
@@ -201,21 +258,27 @@ class LocalNotificationManager(private val context: Context) {
             append("🧠 IA Jarvis: ${offer.neuralDecision.reason}")
         }.toString()
 
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+        val audioAttributes = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_REQUEST)
+            .build()
+
+        val builder = NotificationCompat.Builder(context, targetChannelId)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("🎯 ALTA PRIORIDADE: $formattedValue ($appIconBadge)")
             .setContentText("🍔 ${offer.restaurant} • 🛵 ${offer.distanceKm} km • $formattedPerKm")
             .setStyle(
                 NotificationCompat.BigTextStyle()
                     .bigText(bigText)
-                    .setSummaryText("Radar Neural Jarvis • 95% Lucrativo")
+                    .setSummaryText(if (isUrgent) "⚡ Radar Urgente: R$ ${String.format(Locale.GERMANY, "%.2f", offer.gainPerKm)}/km" else "Radar Neural Jarvis • Alta Margem")
             )
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setColor(Color.parseColor("#00FF88"))
+            .setColor(if (isUrgent) Color.parseColor("#FF9900") else Color.parseColor("#00FF88"))
             .setAutoCancel(true)
             .setOngoing(false)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setSound(soundUri, audioAttributes)
+            .setVibrate(if (isUrgent) longArrayOf(0, 250, 80, 250, 80, 350) else longArrayOf(0, 150, 100, 150, 100, 250))
             .setContentIntent(openPendingIntent)
             .addAction(
                 android.R.drawable.ic_input_add,
@@ -229,7 +292,46 @@ class LocalNotificationManager(private val context: Context) {
             )
 
         notificationManager.notify(notificationId, builder.build())
+
+        // Executa áudio e vibração tática imediatos para garantir audibilidade em segundo plano
+        CustomSoundPlayer.playOfferSound(context, isUrgent = isUrgent)
+        HapticFeedbackHelper.vibrateHighPriorityOffer(context)
+
         return true
+    }
+
+    /**
+     * Agenda uma notificação de alta prioridade com som para disparar após um delay em segundos.
+     * Útil para o piloto testar a notificação enquanto minimiza o app para o segundo plano.
+     */
+    fun scheduleDelayedBackgroundNotification(
+        delaySeconds: Int = 3,
+        customOffer: RadarOffer? = null,
+        filterCriteria: OfferFilterCriteria? = null,
+        onScheduled: () -> Unit = {}
+    ) {
+        val testOffer = customOffer ?: RadarOffer(
+            id = "test_bg_${System.currentTimeMillis()}",
+            appName = "iFood",
+            restaurant = "Outback Steakhouse Jardins",
+            value = 28.50,
+            distanceKm = 4.2,
+            timeMinutes = 14,
+            pickupAddress = "Av. Paulista, 1200",
+            destinationAddress = "R. Bela Cintra, 850",
+            neuralDecision = NeuralDecision(
+                decision = "ACEITAR_IMEDIATAMENTE",
+                reason = "Excelente rentabilidade de R$ 6.78/km em rota rápida",
+                confidence = 0.96
+            )
+        )
+
+        onScheduled()
+
+        scope.launch {
+            delay(delaySeconds * 1000L)
+            showHighPriorityOfferNotification(testOffer, filterCriteria)
+        }
     }
 
     /**

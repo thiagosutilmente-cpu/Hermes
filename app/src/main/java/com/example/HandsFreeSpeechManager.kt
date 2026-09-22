@@ -1,8 +1,10 @@
 package com.example
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
+import android.os.Build
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -19,15 +21,18 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 
 /**
- * Estado do reconhecedor de voz viva-voz
+ * Estado do reconhecedor de voz viva-voz com a API Google Speech-to-Text
  */
 data class VoiceCommandState(
     val isListening: Boolean = false,
     val rmsDb: Float = 0f,
+    val audioLevelFraction: Float = 0f,
     val lastRecognizedText: String = "",
     val detectedCommand: VoiceActionCommand? = null,
     val isPermissionGranted: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val isGoogleSpeechActive: Boolean = true,
+    val engineName: String = "Google Speech-to-Text"
 )
 
 enum class VoiceActionCommand {
@@ -65,7 +70,10 @@ enum class VoiceActionCommand {
     // Comandos de Auto-Aceite Inteligente por Voz
     AUTO_ACCEPT_ON,
     AUTO_ACCEPT_OFF,
-    AUTO_ACCEPT_TOGGLE
+    AUTO_ACCEPT_TOGGLE,
+    // Comandos de Navegação de Telas Hands-Free
+    OPEN_OFFERS_LIST,
+    CLOSE_SCREEN
 }
 
 /**
@@ -95,10 +103,12 @@ class HandsFreeSpeechManager(
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-            // Prioriza modelo offline no aparelho caso disponível para baixa latência em trânsito
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Diga 'Aceitar' ou 'Recusar'")
+            // Prioriza modelo offline no aparelho (Google Speech) para baixa latência em trânsito no guidão
             putExtra("android.speech.extra.PREFER_OFFLINE", true)
+            putExtra("android.speech.extra.DICTATION_MODE", true)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1500L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1200L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 800L)
         }
     }
@@ -113,55 +123,65 @@ class HandsFreeSpeechManager(
         }
 
         override fun onRmsChanged(rmsdB: Float) {
-            if (rmsdB > 0f) {
-                _state.value = _state.value.copy(rmsDb = rmsdB)
-            }
+            val level = if (rmsdB > -2f) {
+                ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
+            } else 0f
+            _state.value = _state.value.copy(
+                rmsDb = if (rmsdB > 0f) rmsdB else 0f,
+                audioLevelFraction = level
+            )
         }
 
         override fun onBufferReceived(buffer: ByteArray?) {}
 
         override fun onEndOfSpeech() {
-            _state.value = _state.value.copy(isListening = false, rmsDb = 0f)
+            _state.value = _state.value.copy(isListening = false, rmsDb = 0f, audioLevelFraction = 0f)
         }
 
         override fun onError(error: Int) {
-            _state.value = _state.value.copy(isListening = false, rmsDb = 0f)
+            _state.value = _state.value.copy(isListening = false, rmsDb = 0f, audioLevelFraction = 0f)
             Log.d("HandsFreeSpeech", "SpeechRecognizer error: $error")
             when (error) {
                 SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> {
                     try {
                         speechRecognizer?.cancel()
                     } catch (_: Exception) {}
-                    scheduleRestartListening(1000L)
+                    scheduleRestartListening(800L)
                 }
                 SpeechRecognizer.ERROR_CLIENT -> {
                     recreateRecognizer()
-                    scheduleRestartListening(1200L)
+                    scheduleRestartListening(1000L)
                 }
                 SpeechRecognizer.ERROR_NO_MATCH,
                 SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
-                    // Sem voz detectada no intervalo (situação comum em condução de moto)
-                    scheduleRestartListening(600L)
+                    // Sem voz detectada no intervalo (situação comum em condução de moto com barulho de trânsito)
+                    scheduleRestartListening(500L)
+                }
+                SpeechRecognizer.ERROR_NETWORK,
+                SpeechRecognizer.ERROR_NETWORK_TIMEOUT,
+                SpeechRecognizer.ERROR_SERVER -> {
+                    // Instabilidade de rede no trânsito: aguarda breve reconexão
+                    scheduleRestartListening(1200L)
                 }
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
                     _state.value = _state.value.copy(
-                        errorMessage = "Permissão de microfone necessária"
+                        errorMessage = "Permissão de microfone necessária para comandos por voz"
                     )
                 }
                 else -> {
-                    scheduleRestartListening(1500L)
+                    scheduleRestartListening(1200L)
                 }
             }
         }
 
         override fun onResults(results: Bundle?) {
-            _state.value = _state.value.copy(isListening = false, rmsDb = 0f)
+            _state.value = _state.value.copy(isListening = false, rmsDb = 0f, audioLevelFraction = 0f)
             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
             if (!matches.isNullOrEmpty()) {
                 val fullText = matches.first().lowercase(Locale.getDefault())
                 processSpokenText(fullText)
             }
-            scheduleRestartListening(800L)
+            scheduleRestartListening(600L)
         }
 
         override fun onPartialResults(partialResults: Bundle?) {
@@ -184,17 +204,60 @@ class HandsFreeSpeechManager(
 
     private fun initRecognizerInternal() {
         try {
-            if (SpeechRecognizer.isRecognitionAvailable(context)) {
-                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+            var recognizer: SpeechRecognizer? = null
+            var engine = "Google Speech-to-Text"
+
+            // 1. No Android 13+ (API 33+), tenta o motor on-device do Google para latência zero no guidão
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                try {
+                    if (SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+                        recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+                        engine = "Google Speech-to-Text (On-Device)"
+                    }
+                } catch (e: Exception) {
+                    Log.d("HandsFreeSpeech", "Tentando fallback do Google Speech: ${e.message}")
+                }
+            }
+
+            // 2. Tenta vincular diretamente ao serviço oficial do Google Speech-to-Text
+            if (recognizer == null) {
+                val googleSearchComponent = ComponentName(
+                    "com.google.android.googlequicksearchbox",
+                    "com.google.android.voicesearch.serviceapi.GoogleRecognitionService"
+                )
+                try {
+                    recognizer = SpeechRecognizer.createSpeechRecognizer(context, googleSearchComponent)
+                    engine = "Google Speech-to-Text Service"
+                } catch (e: Exception) {
+                    Log.d("HandsFreeSpeech", "Fallback ComponentName do Google: ${e.message}")
+                }
+            }
+
+            // 3. Fallback para o reconhecedor padrão do sistema
+            if (recognizer == null && SpeechRecognizer.isRecognitionAvailable(context)) {
+                recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+                engine = "Google Speech-to-Text"
+            }
+
+            if (recognizer != null) {
+                speechRecognizer = recognizer.apply {
                     setRecognitionListener(listener)
                 }
+                _state.value = _state.value.copy(
+                    isGoogleSpeechActive = true,
+                    engineName = engine,
+                    errorMessage = null
+                )
             } else {
                 _state.value = _state.value.copy(
-                    errorMessage = "SpeechRecognizer indisponível no dispositivo"
+                    isGoogleSpeechActive = false,
+                    engineName = "Indisponível",
+                    errorMessage = "API de Speech-to-Text do Google indisponível no dispositivo"
                 )
             }
         } catch (e: Exception) {
             Log.e("HandsFreeSpeech", "Erro inicializando SpeechRecognizer: ${e.message}")
+            _state.value = _state.value.copy(errorMessage = e.message)
         }
     }
 
@@ -360,11 +423,12 @@ class HandsFreeSpeechManager(
         processSpokenText(spokenText.lowercase(Locale.getDefault()))
     }
 
-    /**
-     * Analisador léxico de intenções de voz para condução de motocicleta.
-     * Foco principal em comandos simples como 'aceitar' ou 'cancelar'.
-     */
-    private fun parseCommand(text: String): VoiceActionCommand? {
+    companion object {
+        /**
+         * Analisador léxico de intenções de voz para condução de motocicleta.
+         * Foco principal em comandos simples como 'aceitar' ou 'cancelar'.
+         */
+        fun parseCommand(text: String): VoiceActionCommand? {
         val t = text.lowercase(Locale.getDefault()).trim()
 
         // 1. Aceite Específico de Aplicativo (Multi-app)
@@ -541,7 +605,20 @@ class HandsFreeSpeechManager(
             return VoiceActionCommand.AUTO_ACCEPT_TOGGLE
         }
 
+        // Comandos de Navegação de Telas
+        if (t.contains("abrir oferta") || t.contains("ver oferta") || t.contains("lista de oferta") ||
+            t.contains("radar de oferta") || t.contains("mostrar oferta") || t.contains("tela de oferta")
+        ) {
+            return VoiceActionCommand.OPEN_OFFERS_LIST
+        }
+        if (t.contains("voltar") || t.contains("fechar") || t.contains("voltar ao painel") ||
+            t.contains("voltar ao cockpit") || t.contains("voltar tela") || t.contains("painel principal")
+        ) {
+            return VoiceActionCommand.CLOSE_SCREEN
+        }
+
         return null
+    }
     }
 
     fun destroy() {

@@ -142,6 +142,13 @@ class MainActivity : ComponentActivity() {
         val vm = NeuralVoiceManager(this)
         voiceManager = vm
 
+        // Inicializa o serviço de localização em primeiro plano com telemetria contínua
+        try {
+            LocationForegroundService.start(this)
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Falha ao iniciar LocationForegroundService: ${e.message}")
+        }
+
         setContent {
             val context = LocalContext.current
             var isNightMode by remember { mutableStateOf(ThemePreferencesManager.isNightMode(context)) }
@@ -207,8 +214,14 @@ fun RadarDeliveryDashboard(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_STOP -> isAppInBackground = true
-                Lifecycle.Event.ON_START -> isAppInBackground = false
+                Lifecycle.Event.ON_STOP -> {
+                    isAppInBackground = true
+                    BackgroundOfferDispatcher.isAppInBackground = true
+                }
+                Lifecycle.Event.ON_START -> {
+                    isAppInBackground = false
+                    BackgroundOfferDispatcher.isAppInBackground = false
+                }
                 else -> {}
             }
         }
@@ -245,6 +258,7 @@ fun RadarDeliveryDashboard(
 
     // Estado da Tela de Perfil do Entregador
     var showProfileScreen by remember { mutableStateOf(false) }
+    var showOfferListScreen by remember { mutableStateOf(false) }
 
     // Estado do Tour Guiado (Onboarding) na primeira execução do app
     var showOnboardingTour by remember {
@@ -261,6 +275,7 @@ fun RadarDeliveryDashboard(
     val subscriptionState by SubscriptionManager.subscriptionState.collectAsState()
     var showSubscriptionPaywall by remember { mutableStateOf(false) }
     var showAnalyticsDashboard by remember { mutableStateOf(false) }
+    var showWebViewCockpit by remember { mutableStateOf(false) }
 
     // Inicialização do Gerenciador de Logs de Decisões do Entregador
     LaunchedEffect(Unit) {
@@ -920,6 +935,19 @@ fun RadarDeliveryDashboard(
                         voiceManager?.speak("Auto aceite desativado.")
                     }
                 }
+                VoiceActionCommand.OPEN_OFFERS_LIST -> {
+                    HapticFeedbackHelper.vibrateSuccess(context)
+                    showOfferListScreen = true
+                    voiceManager?.speak("Abrindo radar de ofertas.")
+                }
+                VoiceActionCommand.CLOSE_SCREEN -> {
+                    HapticFeedbackHelper.vibrateTap(context)
+                    showOfferListScreen = false
+                    showProfileScreen = false
+                    showFilterSettingsScreen = false
+                    showOnboardingTour = false
+                    voiceManager?.speak("Painel principal ativo.")
+                }
             }
         }
         speechManager = manager
@@ -949,6 +977,9 @@ fun RadarDeliveryDashboard(
     }
 
     val speedState = speedMonitor?.state?.collectAsState()?.value ?: SpeedSafetyState()
+    val locationState by LocationService.globalLocationState.collectAsState()
+    val isSpeedLocked = speedState.isSafetyLockActive || speedState.currentSpeedKmh > 10.0 || locationState.isSafetyLockActive || locationState.currentSpeedKmh > 10.0
+    val effectiveSpeedKmh = maxOf(speedState.currentSpeedKmh, locationState.currentSpeedKmh)
 
     // Lista filtrada derivada das ofertas ativas e critérios dinâmicos
     val displayedOffers = remember(offersList.toList(), filterCriteria) {
@@ -1031,9 +1062,10 @@ fun RadarDeliveryDashboard(
                     }
 
                     // Disparo de Notificação Local em Segundo Plano para Ofertas de Alta Prioridade
-                    // TRAVA DE SEGURANÇA: Muta e suprime notificações se a velocidade ultrapassar 15 km/h
+                    // TRAVA DE SEGURANÇA: Muta e suprime notificações se a velocidade ultrapassar 10 km/h
                     // FILTRO DE NOTIFICAÇÃO AUTOMÁTICO: Filtra chamadas abaixo do piso de preço/km
-                    if (isAppInBackground && !isSpeedMuted) {
+                    val isSpeedSafetyMuted = isSpeedMuted || speedState.isSafetyLockActive || speedState.currentSpeedKmh > 10.0
+                    if (isAppInBackground && !isSpeedSafetyMuted) {
                         localNotificationManager.showHighPriorityOfferNotification(newOffer, filterCriteria)
                     }
                 }
@@ -1096,8 +1128,24 @@ fun RadarDeliveryDashboard(
         return
     }
 
-    Scaffold(
-        containerColor = if (isNightMode) CockpitOledBlack else SunlightOffWhite,
+    if (showOfferListScreen) {
+        OfferListScreen(
+            onNavigateBack = { showOfferListScreen = false },
+            onAcceptOffer = { offer ->
+                todayEarnings += offer.valor
+                completedDeliveries++
+                Toast.makeText(context, "✅ Aceito: ${offer.nomeRestaurante}", Toast.LENGTH_SHORT).show()
+            },
+            onDeclineOffer = { offer ->
+                Toast.makeText(context, "❌ Recusado: ${offer.nomeRestaurante}", Toast.LENGTH_SHORT).show()
+            }
+        )
+        return
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = if (isNightMode) CockpitOledBlack else SunlightOffWhite,
         topBar = {
             CenterAlignedTopAppBar(
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -1222,6 +1270,20 @@ fun RadarDeliveryDashboard(
                         }
                     }
 
+                    // Botão de Lista Dedicada de Ofertas com Google Speech-to-Text
+                    IconButton(
+                        onClick = {
+                            FirebaseAnalyticsManager.logScreenView("OfferListScreen", "Dashboard")
+                            showOfferListScreen = true
+                        },
+                        modifier = Modifier.testTag("action_offer_list")
+                    ) {
+                        Text(
+                            text = "📋",
+                            fontSize = 18.sp
+                        )
+                    }
+
                     // Botão de Telemetria e Métricas do Firebase Analytics
                     IconButton(
                         onClick = {
@@ -1309,6 +1371,14 @@ fun RadarDeliveryDashboard(
                             contentDescription = "Simular Nova Chamada",
                             tint = NeonGreen
                         )
+                    }
+
+                    // Botão Abertura do Cockpit Web SPA (HTML5/WebSockets/Bridge)
+                    IconButton(
+                        onClick = { showWebViewCockpit = true },
+                        modifier = Modifier.testTag("action_open_webview_cockpit")
+                    ) {
+                        Text("🌐", fontSize = 16.sp)
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -1661,7 +1731,7 @@ fun RadarDeliveryDashboard(
                     )
                 }
 
-                // 9. GESTÃO DE NOTIFICAÇÕES EM SEGUNDO PLANO (HEADS-UP)
+                // 9. GESTÃO DE NOTIFICAÇÕES EM SEGUNDO PLANO (HEADS-UP COM SONS PERSONALIZADOS)
                 item {
                     LocalNotificationStatusCard(
                         hasNotificationPermission = hasNotificationPermission,
@@ -1687,7 +1757,34 @@ fun RadarDeliveryDashboard(
                                 netProfit = 37.79
                             )
                             localNotificationManager.showHighPriorityOfferNotification(testOffer, filterCriteria)
-                            Toast.makeText(context, "Notificação de alta prioridade enviada! Verifique o banner no topo da tela.", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "🔔 Alerta de alta prioridade emitido com som personalizado!", Toast.LENGTH_SHORT).show()
+                        },
+                        onScheduleBackgroundTest = { delaySec ->
+                            val bgOffer = RadarOffer(
+                                id = "test_bg_${System.currentTimeMillis() % 10000}",
+                                appName = "Rappi",
+                                restaurant = "Madero Container Jardins",
+                                value = 44.00,
+                                distanceKm = 4.5,
+                                estimatedTimeMin = 18,
+                                neuralDecision = NeuralDecision(RadarDecision.ACCEPT, "Ganho excepcional de R$ 9.77/km", 0.99),
+                                itemsCount = 2,
+                                gainPerKm = 9.77,
+                                fuelCost = 0.76,
+                                netProfit = 43.24
+                            )
+                            localNotificationManager.scheduleDelayedBackgroundNotification(
+                                delaySeconds = delaySec,
+                                customOffer = bgOffer,
+                                filterCriteria = filterCriteria,
+                                onScheduled = {
+                                    Toast.makeText(
+                                        context,
+                                        "⏳ Minimize para testar em 2º plano! Notificação chega em $delaySec s...",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
                         }
                     )
                 }
@@ -2239,6 +2336,24 @@ fun RadarDeliveryDashboard(
                 }
             }
         }
+
+        // Bloqueio Integral da Interface por Velocidade Calculada via Fused Location (> 10 km/h)
+        SpeedSafetyLockOverlay(
+            isLocked = isSpeedLocked,
+            currentSpeedKmh = effectiveSpeedKmh,
+            speedThresholdKmh = 10.0,
+            isListeningVoice = currentVoiceState.isListening,
+            lastVoiceCommand = currentVoiceState.lastRecognizedText,
+            rmsDb = currentVoiceState.rmsDb,
+            pendingOffer = displayedOffers.firstOrNull() ?: offersList.firstOrNull(),
+            onSimulateVoiceCommand = { speechManager?.simulateVoiceCommand(it) },
+            onSetSimulatedSpeed = { speed ->
+                speedMonitor?.setSimulatedSpeed(speed)
+                LocationService.updateSimulatedSpeed(speed, context)
+            },
+            onAcceptCurrentOffer = onAcceptCurrentBestOffer,
+            onDeclineCurrentOffer = onDeclineCurrentBestOffer
+        )
     }
 
     // Tela Dedicada de Configuração de Filtros de Corrida (Valor Mínimo, Distância Máxima, Bônus e Rentabilidade)
@@ -2291,6 +2406,20 @@ fun RadarDeliveryDashboard(
         AnalyticsDashboardSheet(
             onDismiss = { showAnalyticsDashboard = false }
         )
+    }
+
+    // Cockpit Web SPA Nativo Otimizado (HTML5/WebSockets/Bridge)
+    if (showWebViewCockpit) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showWebViewCockpit = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            JarvisWebViewCockpit(
+                isNightMode = isNightMode,
+                onToggleNightMode = onToggleNightMode,
+                onCloseWebView = { showWebViewCockpit = false }
+            )
+        }
     }
 }
 

@@ -41,8 +41,8 @@ import java.util.Locale
  */
 data class LocationSpeedState(
     val currentSpeedKmh: Double = 0.0,
-    val isSafetyLockActive: Boolean = false, // true quando > 15.0 km/h (bloqueio tátil da UI)
-    val isNotificationsMuted: Boolean = false, // true quando > 15.0 km/h (silenciamento de notificações Heads-Up)
+    val isSafetyLockActive: Boolean = false, // true quando > 10.0 km/h (bloqueio da interface do app)
+    val isNotificationsMuted: Boolean = false, // true quando > 10.0 km/h (silenciamento de notificações Heads-Up)
     val latitude: Double = -23.561684,
     val longitude: Double = -46.655981,
     val accuracyMeters: Float = 0f,
@@ -214,6 +214,30 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
             val current = _globalLocationState.value
             return estimateUrbanRouteKm(current.latitude, current.longitude, pickupLat, pickupLng)
         }
+
+        /**
+         * Extrai a velocidade instantânea do hardware GPS Fused ou calcula a velocidade
+         * com base no deslocamento métrico (delta distância) e tempo transcorrido (delta tempo).
+         * Converte m/s para km/h (* 3.6).
+         */
+        fun calculateSpeedKmh(currentLocation: Location, previousLocation: Location? = null): Double {
+            // 1. Se o hardware de localização reporta a velocidade nativa com precisão
+            if (currentLocation.hasSpeed() && currentLocation.speed >= 0f) {
+                return (currentLocation.speed * 3.6).coerceAtLeast(0.0)
+            }
+
+            // 2. Caso o sensor não forneça speed direto, computamos via deslocamento geodésico e delta t
+            if (previousLocation != null && currentLocation.time > previousLocation.time) {
+                val distanceMeters = currentLocation.distanceTo(previousLocation)
+                val timeDeltaSeconds = (currentLocation.time - previousLocation.time) / 1000.0
+                if (timeDeltaSeconds in 0.3..15.0) {
+                    val speedMps = distanceMeters / timeDeltaSeconds
+                    return (speedMps * 3.6).coerceIn(0.0, 180.0)
+                }
+            }
+
+            return 0.0
+        }
     }
 
     inner class LocalBinder : Binder() {
@@ -332,7 +356,7 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
      */
     private fun processNewLocation(location: Location) {
         val previousLock = _globalLocationState.value.isSafetyLockActive
-        val speedKmh = calculateSpeedKmh(location)
+        val speedKmh = calculateSpeedKmh(location, lastValidLocation)
         val isSafetyLockActive = speedKmh > dynamicSafetySpeedThresholdKmh
         val isNotificationsMuted = isSafetyLockActive
 
@@ -364,9 +388,9 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
             val limit = dynamicSafetySpeedThresholdKmh.toInt()
             triggerVibrationAlert(isSafetyLockActive)
             if (isSafetyLockActive) {
-                speakAlert("Atenção: veículo acima de $limit por hora detectado por GPS. Aceite de ofertas desativado por segurança.")
+                speakAlert("Atenção: veículo acima de $limit por hora detectado por GPS. Interface do aplicativo bloqueada por segurança.")
             } else {
-                speakAlert("Velocidade abaixo de $limit por hora. Aceite de ofertas e tela liberados.")
+                speakAlert("Velocidade abaixo de $limit por hora. Interface do aplicativo liberada.")
             }
         }
 
@@ -381,37 +405,14 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
     }
 
     /**
-     * Extrai a velocidade do hardware de localização ou calcula delta distância / tempo.
-     */
-    private fun calculateSpeedKmh(currentLocation: Location): Double {
-        // Se o GPS já reporta a velocidade nativa com precisão
-        if (currentLocation.hasSpeed() && currentLocation.speed >= 0) {
-            val speedMps = currentLocation.speed
-            return (speedMps * 3.6).coerceAtLeast(0.0)
-        }
-
-        // Caso o sensor não forneça speed direto, computamos via deslocamento e delta t
-        val previous = lastValidLocation ?: return 0.0
-        val distanceMeters = currentLocation.distanceTo(previous)
-        val timeDeltaSeconds = (currentLocation.time - previous.time) / 1000.0
-
-        return if (timeDeltaSeconds in 0.5..10.0) {
-            val speedMps = distanceMeters / timeDeltaSeconds
-            (speedMps * 3.6).coerceIn(0.0, 180.0)
-        } else {
-            0.0
-        }
-    }
-
-    /**
      * Inicia a requisição periódica de localização via FusedLocationProviderClient.
      */
     @SuppressLint("MissingPermission")
     fun startLocationUpdates() {
         try {
-            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1500L)
-                .setMinUpdateIntervalMillis(1000L)
-                .setMinUpdateDistanceMeters(1.0f)
+            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
+                .setMinUpdateIntervalMillis(500L)
+                .setMinUpdateDistanceMeters(0.5f)
                 .setWaitForAccurateLocation(false)
                 .build()
 
