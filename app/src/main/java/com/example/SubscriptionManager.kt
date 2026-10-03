@@ -19,6 +19,7 @@ enum class SubscriptionTier(
     val isPaid: Boolean
 ) {
     FREE("Plano Free", "R$ 0,00", "Gratuito com limites", false),
+    PRO_WEEKLY("Plano Semanal (Pix)", "R$ 4,90", "/semana", true),
     PRO_MONTHLY("Plano Pro Mensal", "R$ 29,90", "/mês", true),
     PRO_ANNUAL("Plano Pro Anual", "R$ 239,90", "/ano (R$ 19,99/mês)", true)
 }
@@ -129,6 +130,20 @@ object SubscriptionManager {
         loadSavedState()
 
         FirebaseAnalyticsManager.logTrialStarted(days = 7, source = "subscription_manager")
+    }
+
+    /**
+     * Ativa a assinatura Semanal via Pix Asaas (7 dias)
+     */
+    fun activateWeeklySubscription() {
+        if (!::prefs.isInitialized) return
+        val durationMs = 7L * 24 * 60 * 60 * 1000 // 7 dias
+        val expiryMs = System.currentTimeMillis() + durationMs
+        prefs.edit()
+            .putString(KEY_TIER, SubscriptionTier.PRO_WEEKLY.name)
+            .putLong(KEY_EXPIRY_MS, expiryMs)
+            .apply()
+        loadSavedState()
     }
 
     /**

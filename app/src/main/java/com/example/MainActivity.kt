@@ -83,6 +83,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -276,6 +277,18 @@ fun RadarDeliveryDashboard(
     var showSubscriptionPaywall by remember { mutableStateOf(false) }
     var showAnalyticsDashboard by remember { mutableStateOf(false) }
     var showWebViewCockpit by remember { mutableStateOf(false) }
+
+    // Estado de Atualização Automática Over-The-Air (OTA)
+    var availableUpdate by remember { mutableStateOf<AutoUpdateManager.UpdateInfo?>(null) }
+    var isDownloadingUpdate by remember { mutableStateOf(false) }
+    var updateDownloadProgress by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(Unit) {
+        val update = AutoUpdateManager.checkForUpdate(context)
+        if (update != null) {
+            availableUpdate = update
+        }
+    }
 
     // Inicialização do Gerenciador de Logs de Decisões do Entregador
     LaunchedEffect(Unit) {
@@ -1620,7 +1633,20 @@ fun RadarDeliveryDashboard(
                     )
                 }
 
-                // 6. TELEMETRIA DE VELOCIDADE EM TEMPO REAL (GPS) E BLOQUEIO DE SEGURANÇA
+                // 6. DASHBOARD DE VELOCIDADE EM TEMPO REAL E TRAVA DE SEGURANÇA
+                item {
+                    RealTimeSpeedSafetyDashboardCard(
+                        initialSpeedThresholdKmh = LocationService.dynamicSafetySpeedThresholdKmh,
+                        onSpeedThresholdChanged = { newThreshold ->
+                            speedMonitor?.updateSpeedThreshold(newThreshold)
+                        },
+                        onSimulateSpeed = { simSpeed ->
+                            speedMonitor?.setSimulatedSpeed(simSpeed)
+                        }
+                    )
+                }
+
+                // 6.1. TELEMETRIA DETALHADA DE VELOCIDADE (GPS) E BLOQUEIO DE SEGURANÇA
                 item {
                     RealtimeSpeedTelemetryCard(
                         speedState = speedState,
@@ -2398,6 +2424,36 @@ fun RadarDeliveryDashboard(
     if (showSubscriptionPaywall) {
         SubscriptionScreen(
             onDismiss = { showSubscriptionPaywall = false }
+        )
+    }
+
+    // Modal de Atualização Automática do APK (OTA)
+    availableUpdate?.let { updateInfo ->
+        AutoUpdateDialog(
+            updateInfo = updateInfo,
+            onDismiss = { availableUpdate = null },
+            isDownloading = isDownloadingUpdate,
+            downloadProgress = updateDownloadProgress,
+            onConfirmUpdate = {
+                isDownloadingUpdate = true
+                coroutineScope.launch {
+                    AutoUpdateManager.downloadAndInstallApk(
+                        context = context,
+                        apkUrl = updateInfo.apkUrl,
+                        onProgress = { progress ->
+                            updateDownloadProgress = progress
+                        },
+                        onComplete = {
+                            isDownloadingUpdate = false
+                            availableUpdate = null
+                        },
+                        onError = { errorMsg ->
+                            isDownloadingUpdate = false
+                            Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
+                        }
+                    )
+                }
+            }
         )
     }
 

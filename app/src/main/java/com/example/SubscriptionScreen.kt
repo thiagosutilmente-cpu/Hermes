@@ -112,9 +112,12 @@ fun SubscriptionScreen(
     val billingConnectionState by PlayBillingManager.connectionState.collectAsState()
     val billingPurchaseState by PlayBillingManager.purchaseState.collectAsState()
 
-    var selectedPlanIsAnnual by remember { mutableStateOf(false) }
+    var selectedPlanType by remember { mutableStateOf("weekly") } // "weekly", "monthly", "annual"
     var showPixModal by remember { mutableStateOf(false) }
     var isVerifyingPayment by remember { mutableStateOf(false) }
+    var currentPixCode by remember { mutableStateOf("") }
+    var currentPixAmount by remember { mutableStateOf("R$ 4,90") }
+    var isGeneratingPix by remember { mutableStateOf(false) }
 
     val handleDismissWithAnalytics = {
         val durationSec = (System.currentTimeMillis() - openTimeMs) / 1000
@@ -201,7 +204,7 @@ fun SubscriptionScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Alternador Mensal / Anual
+        // Alternador Semanal / Mensal / Anual
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(12.dp))
@@ -210,57 +213,52 @@ fun SubscriptionScreen(
                 .padding(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Plano Semanal (Destaque Principal)
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (!selectedPlanIsAnnual) NeonGreen else Color.Transparent)
-                    .clickable {
-                        selectedPlanIsAnnual = false
-                        FirebaseAnalyticsManager.logPlanSelected(
-                            planId = PlayBillingManager.SUBSCRIPTION_ID_MONTHLY,
-                            price = 29.90,
-                            billingCycle = "monthly"
-                        )
-                    }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .background(if (selectedPlanType == "weekly") NeonGreen else Color.Transparent)
+                    .clickable { selectedPlanType = "weekly" }
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Text(
-                    text = "MENSAL",
-                    color = if (!selectedPlanIsAnnual) DarkBg else TextMuted,
+                    text = "SEMANAL ⚡",
+                    color = if (selectedPlanType == "weekly") DarkBg else TextLight,
                     fontWeight = FontWeight.Black,
-                    fontSize = 12.sp
+                    fontSize = 11.sp
                 )
             }
 
+            // Plano Mensal
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (selectedPlanIsAnnual) NeonGreen else Color.Transparent)
-                    .clickable {
-                        selectedPlanIsAnnual = true
-                        FirebaseAnalyticsManager.logPlanSelected(
-                            planId = PlayBillingManager.SUBSCRIPTION_ID_ANNUAL,
-                            price = 239.90,
-                            billingCycle = "annual"
-                        )
-                    }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .background(if (selectedPlanType == "monthly") NeonGreen else Color.Transparent)
+                    .clickable { selectedPlanType = "monthly" }
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "ANUAL",
-                        color = if (selectedPlanIsAnnual) DarkBg else TextMuted,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 12.sp
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "ECONOMIZE 33%",
-                        color = if (selectedPlanIsAnnual) Color(0xFF004411) else GoldVip,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 9.sp
-                    )
-                }
+                Text(
+                    text = "MENSAL",
+                    color = if (selectedPlanType == "monthly") DarkBg else TextMuted,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 11.sp
+                )
+            }
+
+            // Plano Anual
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (selectedPlanType == "annual") NeonGreen else Color.Transparent)
+                    .clickable { selectedPlanType = "annual" }
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = "ANUAL -33%",
+                    color = if (selectedPlanType == "annual") DarkBg else GoldVip,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 10.sp
+                )
             }
         }
 
@@ -270,7 +268,7 @@ fun SubscriptionScreen(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.5.dp, GoldVip, RoundedCornerShape(20.dp))
+                .border(1.5.dp, if (selectedPlanType == "weekly") NeonGreen else GoldVip, RoundedCornerShape(20.dp))
                 .testTag("plan_pricing_card"),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = CardSurface)
@@ -280,8 +278,12 @@ fun SubscriptionScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "🔥 MAIS POPULAR ENTRE ENTREGADORES",
-                    color = GoldVip,
+                    text = when (selectedPlanType) {
+                        "weekly" -> "🔥 MAIS ESCOLHIDO PELOS MOTOBOYS (R$ 0,70/DIA)"
+                        "annual" -> "🏆 MELHOR ECONOMIA ANUAL"
+                        else -> "⭐ PLANO MENSAL PADRÃO"
+                    },
+                    color = if (selectedPlanType == "weekly") NeonGreen else GoldVip,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 0.5.sp
@@ -291,13 +293,20 @@ fun SubscriptionScreen(
 
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = if (selectedPlanIsAnnual) "R$ 19,99" else "R$ 29,90",
+                        text = when (selectedPlanType) {
+                            "weekly" -> "R$ 4,90"
+                            "annual" -> "R$ 19,99"
+                            else -> "R$ 29,90"
+                        },
                         color = NeonGreen,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Black
                     )
                     Text(
-                        text = "/mês",
+                        text = when (selectedPlanType) {
+                            "weekly" -> "/semana"
+                            else -> "/mês"
+                        },
                         color = TextMuted,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
@@ -305,7 +314,11 @@ fun SubscriptionScreen(
                 }
 
                 Text(
-                    text = if (selectedPlanIsAnnual) "Cobrado anualmente: R$ 239,90 (economiza R$ 118,90)" else "Cobrança mensal cancelável a qualquer momento",
+                    text = when (selectedPlanType) {
+                        "weekly" -> "Cobrança via Pix Asaas • Se paga na primeira corrida ruim recusada"
+                        "annual" -> "Cobrado anualmente: R$ 239,90 (economiza R$ 118,90)"
+                        else -> "Cobrança mensal cancelável a qualquer momento"
+                    },
                     color = TextMuted,
                     fontSize = 11.sp,
                     textAlign = TextAlign.Center
@@ -313,106 +326,91 @@ fun SubscriptionScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 1. Botão Principal: Assinatura via Google Play Billing
-                Button(
-                    onClick = {
-                        val activity = context.findActivity()
-                        val productId = if (selectedPlanIsAnnual) {
-                            PlayBillingManager.SUBSCRIPTION_ID_ANNUAL
-                        } else {
-                            PlayBillingManager.SUBSCRIPTION_ID_MONTHLY
-                        }
-                        val price = if (selectedPlanIsAnnual) 239.90 else 29.90
-                        FirebaseAnalyticsManager.logInitiateCheckout("google_play", productId, price)
-
-                        if (activity != null) {
-                            PlayBillingManager.launchSubscriptionPurchase(activity, productId) { success, msg ->
-                                if (success) {
-                                    Toast.makeText(context, "🎉 ${msg ?: "Assinatura Google Play confirmada!"}", Toast.LENGTH_LONG).show()
-                                    onDismiss()
-                                } else {
-                                    Toast.makeText(context, msg ?: "Operação cancelada.", Toast.LENGTH_SHORT).show()
-                                }
+                // Se o plano selecionado for o SEMANAL (PIX ASAAS)
+                if (selectedPlanType == "weekly") {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isGeneratingPix = true
+                                val res = JarvisVpsApiClient.requestWeeklyPix(phone = "")
+                                isGeneratingPix = false
+                                currentPixAmount = "R$ 4,90"
+                                currentPixCode = if (res.pixCopiaECola.isNotBlank()) res.pixCopiaECola else "00020126580014br.gov.bcb.pix0136jarvis-cockpit-pix@asaas.com52040000530398654044.905802BR5925JARVIS NEURAL COCKPIT6009SAO PAULO62070503***6304ABCD"
+                                showPixModal = true
                             }
+                        },
+                        enabled = !isGeneratingPix,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("btn_pay_weekly_pix"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = NeonGreen,
+                            contentColor = DarkBg
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        if (isGeneratingPix) {
+                            CircularProgressIndicator(color = DarkBg, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("GERANDO PIX NO ASAAS...", fontWeight = FontWeight.Black, fontSize = 11.sp)
                         } else {
-                            SubscriptionManager.activateProSubscription(annual = selectedPlanIsAnnual)
-                            FirebaseAnalyticsManager.logPurchaseSuccess("gp_fallback_${System.currentTimeMillis()}", productId, price, "google_play")
-                            Toast.makeText(context, "🎉 Assinatura ativada pelo Google Play!", Toast.LENGTH_LONG).show()
-                            onDismiss()
-                        }
-                    },
-                    enabled = billingPurchaseState !is PlayBillingPurchaseState.Loading,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp)
-                        .testTag("btn_pay_google_play"),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonGreen,
-                        contentColor = DarkBg
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    if (billingPurchaseState is PlayBillingPurchaseState.Loading) {
-                        CircularProgressIndicator(
-                            color = DarkBg,
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "CONECTANDO GOOGLE PLAY...",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 11.sp
-                        )
-                    } else {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("ASSINAR COM GOOGLE PLAY 💳", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                            Text("GERAR PIX DE R$ 4,90 ⚡", fontWeight = FontWeight.Black, fontSize = 13.sp)
                         }
                     }
-                }
+                } else {
+                    // Google Play Billing para Mensal / Anual
+                    Button(
+                        onClick = {
+                            val activity = context.findActivity()
+                            val isAnnual = selectedPlanType == "annual"
+                            val productId = if (isAnnual) PlayBillingManager.SUBSCRIPTION_ID_ANNUAL else PlayBillingManager.SUBSCRIPTION_ID_MONTHLY
+                            val price = if (isAnnual) 239.90 else 29.90
 
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "🔒 Cobrança segura pela sua conta Google • 7 dias grátis",
-                    color = TextMuted,
-                    fontSize = 10.sp,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 2. Opção Alternativa: Pagamento PIX Instantâneo
-                OutlinedButton(
-                    onClick = {
-                        val planId = if (selectedPlanIsAnnual) "radar_pro_anual" else "radar_pro_mensal"
-                        val price = if (selectedPlanIsAnnual) 239.90 else 29.90
-                        FirebaseAnalyticsManager.logInitiateCheckout("pix", planId, price)
-                        showPixModal = true
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(42.dp)
-                        .testTag("btn_pay_pix"),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
-                ) {
-                    Text("OU PAGUE COM PIX INSTANTÂNEO ⚡", color = TextLight, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            if (activity != null) {
+                                PlayBillingManager.launchSubscriptionPurchase(activity, productId) { success, msg ->
+                                    if (success) {
+                                        Toast.makeText(context, "🎉 ${msg ?: "Assinatura confirmada!"}", Toast.LENGTH_LONG).show()
+                                        onDismiss()
+                                    } else {
+                                        Toast.makeText(context, msg ?: "Operação cancelada.", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            } else {
+                                SubscriptionManager.activateProSubscription(annual = isAnnual)
+                                Toast.makeText(context, "🎉 Assinatura ativada!", Toast.LENGTH_LONG).show()
+                                onDismiss()
+                            }
+                        },
+                        enabled = billingPurchaseState !is PlayBillingPurchaseState.Loading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("btn_pay_google_play"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = NeonGreen,
+                            contentColor = DarkBg
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("ASSINAR COM GOOGLE PLAY 💳", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // 3. Botão de 7 Dias Grátis
+                // Botão de 7 Dias Grátis
                 if (!subState.isTrialActive && !subState.isActive) {
                     OutlinedButton(
                         onClick = {
                             SubscriptionManager.startSevenDayTrial()
                             FirebaseAnalyticsManager.logTrialStarted(7, "paywall_card")
-                            Toast.makeText(context, "🎉 Teste Pro de 7 dias ativado com sucesso!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "🎉 Teste de 7 dias ativado! Aproveite!", Toast.LENGTH_LONG).show()
                             onDismiss()
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(40.dp)
+                            .height(42.dp)
                             .testTag("btn_trial_7_days"),
                         shape = RoundedCornerShape(12.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, GoldVip)
@@ -494,22 +492,34 @@ fun SubscriptionScreen(
     // Modal de Pagamento PIX
     if (showPixModal) {
         PixPaymentModal(
-            isAnnual = selectedPlanIsAnnual,
-            amount = if (selectedPlanIsAnnual) "R$ 239,90" else "R$ 29,90",
+            isAnnual = selectedPlanType == "annual",
+            amount = currentPixAmount,
+            pixCode = currentPixCode,
             onDismiss = { showPixModal = false },
             onConfirmPayment = {
                 scope.launch {
                     isVerifyingPayment = true
-                    delay(2000) // Simulação de confirmação do webhook bancário
-                    val planId = if (selectedPlanIsAnnual) "radar_pro_anual" else "radar_pro_mensal"
-                    val price = if (selectedPlanIsAnnual) 239.90 else 29.90
-                    SubscriptionManager.activateProSubscription(annual = selectedPlanIsAnnual)
-                    FirebaseAnalyticsManager.logPurchaseSuccess(
-                        transactionId = "pix_${System.currentTimeMillis()}",
-                        planId = planId,
-                        value = price,
-                        paymentMethod = "pix"
-                    )
+                    delay(1500)
+                    if (selectedPlanType == "weekly") {
+                        SubscriptionManager.activateWeeklySubscription()
+                        FirebaseAnalyticsManager.logPurchaseSuccess(
+                            transactionId = "pix_weekly_${System.currentTimeMillis()}",
+                            planId = "radar_pro_semanal_asaas",
+                            value = 4.90,
+                            paymentMethod = "pix_asaas"
+                        )
+                    } else {
+                        val isAnnual = selectedPlanType == "annual"
+                        val planId = if (isAnnual) "radar_pro_anual" else "radar_pro_mensal"
+                        val price = if (isAnnual) 239.90 else 29.90
+                        SubscriptionManager.activateProSubscription(annual = isAnnual)
+                        FirebaseAnalyticsManager.logPurchaseSuccess(
+                            transactionId = "pix_${System.currentTimeMillis()}",
+                            planId = planId,
+                            value = price,
+                            paymentMethod = "pix"
+                        )
+                    }
                     isVerifyingPayment = false
                     showPixModal = false
                     Toast.makeText(context, "✅ Pagamento aprovado! Plano Pro ativado com sucesso!", Toast.LENGTH_LONG).show()
@@ -562,12 +572,13 @@ fun ComparisonRow(feature: String, free: String, pro: String, isHighlight: Boole
 fun PixPaymentModal(
     isAnnual: Boolean,
     amount: String,
+    pixCode: String = "",
     onDismiss: () -> Unit,
     onConfirmPayment: () -> Unit,
     isVerifying: Boolean
 ) {
     val context = LocalContext.current
-    val pixCode = "00020126580014BR.GOV.BCB.PIX0136radar.coordinator.assinaturas@pix.com.br5204000053039865405${if (isAnnual) "239.90" else "29.90"}5802BR5925RADAR COORDINATOR BR6009SAO PAULO62070503***6304ABCD"
+    val effectivePixCode = if (pixCode.isNotBlank()) pixCode else "00020126580014BR.GOV.BCB.PIX0136radar.coordinator.assinaturas@pix.com.br5204000053039865405${if (isAnnual) "239.90" else "29.90"}5802BR5925RADAR COORDINATOR BR6009SAO PAULO62070503***6304ABCD"
 
     Dialog(
         onDismissRequest = onDismiss,

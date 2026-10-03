@@ -28,7 +28,9 @@ class JarvisCarScreen(carContext: CarContext) : Screen(carContext) {
 
     private var currentSpeedKmh: Double = 0.0
     private var isSafetyLockActive: Boolean = false
+    private var isAvailableForRaces: Boolean = true
     private var latestOffer: RadarOffer? = null
+    private var availableOffersCount: Int = 0
     private var activeHotspotName: String = "Polo Paulista / Jardins"
     private var hotspotDemandLevel: String = "Alta Demanda (+25% bônus)"
 
@@ -49,6 +51,7 @@ class JarvisCarScreen(carContext: CarContext) : Screen(carContext) {
                     AppNotificationListenerService.lastInterceptedOffer.collectLatest { offer ->
                         if (offer != null) {
                             latestOffer = offer
+                            availableOffersCount = 1
                             invalidate()
                         }
                     }
@@ -57,10 +60,11 @@ class JarvisCarScreen(carContext: CarContext) : Screen(carContext) {
                 // Monitora despachador geral de ofertas
                 lifecycleScope.launch {
                     BackgroundOfferDispatcher.latestOffers.collectLatest { offers ->
+                        availableOffersCount = offers.size
                         if (offers.isNotEmpty() && latestOffer == null) {
                             latestOffer = offers.firstOrNull()
-                            invalidate()
                         }
+                        invalidate()
                     }
                 }
             }
@@ -70,17 +74,37 @@ class JarvisCarScreen(carContext: CarContext) : Screen(carContext) {
     override fun onGetTemplate(): Template {
         val paneBuilder = Pane.Builder()
 
-        // 1. Linha de Telemetria e Velocímetro
+        // 1. Linha Principal: STATUS DE DISPONIBILIDADE DE CORRIDAS NO MULTIMÍDIA
+        val availabilityTitle = if (isAvailableForRaces) {
+            "🟢 RADAR ONLINE • DISPONÍVEL ($availableOffersCount ofertas)"
+        } else {
+            "🔴 RADAR PAUSADO • INDISPONÍVEL"
+        }
+
+        val availabilitySubtitle = if (isAvailableForRaces) {
+            "Rastreando iFood, Uber, Rappi e 99 • Filtro: Lucro >= R$ 3,50/km"
+        } else {
+            "Toque no botão abaixo para ficar online e receber chamadas no multimídia"
+        }
+
+        paneBuilder.addRow(
+            Row.Builder()
+                .setTitle(availabilityTitle)
+                .addText(availabilitySubtitle)
+                .build()
+        )
+
+        // 2. Linha de Telemetria e Velocímetro Haversine
         val speedDisplay = String.format(Locale.GERMANY, "%.1f", currentSpeedKmh)
         val speedTitle = if (isSafetyLockActive) {
-            "🔒 $speedDisplay km/h • TRAVA DE PILOTAGEM (>10 km/h)"
+            "🔒 $speedDisplay km/h • TRAVA DE SEGURANÇA (>10 km/h)"
         } else {
-            "⚡ $speedDisplay km/h • TELEMETRIA HAVERSINE ATIVA"
+            "⚡ $speedDisplay km/h • GPS TÁTICO ATIVO"
         }
         val speedSubtitle = if (isSafetyLockActive) {
-            "Modo veicular seguro: Use comandos de voz Jarvis no volante"
+            "Condução em curso: Opere por comando de voz no volante/capacete"
         } else {
-            "GPS de alta precisão calibrado para rotas de entrega"
+            "Velocidade segura: Interações na tela multimídia liberadas"
         }
 
         paneBuilder.addRow(
@@ -90,9 +114,9 @@ class JarvisCarScreen(carContext: CarContext) : Screen(carContext) {
                 .build()
         )
 
-        // 2. Linha de Oferta Interceptada e Lucro/km
+        // 3. Ofertas Disponíveis ou Aguardando
         val offer = latestOffer
-        if (offer != null) {
+        if (isAvailableForRaces && offer != null) {
             val valorFormatado = String.format(Locale.GERMANY, "R$ %.2f", offer.value)
             val ganhoKmFormatado = String.format(Locale.GERMANY, "R$ %.2f/km", offer.gainPerKm)
             val lucroLiquido = String.format(Locale.GERMANY, "R$ %.2f líquido", offer.netProfit)
@@ -107,7 +131,7 @@ class JarvisCarScreen(carContext: CarContext) : Screen(carContext) {
                     .build()
             )
 
-            // Ações Táticas no Android Auto: Aceitar / Recusar
+            // Ações Táticas Veiculares: Aceitar / Recusar
             paneBuilder.addAction(
                 Action.Builder()
                     .setTitle("✅ ACEITAR ($valorFormatado)")
@@ -128,8 +152,21 @@ class JarvisCarScreen(carContext: CarContext) : Screen(carContext) {
                     .setBackgroundColor(CarColor.RED)
                     .setOnClickListener {
                         HapticFeedbackHelper.vibrateDecline(carContext)
-                        NeuralVoiceManager.speak(carContext, "Corrida descartada pelo comando veicular.")
+                        NeuralVoiceManager.speak(carContext, "Corrida descartada pelo painel multimídia.")
                         latestOffer = null
+                        invalidate()
+                    }
+                    .build()
+            )
+        } else if (!isAvailableForRaces) {
+            // Ação para reativar disponibilidade
+            paneBuilder.addAction(
+                Action.Builder()
+                    .setTitle("🟢 FICAR ONLINE AGORA")
+                    .setBackgroundColor(CarColor.GREEN)
+                    .setOnClickListener {
+                        isAvailableForRaces = true
+                        NeuralVoiceManager.speak(carContext, "Radar online. Buscando corridas lucrativas.")
                         invalidate()
                     }
                     .build()
@@ -137,8 +174,20 @@ class JarvisCarScreen(carContext: CarContext) : Screen(carContext) {
         } else {
             paneBuilder.addRow(
                 Row.Builder()
-                    .setTitle("🎯 AGUARDANDO NOVAS OFERTAS (iFood, Uber, Rappi)")
-                    .addText("Radar inteligente rastreando corridas acima de R$ 3,50/km")
+                    .setTitle("🎯 AGUARDANDO NOVAS OFERTAS NA REGIÃO")
+                    .addText("Radar varrendo chamadas. Hotspot mais próximo: $activeHotspotName")
+                    .build()
+            )
+
+            // Ação de pausar disponibilidade
+            paneBuilder.addAction(
+                Action.Builder()
+                    .setTitle("⏸️ PAUSAR RADAR")
+                    .setOnClickListener {
+                        isAvailableForRaces = false
+                        NeuralVoiceManager.speak(carContext, "Radar pausado.")
+                        invalidate()
+                    }
                     .build()
             )
         }
