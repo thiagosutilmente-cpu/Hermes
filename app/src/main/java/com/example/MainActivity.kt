@@ -974,12 +974,23 @@ fun RadarDeliveryDashboard(
 
         if (hasMicPermission) {
             manager.startListening()
+            try {
+                VoiceCommandService.startService(context)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
 
         onDispose {
             voiceManager?.onSpeechStarted = null
             voiceManager?.onSpeechFinished = null
             manager.destroy()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        VoiceCommandService.commandEvents.collect { (command, spokenText) ->
+            lastVoiceCommandText = spokenText
         }
     }
 
@@ -1392,6 +1403,28 @@ fun RadarDeliveryDashboard(
                         modifier = Modifier.testTag("action_open_webview_cockpit")
                     ) {
                         Text("🌐", fontSize = 16.sp)
+                    }
+
+                    // Botão da Bolha Flutuante do Jarvis (OverlayWindowManager)
+                    IconButton(
+                        onClick = {
+                            if (!OverlayWindowManager.canDrawOverlays(context)) {
+                                Toast.makeText(context, "Conceda permissão de sobreposição para ativar a bolha tática", Toast.LENGTH_LONG).show()
+                                OverlayWindowManager.requestOverlayPermission(context)
+                            } else {
+                                val overlay = OverlayWindowManager.getInstance(context)
+                                if (overlay.isShowing()) {
+                                    overlay.hide()
+                                    Toast.makeText(context, "Bolha do Jarvis ocultada", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    overlay.show()
+                                    Toast.makeText(context, "Bolha do Jarvis ativa sobre outros apps!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.testTag("action_toggle_overlay_bubble")
+                    ) {
+                        Text("⚡", fontSize = 16.sp)
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(

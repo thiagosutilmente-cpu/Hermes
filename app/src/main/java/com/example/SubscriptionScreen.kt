@@ -254,7 +254,7 @@ fun SubscriptionScreen(
                     .padding(horizontal = 10.dp, vertical = 8.dp)
             ) {
                 Text(
-                    text = "ANUAL -33%",
+                    text = "ANUAL -45%",
                     color = if (selectedPlanType == "annual") DarkBg else GoldVip,
                     fontWeight = FontWeight.Black,
                     fontSize = 10.sp
@@ -279,8 +279,8 @@ fun SubscriptionScreen(
             ) {
                 Text(
                     text = when (selectedPlanType) {
-                        "weekly" -> "🔥 MAIS ESCOLHIDO PELOS MOTOBOYS (R$ 0,70/DIA)"
-                        "annual" -> "🏆 MELHOR ECONOMIA ANUAL"
+                        "weekly" -> "🔥 MAIS ESCOLHIDO PELOS MOTOBOYS (R$ 3,57/DIA)"
+                        "annual" -> "🏆 MELHOR ECONOMIA ANUAL (-45% OFF)"
                         else -> "⭐ PLANO MENSAL PADRÃO"
                     },
                     color = if (selectedPlanType == "weekly") NeonGreen else GoldVip,
@@ -294,9 +294,9 @@ fun SubscriptionScreen(
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         text = when (selectedPlanType) {
-                            "weekly" -> "R$ 4,90"
-                            "annual" -> "R$ 19,99"
-                            else -> "R$ 29,90"
+                            "weekly" -> "R$ 25,00"
+                            "annual" -> "R$ 54,16"
+                            else -> "R$ 99,90"
                         },
                         color = NeonGreen,
                         fontSize = 32.sp,
@@ -316,7 +316,7 @@ fun SubscriptionScreen(
                 Text(
                     text = when (selectedPlanType) {
                         "weekly" -> "Cobrança via Pix Asaas • Se paga na primeira corrida ruim recusada"
-                        "annual" -> "Cobrado anualmente: R$ 239,90 (economiza R$ 118,90)"
+                        "annual" -> "Cobrado anualmente: R$ 650,00 (economiza mais de R$ 548 no ano comparado ao mensal)"
                         else -> "Cobrança mensal cancelável a qualquer momento"
                     },
                     color = TextMuted,
@@ -334,8 +334,8 @@ fun SubscriptionScreen(
                                 isGeneratingPix = true
                                 val res = JarvisVpsApiClient.requestWeeklyPix(phone = "")
                                 isGeneratingPix = false
-                                currentPixAmount = "R$ 4,90"
-                                currentPixCode = if (res.pixCopiaECola.isNotBlank()) res.pixCopiaECola else "00020126580014br.gov.bcb.pix0136jarvis-cockpit-pix@asaas.com52040000530398654044.905802BR5925JARVIS NEURAL COCKPIT6009SAO PAULO62070503***6304ABCD"
+                                currentPixAmount = "R$ 25,00"
+                                currentPixCode = if (res.pixCopiaECola.isNotBlank()) res.pixCopiaECola else "00020126580014br.gov.bcb.pix0136jarvis-cockpit-pix@asaas.com520400005303986540525.005802BR5925JARVIS NEURAL COCKPIT6009SAO PAULO62070503***6304ABCD"
                                 showPixModal = true
                             }
                         },
@@ -355,7 +355,7 @@ fun SubscriptionScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("GERANDO PIX NO ASAAS...", fontWeight = FontWeight.Black, fontSize = 11.sp)
                         } else {
-                            Text("GERAR PIX DE R$ 4,90 ⚡", fontWeight = FontWeight.Black, fontSize = 13.sp)
+                            Text("GERAR PIX DE R$ 25,00 ⚡", fontWeight = FontWeight.Black, fontSize = 13.sp)
                         }
                     }
                 } else {
@@ -365,7 +365,7 @@ fun SubscriptionScreen(
                             val activity = context.findActivity()
                             val isAnnual = selectedPlanType == "annual"
                             val productId = if (isAnnual) PlayBillingManager.SUBSCRIPTION_ID_ANNUAL else PlayBillingManager.SUBSCRIPTION_ID_MONTHLY
-                            val price = if (isAnnual) 239.90 else 29.90
+                            val price = if (isAnnual) 650.00 else 99.90
 
                             if (activity != null) {
                                 PlayBillingManager.launchSubscriptionPurchase(activity, productId) { success, msg ->
@@ -452,6 +452,71 @@ fun SubscriptionScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Card do Programa de Indicação (Viral Loop - Member-Get-Member)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("card_referral_program"),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF131D28)),
+            border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF00E5FF).copy(alpha = 0.5f))
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "🤝", fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "PROGRAMA INDIQUE UM PARCEIRO",
+                        color = Color(0xFF00E5FF),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = "A cada amigo motoboy que ativar o Jarvis pelo seu link, você ganha +1 Semana Grátis (ou R$ 10 de Pix) direto na sua conta!",
+                    color = TextLight,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 17.sp
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = {
+                        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(
+                                android.content.Intent.EXTRA_TEXT,
+                                "Fala parceiro! Baixa o Jarvis Cockpit pra moto. Ele calcula o ganho por km das corridas do iFood e da 99, avisa onde tem blitz e acha rotas duplas. Baixa grátis por 7 dias no link: http://187.77.248.73:8080/?ref=moto"
+                            )
+                        }
+                        context.startActivity(android.content.Intent.createChooser(shareIntent, "Indicar parceiro motoboy"))
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF00E5FF),
+                        contentColor = DarkBg
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .testTag("btn_share_referral_whatsapp")
+                ) {
+                    Text("COMPARTILHAR NO WHATSAPP DOS MOTOBOYS 📲", fontSize = 11.sp, fontWeight = FontWeight.Black)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         // Botão de Restaurar Compras do Google Play
         TextButton(
             onClick = {
@@ -478,7 +543,7 @@ fun SubscriptionScreen(
 
         // Termos de Renovação do Google Play (Obrigatório segundo políticas Google Play)
         Text(
-            text = "Informações da Assinatura: A cobrança será realizada em sua conta Google Play após a confirmação da compra ou término do período de teste gratuito de 7 dias. A assinatura é renovada automaticamente pelo valor correspondente ao plano selecionado (R$ 29,90/mês ou R$ 239,90/ano), a menos que seja desativada nas configurações de assinaturas do Google Play pelo menos 24 horas antes do fim do ciclo atual.",
+            text = "Informações da Assinatura: A cobrança será realizada em sua conta Google Play após a confirmação da compra ou término do período de teste gratuito de 7 dias. A assinatura é renovada automaticamente pelo valor correspondente ao plano selecionado (R$ 99,90/mês ou R$ 650,00/ano), a menos que seja desativada nas configurações de assinaturas do Google Play pelo menos 24 horas antes do fim do ciclo atual.",
             color = TextMuted.copy(alpha = 0.7f),
             fontSize = 9.sp,
             textAlign = TextAlign.Center,

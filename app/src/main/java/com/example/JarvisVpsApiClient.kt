@@ -35,9 +35,9 @@ object JarvisVpsApiClient {
     )
 
     /**
-     * Solicita à VPS a criação de uma cobrança de Assinatura Semanal via Pix Asaas (R$ 4,90)
+     * Solicita à VPS a criação de uma cobrança de Assinatura Semanal via Pix Asaas (R$ 25,00)
      */
-    suspend fun requestWeeklyPix(phone: String): PixResponse = withContext(Dispatchers.IO) {
+    suspend fun requestWeeklyPix(phone: String, value: Double = 25.00): PixResponse = withContext(Dispatchers.IO) {
         try {
             val url = URL("$DEFAULT_SERVER_URL/api/create-pix")
             val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -52,7 +52,7 @@ object JarvisVpsApiClient {
             val payload = JSONObject().apply {
                 put("phone", phone.ifBlank { "5511999999999" })
                 put("plan", "PRO_WEEKLY")
-                put("value", 4.90)
+                put("value", value)
             }
 
             OutputStreamWriter(conn.outputStream).use { writer ->

@@ -19,9 +19,9 @@ enum class SubscriptionTier(
     val isPaid: Boolean
 ) {
     FREE("Plano Free", "R$ 0,00", "Gratuito com limites", false),
-    PRO_WEEKLY("Plano Semanal (Pix)", "R$ 4,90", "/semana", true),
-    PRO_MONTHLY("Plano Pro Mensal", "R$ 29,90", "/mês", true),
-    PRO_ANNUAL("Plano Pro Anual", "R$ 239,90", "/ano (R$ 19,99/mês)", true)
+    PRO_WEEKLY("Plano Semanal (Pix)", "R$ 25,00", "/semana", true),
+    PRO_MONTHLY("Plano Pro Mensal", "R$ 99,90", "/mês", true),
+    PRO_ANNUAL("Plano Pro Anual", "R$ 650,00", "/ano (R$ 54,16/mês)", true)
 }
 
 /**

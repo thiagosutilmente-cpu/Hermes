@@ -106,16 +106,16 @@ object PlayBillingManager {
                 productId = SUBSCRIPTION_ID_MONTHLY,
                 title = "Radar Pro Mensal",
                 description = "Varredura ilimitada, comandos de voz no capacete e filtro anti-prejuízo",
-                formattedPrice = "R$ 29,90",
+                formattedPrice = "R$ 99,90",
                 billingPeriod = "Mensal",
                 freeTrialPeriodDays = 7
             ),
             PlaySubscriptionProduct(
                 productId = SUBSCRIPTION_ID_ANNUAL,
-                title = "Radar Pro Anual (Desconto 33%)",
-                description = "Economize mais de R$ 118 no ano com todos os recursos Pro liberados",
-                formattedPrice = "R$ 239,90",
-                billingPeriod = "Anual (R$ 19,99/mês)",
+                title = "Radar Pro Anual (Desconto 45%)",
+                description = "Economize mais de R$ 548 no ano com todos os recursos Pro liberados",
+                formattedPrice = "R$ 650,00",
+                billingPeriod = "Anual (R$ 54,16/mês)",
                 freeTrialPeriodDays = 7
             )
         )

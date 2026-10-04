@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Radar Coordinator</string>
+    <string name="accessibility_service_label">Jarvis Copiloto Tático</string>
+    <string name="accessibility_service_description">Permite ao Jarvis identificar ofertas de rotas compatíveis e exibir o painel tático flutuante sobre os apps de entrega.</string>
 </resources>
