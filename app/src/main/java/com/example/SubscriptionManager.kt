@@ -16,12 +16,13 @@ enum class SubscriptionTier(
     val title: String,
     val priceFormatted: String,
     val billingCycle: String,
-    val isPaid: Boolean
+    val isPaid: Boolean,
+    val priceValue: Double
 ) {
-    FREE("Plano Free", "R$ 0,00", "Gratuito com limites", false),
-    PRO_WEEKLY("Plano Semanal (Pix)", "R$ 25,00", "/semana", true),
-    PRO_MONTHLY("Plano Pro Mensal", "R$ 99,90", "/mês", true),
-    PRO_ANNUAL("Plano Pro Anual", "R$ 650,00", "/ano (R$ 54,16/mês)", true)
+    FREE("Plano Free", "R$ 0,00", "Gratuito com limites", false, 0.0),
+    PRO_WEEKLY("Plano Semanal (Pix)", "R$ 25,00", "/semana", true, 25.0),
+    PRO_MONTHLY("Plano Pro Mensal", "R$ 99,90", "/mês", true, 99.90),
+    PRO_ANNUAL("Plano Pro Anual VIP", "R$ 650,00", "/ano (R$ 54,16/mês)", true, 650.0)
 }
 
 /**
@@ -32,14 +33,19 @@ data class SubscriptionState(
     val isActive: Boolean = false,
     val isTrialActive: Boolean = false,
     val trialDaysRemaining: Int = 0,
-    val expiryDateFormatted: String = "Expirado / Sem plano",
+    val expiryDateFormatted: String = "Sem plano ativo",
     val dailyScansUsed: Int = 0,
     val dailyScansLimit: Int = 3, // Limite para Free
     val isVoiceEnabled: Boolean = false,
-    val isAutoFilterBadRunsEnabled: Boolean = false
+    val isAutoFilterBadRunsEnabled: Boolean = false,
+    val isMultiStackEnabled: Boolean = false,
+    val isBlitzVoiceAlertEnabled: Boolean = false,
+    val isRecurrentPixActive: Boolean = false,
+    val nextBillingCycle: String = "",
+    val recurrentAmountFormatted: String = ""
 ) {
     val canScanNewOffers: Boolean
-        get() = isActive || isTrialActive || (dailyScansUsed < dailyScansLimit)
+        get() = isActive || (dailyScansUsed < dailyScansLimit)
 }
 
 /**
@@ -71,41 +77,38 @@ object SubscriptionManager {
         val tierName = prefs.getString(KEY_TIER, SubscriptionTier.FREE.name) ?: SubscriptionTier.FREE.name
         val tier = try { SubscriptionTier.valueOf(tierName) } catch (e: Exception) { SubscriptionTier.FREE }
         val expiryMs = prefs.getLong(KEY_EXPIRY_MS, 0L)
-        val trialStartMs = prefs.getLong(KEY_TRIAL_START_MS, 0L)
         val now = System.currentTimeMillis()
-
-        // Verifica trial de 7 dias
-        val isTrial = trialStartMs > 0L && (now - trialStartMs) < (7L * 24 * 60 * 60 * 1000)
-        val trialRemaining = if (isTrial) {
-            val remainingMs = (7L * 24 * 60 * 60 * 1000) - (now - trialStartMs)
-            (remainingMs / (24 * 60 * 60 * 1000)).toInt() + 1
-        } else 0
 
         // Verifica plano pago ativo
         val isPaidActive = tier.isPaid && expiryMs > now
-        val isActive = isPaidActive || isTrial
+        val isActive = isPaidActive
 
         // Contador de scans diários
         val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(now))
         val lastDate = prefs.getString(KEY_LAST_SCAN_DATE, "") ?: ""
         val scans = if (lastDate == todayStr) prefs.getInt(KEY_SCANS_USED, 0) else 0
 
-        val expiryStr = when {
-            isTrial -> "Trial Grátis ($trialRemaining dias restantes)"
-            isPaidActive -> SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(expiryMs))
-            else -> "Inativo (Plano Gratuito)"
+        val expiryStr = if (isPaidActive) {
+            SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(expiryMs))
+        } else {
+            "Sem Plano Ativo (Recursos Pro Bloqueados)"
         }
 
         val newState = SubscriptionState(
-            tier = if (isActive && !isTrial) tier else if (isTrial) SubscriptionTier.PRO_MONTHLY else SubscriptionTier.FREE,
-            isActive = isActive,
-            isTrialActive = isTrial,
-            trialDaysRemaining = trialRemaining,
+            tier = if (isPaidActive) tier else SubscriptionTier.FREE,
+            isActive = isPaidActive,
+            isTrialActive = false,
+            trialDaysRemaining = 0,
             expiryDateFormatted = expiryStr,
             dailyScansUsed = scans,
             dailyScansLimit = 3,
-            isVoiceEnabled = isActive,
-            isAutoFilterBadRunsEnabled = isActive
+            isVoiceEnabled = isPaidActive,
+            isAutoFilterBadRunsEnabled = isPaidActive,
+            isMultiStackEnabled = isPaidActive,
+            isBlitzVoiceAlertEnabled = isPaidActive,
+            isRecurrentPixActive = isPaidActive,
+            nextBillingCycle = if (isPaidActive) tier.billingCycle else "",
+            recurrentAmountFormatted = if (isPaidActive) tier.priceFormatted else ""
         )
         _subscriptionState.value = newState
 
@@ -113,14 +116,14 @@ object SubscriptionManager {
         FirebaseAnalyticsManager.updateSubscriptionUserProperties(
             tierName = newState.tier.name,
             isActive = newState.isActive,
-            isTrial = newState.isTrialActive
+            isTrial = false
         )
     }
 
     /**
-     * Ativa o teste grátis de 7 dias do Plano Pro
+     * Ativa o teste grátis de 7 dias do Plano Pro e agenda o funil de WorkManager
      */
-    fun startSevenDayTrial() {
+    fun startSevenDayTrial(context: Context? = null) {
         if (!::prefs.isInitialized) return
         val now = System.currentTimeMillis()
         prefs.edit()
@@ -130,6 +133,49 @@ object SubscriptionManager {
         loadSavedState()
 
         FirebaseAnalyticsManager.logTrialStarted(days = 7, source = "subscription_manager")
+
+        // Agenda automaticamente o funil de conversão via WorkManager
+        if (context != null) {
+            try {
+                val phone = prefs.getString("user_contact_phone", "5511999999999") ?: "5511999999999"
+                MarketingFunnelScheduler.scheduleFull7DayFunnel(
+                    context = context,
+                    phone = phone,
+                    userName = "Piloto",
+                    isAccelerated = false
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /**
+     * Adiciona dias bônus de cortesia/indicação viral ao trial ou à assinatura
+     */
+    fun addBonusTrialDays(days: Int) {
+        if (!::prefs.isInitialized) return
+        val currentTrialStart = prefs.getLong(KEY_TRIAL_START_MS, 0L)
+        val now = System.currentTimeMillis()
+        val bonusMs = days * 24L * 60 * 60 * 1000
+
+        if (currentTrialStart > 0L) {
+            // Estende a janela de validade do trial adicionando dias
+            val newTrialStart = currentTrialStart + bonusMs
+            prefs.edit().putLong(KEY_TRIAL_START_MS, newTrialStart).apply()
+        } else {
+            prefs.edit()
+                .putLong(KEY_TRIAL_START_MS, now)
+                .putString(KEY_TIER, SubscriptionTier.PRO_MONTHLY.name)
+                .apply()
+        }
+
+        val currentExpiry = prefs.getLong(KEY_EXPIRY_MS, 0L)
+        if (currentExpiry > now) {
+            prefs.edit().putLong(KEY_EXPIRY_MS, currentExpiry + bonusMs).apply()
+        }
+
+        loadSavedState()
     }
 
     /**
@@ -161,6 +207,21 @@ object SubscriptionManager {
             .apply()
 
         loadSavedState()
+    }
+
+    fun activateMonthlySubscription() {
+        activateProSubscription(annual = false)
+    }
+
+    fun activateAnnualSubscription() {
+        activateProSubscription(annual = true)
+    }
+
+    /**
+     * Cancela o débito recorrente do Pix / Reseta para Free
+     */
+    fun cancelRecurrentPix() {
+        resetToFree()
     }
 
     /**

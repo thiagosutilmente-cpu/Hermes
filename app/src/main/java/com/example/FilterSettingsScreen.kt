@@ -231,7 +231,25 @@ fun FilterSettingsScreen(
             }
 
             // ==========================================
-            // 2. PRESETS RÁPIDOS DE ESTRATÉGIA
+            // 2. FILTRO INTELIGENTE DE CORRIDAS (SWITCH + PISO R$/KM + DISTÂNCIA)
+            // ==========================================
+            item {
+                SmartRideFilterCard(
+                    initialState = SmartRideFilterState(
+                        isEnabled = isNotificationFilterEnabled,
+                        minPricePerKm = if (minGainPerKm > 0.0) minGainPerKm else 4.50,
+                        maxDistanceKm = maxDistanceKm
+                    ),
+                    onFilterChange = { state ->
+                        isNotificationFilterEnabled = state.isEnabled
+                        minGainPerKm = if (state.isEnabled) state.minPricePerKm else 0.0
+                        maxDistanceKm = state.maxDistanceKm
+                    }
+                )
+            }
+
+            // ==========================================
+            // 3. PRESETS RÁPIDOS DE ESTRATÉGIA
             // ==========================================
             item {
                 Column {

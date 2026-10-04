@@ -277,6 +277,29 @@ fun RadarDeliveryDashboard(
     var showSubscriptionPaywall by remember { mutableStateOf(false) }
     var showAnalyticsDashboard by remember { mutableStateOf(false) }
     var showWebViewCockpit by remember { mutableStateOf(false) }
+    var showMarketingHubScreen by remember { mutableStateOf(false) }
+
+    // Rota Dupla / Entregas Mescladas (Recurso Exclusivo do Plano Pro)
+    val activeDualOpp by JarvisAccessibilityService.activeDualOpportunity.collectAsState()
+    var simulatedDualOpp by remember {
+        mutableStateOf<AssistedQuickSwitchManager.DualRouteOpportunity?>(
+            if (!subscriptionState.isActive) {
+                AssistedQuickSwitchManager.DualRouteOpportunity(
+                    id = "demo_dual_stack",
+                    primaryApp = "iFood",
+                    primaryValue = 18.00,
+                    secondaryApp = "99 Moto",
+                    secondaryPackage = AssistedQuickSwitchManager.PACKAGE_99,
+                    secondaryValue = 20.00,
+                    totalCombinedValue = 38.00,
+                    extraDeviationMeters = 380,
+                    extraMinutes = 2,
+                    destinationCorridor = "Moema / Itaim Bibi"
+                )
+            } else null
+        )
+    }
+    val currentDualOpp = activeDualOpp ?: simulatedDualOpp
 
     // Estado de Atualização Automática Over-The-Air (OTA)
     var availableUpdate by remember { mutableStateOf<AutoUpdateManager.UpdateInfo?>(null) }
@@ -1139,6 +1162,13 @@ fun RadarDeliveryDashboard(
         return
     }
 
+    if (showMarketingHubScreen) {
+        AutomatedMarketingHubScreen(
+            onNavigateBack = { showMarketingHubScreen = false }
+        )
+        return
+    }
+
     if (showFilterSettingsScreen) {
         FilterSettingsScreen(
             currentCriteria = filterCriteria,
@@ -1405,6 +1435,14 @@ fun RadarDeliveryDashboard(
                         Text("🌐", fontSize = 16.sp)
                     }
 
+                    // Botão Central de Marketing Viral & Roteiros TikTok/WhatsApp
+                    IconButton(
+                        onClick = { showMarketingHubScreen = true },
+                        modifier = Modifier.testTag("action_open_marketing_hub")
+                    ) {
+                        Text("🚀", fontSize = 16.sp)
+                    }
+
                     // Botão da Bolha Flutuante do Jarvis (OverlayWindowManager)
                     IconButton(
                         onClick = {
@@ -1544,6 +1582,52 @@ fun RadarDeliveryDashboard(
                     }
                 }
 
+                // Card de Rota Dupla / Entregas Mescladas (Bloqueado para Free com Gatilho Pro)
+                if (currentDualOpp != null) {
+                    item {
+                        AssistedDualRouteCard(
+                            opportunity = currentDualOpp,
+                            isPaidSubscriber = subscriptionState.isActive,
+                            onAcceptAndSwitch = {
+                                AssistedQuickSwitchManager.switchToSecondaryApp(context, currentDualOpp.secondaryPackage)
+                                simulatedDualOpp = null
+                            },
+                            onDismiss = {
+                                simulatedDualOpp = null
+                            },
+                            onUnlockPlan = {
+                                showSubscriptionPaywall = true
+                            }
+                        )
+                    }
+                }
+
+                // Filtro Inteligente de Corridas (Switch + Piso R$/km + Distância Máxima)
+                item {
+                    SmartRideFilterCard(
+                        initialState = SmartRideFilterState(
+                            isEnabled = filterCriteria.isNotificationFilterEnabled,
+                            minPricePerKm = if (filterCriteria.minGainPerKm > 0.0) filterCriteria.minGainPerKm else 4.50,
+                            maxDistanceKm = filterCriteria.maxDistanceKm
+                        ),
+                        onFilterChange = { newState ->
+                            filterCriteria = filterCriteria.copy(
+                                isNotificationFilterEnabled = newState.isEnabled,
+                                minGainPerKm = if (newState.isEnabled) newState.minPricePerKm else 0.0,
+                                maxDistanceKm = newState.maxDistanceKm
+                            )
+                            FilterPreferencesManager.saveCriteria(context, filterCriteria)
+                        }
+                    )
+                }
+
+                // Card de Indicação Viral no WhatsApp (Ganhe Dias Grátis)
+                item {
+                    ReferralViralShareCard(
+                        onOpenMarketingHub = { showMarketingHubScreen = true }
+                    )
+                }
+
                 // Banner Promocional Plano Pro / Upgrade
                 if (!subscriptionState.isActive) {
                     item {
@@ -1571,14 +1655,14 @@ fun RadarDeliveryDashboard(
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
                                         Text(
-                                            text = "DESBLOQUEIE O RADAR PRO",
+                                            text = "PLANOS PRO • PIX AUTOMÁTICO",
                                             color = Color(0xFFFFD700),
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Black,
                                             letterSpacing = 0.5.sp
                                         )
                                         Text(
-                                            text = "Filtro anti-corrida ruim, radar ilimitado e voz mãos-livres.",
+                                            text = "Semanal R$ 25,00 • Mensal R$ 99,90 • Anual VIP R$ 54,16/mês. Entregas Mescladas liberadas!",
                                             color = TextLight,
                                             fontSize = 10.sp
                                         )
@@ -1591,7 +1675,7 @@ fun RadarDeliveryDashboard(
                                         .padding(horizontal = 10.dp, vertical = 6.dp)
                                 ) {
                                     Text(
-                                        text = "VER PLANO",
+                                        text = "VER PLANOS",
                                         color = Color(0xFF0A0A0F),
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Black

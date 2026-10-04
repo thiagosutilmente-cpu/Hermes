@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
@@ -106,14 +107,18 @@ fun AssistedDualRouteCard(
     opportunity: AssistedQuickSwitchManager.DualRouteOpportunity,
     onAcceptAndSwitch: () -> Unit,
     onDismiss: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isPaidSubscriber: Boolean = true,
+    onUnlockPlan: () -> Unit = {}
 ) {
+    val borderColor = if (isPaidSubscriber) Color(0xFF10B981) else Color(0xFFFFB800)
+
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .clip(RoundedCornerShape(20.dp))
-            .border(2.dp, Color(0xFF10B981), RoundedCornerShape(20.dp)),
+            .border(2.dp, borderColor, RoundedCornerShape(20.dp)),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A).copy(alpha = 0.96f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
     ) {
@@ -130,21 +135,21 @@ fun AssistedDualRouteCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(
-                        imageVector = Icons.Default.ElectricBolt,
+                        imageVector = if (isPaidSubscriber) Icons.Default.ElectricBolt else Icons.Default.Lock,
                         contentDescription = "Rota Dupla",
-                        tint = Color(0xFF10B981),
+                        tint = borderColor,
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
-                        text = "ROTA DUPLA DETECTADA!",
-                        color = Color(0xFF10B981),
+                        text = if (isPaidSubscriber) "ROTA DUPLA DETECTADA!" else "ROTA DUPLA (EXCLUSIVO PRO)",
+                        color = borderColor,
                         fontWeight = FontWeight.Black,
                         fontSize = 13.sp
                     )
                 }
 
                 Surface(
-                    color = Color(0xFF10B981).copy(alpha = 0.15f),
+                    color = borderColor.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
@@ -155,12 +160,12 @@ fun AssistedDualRouteCard(
                         Icon(
                             imageVector = Icons.Default.Shield,
                             contentDescription = "SLA Seguro",
-                            tint = Color(0xFF34D399),
+                            tint = if (isPaidSubscriber) Color(0xFF34D399) else Color(0xFFFFB800),
                             modifier = Modifier.size(12.dp)
                         )
                         Text(
-                            text = "SLA ${opportunity.slaProtectionScore}% SEGURO",
-                            color = Color(0xFF34D399),
+                            text = if (isPaidSubscriber) "SLA ${opportunity.slaProtectionScore}% SEGURO" else "LIBERE NO PLANO",
+                            color = if (isPaidSubscriber) Color(0xFF34D399) else Color(0xFFFFB800),
                             fontWeight = FontWeight.Bold,
                             fontSize = 10.sp
                         )
@@ -194,7 +199,7 @@ fun AssistedDualRouteCard(
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = "R$ ${"%.2f".format(opportunity.totalCombinedValue)}",
-                        color = Color(0xFF10B981),
+                        color = borderColor,
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Black
                     )
@@ -224,30 +229,59 @@ fun AssistedDualRouteCard(
                     Text("Pular", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
 
-                Button(
-                    onClick = onAcceptAndSwitch,
-                    modifier = Modifier.weight(0.65f),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF10B981),
-                        contentColor = Color(0xFF022C22)
-                    ),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                if (isPaidSubscriber) {
+                    Button(
+                        onClick = onAcceptAndSwitch,
+                        modifier = Modifier.weight(0.65f),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981),
+                            contentColor = Color(0xFF022C22)
+                        ),
+                        contentPadding = PaddingValues(vertical = 12.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Navigation,
-                            contentDescription = "Aceitar",
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "ACEITAR & ABRIR APP 2",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 12.sp
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Navigation,
+                                contentDescription = "Aceitar",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "ACEITAR & ABRIR APP 2",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = onUnlockPlan,
+                        modifier = Modifier.weight(0.65f),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFB800),
+                            contentColor = Color(0xFF1F1200)
+                        ),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Desbloquear",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "DESBLOQUEAR (R$ 25)",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                 }
             }
