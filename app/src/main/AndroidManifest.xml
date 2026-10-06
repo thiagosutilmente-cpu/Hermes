@@ -117,6 +117,15 @@
             android:enabled="true"
             android:exported="false" />
 
+        <!-- Serviço do Firebase Cloud Messaging para alertas de novas ofertas da Hostinger -->
+        <service
+            android:name="com.example.RadarFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <activity
             android:name="com.example.MainActivity"
             android:exported="true"

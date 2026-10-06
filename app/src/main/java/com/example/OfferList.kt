@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -43,6 +44,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -58,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -619,10 +622,12 @@ fun DeliveryOfferCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Linha de Ações: Recusar e Aceitar
+            // Linha de Ações: Recusar, Ler por Voz (TTS) e Aceitar
+            val context = LocalContext.current
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedButton(
                     onClick = { onDecline(offer) },
@@ -639,8 +644,54 @@ fun DeliveryOfferCard(
                         contentDescription = "Recusar",
                         modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text("RECUSAR", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                // Botão de Áudio TTS: Lê resumo em voz alta no fone
+                IconButton(
+                    onClick = {
+                        OfferTextToSpeechEngine.getInstance(context).speakDeliveryOffer(offer)
+                    },
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(CyberCyan.copy(alpha = 0.15f))
+                        .border(1.dp, CyberCyan.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                        .testTag("btn_tts_read_${offer.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.VolumeUp,
+                        contentDescription = "Ler resumo da oferta por voz",
+                        tint = CyberCyan,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                // Botão de Rota Direta em 1 Toque (Waze / Maps)
+                IconButton(
+                    onClick = {
+                        NavigationQuickDispatcher.launchBestRoute(
+                            context = context,
+                            latitude = offer.latitude,
+                            longitude = offer.longitude,
+                            addressTitle = offer.nomeRestaurante,
+                            preferWaze = true
+                        )
+                    },
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF0C1F2E))
+                        .border(1.dp, CyberCyan.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .testTag("btn_nav_route_${offer.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Navigation,
+                        contentDescription = "Iniciar rota GPS no Waze ou Maps",
+                        tint = CyberCyan,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
 
                 Button(

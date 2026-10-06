@@ -96,20 +96,16 @@ class NeuralVoiceManager(private val context: Context) : TextToSpeech.OnInitList
         neuralDecision: String = "ACCEPT",
         neuralReason: String = ""
     ) {
-        val formattedVal = String.format(Locale.GERMANY, "%.2f", value).replace(".", ",")
-        val formattedKm = String.format(Locale.GERMANY, "%.1f", distanceKm).replace(".", ",")
-        val formattedGain = String.format(Locale.GERMANY, "%.2f", gainPerKm).replace(".", ",")
-
-        val recommendation = if (neuralDecision.equals("accept", ignoreCase = true) || neuralDecision.contains("ACCEPT")) {
-            "Recomendação Jarvis: Aceitar corrida vantajosa."
-        } else {
-            "Recomendação Jarvis: Atenção, rendimento abaixo do ideal."
-        }
-
-        val reasonText = if (neuralReason.isNotBlank()) " Motivo: $neuralReason." else ""
-        val timeText = if (estimatedMinutes > 0) " Tempo estimado de $estimatedMinutes minutos." else ""
-
-        val speech = "Oferta $appName. Estabelecimento: $restaurant. Valor total: $formattedVal reais para $formattedKm quilômetros, rendendo $formattedGain por quilômetro.$timeText $recommendation$reasonText"
+        val ttsEngine = OfferTextToSpeechEngine.getInstance(context)
+        val isGood = neuralDecision.equals("accept", ignoreCase = true) || neuralDecision.contains("ACCEPT") || gainPerKm >= 5.0
+        val speech = ttsEngine.buildOfferSpeechText(
+            appName = appName,
+            restaurant = restaurant,
+            value = value,
+            distanceKm = distanceKm,
+            profitPerKm = gainPerKm,
+            isGoodDeal = isGood
+        )
         speak(speech)
     }
 
@@ -144,10 +140,16 @@ class NeuralVoiceManager(private val context: Context) : TextToSpeech.OnInitList
         distanceKm: Double,
         gainPerKm: Double
     ) {
-        val formattedVal = String.format(Locale.GERMANY, "%.2f", value).replace(".", ",")
-        val formattedKm = String.format(Locale.GERMANY, "%.1f", distanceKm).replace(".", ",")
-        val formattedGain = String.format(Locale.GERMANY, "%.2f", gainPerKm).replace(".", ",")
-        val speech = "Atenção piloto. Nova oferta $appName no $restaurant: $formattedVal reais para $formattedKm quilômetros, rendendo $formattedGain por quilômetro. Diga ACEITAR ou RECUSAR."
+        val ttsEngine = OfferTextToSpeechEngine.getInstance(context)
+        val isGood = gainPerKm >= 5.0
+        val speech = ttsEngine.buildOfferSpeechText(
+            appName = appName,
+            restaurant = restaurant,
+            value = value,
+            distanceKm = distanceKm,
+            profitPerKm = gainPerKm,
+            isGoodDeal = isGood
+        ) + " Diga ACEITAR ou RECUSAR."
         speak(speech)
     }
 
@@ -222,5 +224,20 @@ class NeuralVoiceManager(private val context: Context) : TextToSpeech.OnInitList
             tts?.stop()
             tts?.shutdown()
         } catch (_: Exception) {}
+    }
+
+    companion object {
+        @Volatile
+        private var INSTANCE: NeuralVoiceManager? = null
+
+        fun getInstance(context: Context): NeuralVoiceManager {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: NeuralVoiceManager(context.applicationContext).also { INSTANCE = it }
+            }
+        }
+
+        fun speak(context: Context, text: String) {
+            getInstance(context).speak(text)
+        }
     }
 }

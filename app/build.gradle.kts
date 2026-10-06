@@ -88,4 +88,13 @@ dependencies {
 
     // WorkManager para background processing
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+    // Retrofit & OkHttp (Comunicação com Servidor VPS na Hostinger)
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // Firebase Cloud Messaging (FCM Alertas em Tempo Real da Hostinger)
+    implementation("com.google.firebase:firebase-messaging:23.4.1")
 }

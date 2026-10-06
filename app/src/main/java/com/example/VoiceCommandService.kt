@@ -191,20 +191,33 @@ class VoiceCommandService : Service() {
 
         updateNotification("Comando processado: ${command.name}")
 
+        // Despacha o comando de voz reconhecido (STT) para o servidor central (VPS/API)
+        try {
+            RadarBackendSyncManager.sendVoiceCommandEvent(
+                context = applicationContext,
+                commandName = command.name,
+                spokenText = rawText,
+                actionTaken = "EXECUTED_${command.name}"
+            )
+        } catch (_: Exception) {}
+
         when (command) {
             VoiceActionCommand.ACCEPT,
             VoiceActionCommand.ACCEPT_IFOOD,
             VoiceActionCommand.ACCEPT_UBER,
             VoiceActionCommand.ACCEPT_99,
             VoiceActionCommand.ACCEPT_RAPPI -> {
-                // 1. Tenta acionar clique automático via serviço de Acessibilidade no botão "Aceitar"
-                val clicked = JarvisAccessibilityService.performAcceptClick()
+                // 1. Tenta aceitar a oferta pendente no HUD flutuante do Jarvis
+                val acceptedOnOverlay = OverlayWindowManager.getInstance(applicationContext).acceptCurrentOfferByVoice()
 
-                // 2. Feedback audível no fone
-                if (clicked) {
-                    voiceManager?.speak("Chamada aceita com sucesso!")
-                } else {
-                    voiceManager?.speak("Comando Aceitar processado.")
+                // 2. Se não havia oferta no HUD flutuante, tenta acionar clique automático via serviço de Acessibilidade
+                if (!acceptedOnOverlay) {
+                    val clicked = JarvisAccessibilityService.performAcceptClick()
+                    if (clicked) {
+                        voiceManager?.speak("Chamada aceita com sucesso via comando de voz!")
+                    } else {
+                        voiceManager?.speak("Comando Aceitar processado.")
+                    }
                 }
 
                 // 3. Atualiza o HUD Flutuante
@@ -228,7 +241,11 @@ class VoiceCommandService : Service() {
             VoiceActionCommand.DECLINE_UBER,
             VoiceActionCommand.DECLINE_99,
             VoiceActionCommand.DECLINE_RAPPI -> {
-                voiceManager?.speak("Chamada recusada.")
+                // 1. Tenta recusar a oferta pendente no HUD flutuante do Jarvis
+                val declinedOnOverlay = OverlayWindowManager.getInstance(applicationContext).declineCurrentOfferByVoice()
+                if (!declinedOnOverlay) {
+                    voiceManager?.speak("Chamada recusada por comando de voz.")
+                }
                 HapticFeedbackHelper.vibrateReject(applicationContext)
 
                 OverlayWindowManager.getInstance(applicationContext).updateStatus(

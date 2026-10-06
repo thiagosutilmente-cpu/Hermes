@@ -37,6 +37,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -45,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -78,6 +80,15 @@ fun SpeedSafetyLockOverlay(
     onDeclineCurrentOffer: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+
+    // Leitura automática do resumo da oferta (valor, km e lucro) via TTS quando em movimento
+    LaunchedEffect(isLocked, pendingOffer?.id) {
+        if (isLocked && pendingOffer != null) {
+            OfferTextToSpeechEngine.getInstance(context).speakDeliveryOffer(pendingOffer)
+        }
+    }
+
     AnimatedVisibility(
         visible = isLocked,
         enter = fadeIn(animationSpec = tween(280)) + scaleIn(initialScale = 0.94f),

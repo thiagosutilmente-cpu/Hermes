@@ -137,19 +137,27 @@ class JarvisAccessibilityService : AccessibilityService() {
             )
             _activeDualOpportunity.value = dualOpportunity
 
-            // Atualiza o HUD Flutuante do Jarvis em tempo real sobre a tela do app
-            val profitKm = if (offer.distanceKm > 0) String.format(Locale.ROOT, "R$ %.2f/km", offer.value / offer.distanceKm) else "R$ --"
-            OverlayWindowManager.getInstance(this).updateStatus(
-                OverlayWindowManager.JarvisOverlayStatus(
-                    isOnline = true,
-                    headline = "OFERTA: $appName".uppercase(Locale.ROOT),
-                    activeApp = "$appName: R$ %.2f (%.1f km)".format(Locale.ROOT, offer.value, offer.distanceKm),
-                    profitPerKm = profitKm,
-                    blitzAlert = "Raio Seguro (Sem Blitz)",
-                    latestOffer = "Destino: ${offer.destinationAddress}",
-                    alertLevel = OverlayWindowManager.JarvisOverlayStatus.AlertLevel.OPPORTUNITY
-                )
+            // Atualiza e exibe o Card Flutuante Compacto do Jarvis em tempo real sobre a tela do app
+            val pricePerKm = if (offer.distanceKm > 0) offer.value / offer.distanceKm else 0.0
+            val isGood = pricePerKm >= 4.50
+            val label = String.format(Locale.ROOT, "R$ %.2f/km %s", pricePerKm, if (isGood) "🟢 BOA" else "🔴 PREJUÍZO")
+
+            val tacticalOffer = OverlayWindowManager.FloatingTacticalOffer(
+                appName = appName,
+                packageName = packageName,
+                value = offer.value,
+                distanceKm = offer.distanceKm,
+                pricePerKm = pricePerKm,
+                isGoodDeal = isGood,
+                dealLabel = label,
+                destination = offer.destinationAddress,
+                pickup = offer.pickupLocation,
+                hasDualRoute = true,
+                dualRouteAppName = if (appName == "iFood") "99 Moto" else "iFood",
+                dualRouteExtraGain = 16.50
             )
+
+            OverlayWindowManager.getInstance(this).showTacticalOffer(tacticalOffer)
         }
     }
 

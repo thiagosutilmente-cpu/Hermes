@@ -47,6 +47,8 @@ import com.example.radar.ui.theme.StatusOffline
 import com.example.radar.ui.theme.TextMuted
 import com.example.radar.ui.theme.TextPrimary
 import com.example.radar.ui.theme.TextSecondary
+import androidx.compose.ui.platform.LocalContext
+import com.example.JarvisVoiceAlertManager
 import java.util.Locale
 
 @Composable
@@ -54,6 +56,7 @@ fun NeuralDecisionTesterCard(
     onSimulateDecision: (Double, Double, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     var isExpanded by remember { mutableStateOf(false) }
     var offerValue by remember { mutableFloatStateOf(32.0f) }
     var distanceKm by remember { mutableFloatStateOf(4.5f) }
@@ -224,6 +227,31 @@ fun NeuralDecisionTesterCard(
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    // Botão para testar o alerta falado TTS (voice_alert) direto no fone
+                    Button(
+                        onClick = {
+                            JarvisVoiceAlertManager.evaluateAndSpeakOffer(
+                                context = context,
+                                platform = selectedApp,
+                                payoutBrl = offerValue.toDouble(),
+                                distanceKm = distanceKm.toDouble()
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2563EB),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("speak_voice_alert_button")
+                    ) {
+                        Text("🔊 OUVIR VOICE_ALERT NO FONE (TTS)", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Button(
                         onClick = {

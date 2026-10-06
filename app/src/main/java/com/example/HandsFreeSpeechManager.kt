@@ -469,7 +469,10 @@ class HandsFreeSpeechManager(
             t.contains("topo") || t.contains("aceita ai") || t.contains("aceitar corrida") ||
             t.contains("aceitar pedido") || t.contains("pegar corrida") || t.contains("fechou") ||
             t.contains("manda") || t.contains("positivo") || t.contains("partiu") ||
-            t.contains("vamos") || t.contains("vamo") || t.contains("vou") || t.contains("pega essa")
+            t.contains("vamos") || t.contains("vamo") || t.contains("vou") || t.contains("pega essa") ||
+            t.contains("pode mandar") || t.contains("quero essa") || t.contains("beleza") ||
+            t.contains("demorou") || t.contains("manda bala") || t.contains("tô dentro") ||
+            t.contains("to dentro") || t == "ok" || t.contains("aceita logo")
         ) {
             return VoiceActionCommand.ACCEPT
         }
@@ -484,7 +487,10 @@ class HandsFreeSpeechManager(
             t.contains("dispensa") || t.contains("pular") || t.contains("pula") ||
             t.contains("negar") || t.contains("nega") || t.contains("recusar corrida") ||
             t.contains("recusar pedido") || t.contains("ruim") || t.contains("fora") ||
-            t.contains("muito longe") || t.contains("longe demais") || t.contains("cancela essa")
+            t.contains("muito longe") || t.contains("longe demais") || t.contains("cancela essa") ||
+            t.contains("sai fora") || t.contains("não quero") || t.contains("nao quero") ||
+            t.contains("furada") || t.contains("nem a pau") || t.contains("deixa quieto") ||
+            t.contains("passa essa") || t.contains("dispensa logo")
         ) {
             return VoiceActionCommand.DECLINE
         }

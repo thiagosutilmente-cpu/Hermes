@@ -24,18 +24,22 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import kotlin.math.hypot
 
 /**
  * OverlayWindowManager
  *
- * Gerenciador nativo de interface flutuante (Bolha tática & Mini-HUD) utilizando o [WindowManager] do Android.
+ * Gerenciador nativo de interface flutuante (Bolha tática & Mini-HUD Compacto)
+ * utilizando o [WindowManager] do Android.
  *
- * Permite que o entregador:
- * 1. Mantenha uma bolha flutuante persistente do Jarvis visível sobre outros apps (iFood, Uber, 99 Moto, Rappi).
- * 2. Arraste a bolha livremente pela tela com ancoragem automática nas bordas laterais ("snap-to-edge").
- * 3. Toque para expandir um HUD tático com o status em tempo real (Ganhos/km, Radar de Blitz, Alerta de Rota Dupla).
- * 4. Acesse ações rápidas ("Abrir Cockpit", "Alternar App", "Recolher") sem interromper o app de entrega subjacente.
+ * Funcionalidades da Bolha Flutuante Tática Aprimorada (HUD sobre iFood/99/Uber):
+ * 1. Bolha Flutuante Compacta persistente com indicador de rentabilidade em tempo real.
+ * 2. Card Flutuante Compacto de Inspeção de Corridas com cálculo imediato de R$/km:
+ *    - Ganho real por km (ex: R$ 7,20/km 🟢 BOA ou R$ 2,80/km 🔴 PREJUÍZO).
+ *    - Indicador visual luminoso de Rota Dupla Compatível (sobreposição de pedidos).
+ *    - Ações em 1 Toque: Botões gigantes táteis de ACEITAR ou DISPENSAR sem precisar alternar manualmente.
+ * 3. Ancoragem magnética suave nas bordas laterais da tela (Snap-to-Edge).
  */
 class OverlayWindowManager private constructor(private val context: Context) {
 
@@ -43,7 +47,7 @@ class OverlayWindowManager private constructor(private val context: Context) {
         val isOnline: Boolean = true,
         val headline: String = "JARVIS OPERACIONAL",
         val activeApp: String = "Monitorando Apps",
-        val profitPerKm: String = "R$ 3,85/km",
+        val profitPerKm: String = "R$ 4,50/km",
         val blitzAlert: String = "Raio Seguro (Sem Blitz)",
         val latestOffer: String? = null,
         val alertLevel: AlertLevel = AlertLevel.NORMAL
@@ -55,6 +59,24 @@ class OverlayWindowManager private constructor(private val context: Context) {
         }
     }
 
+    /**
+     * Modelo da Corrida Detectada na Bolha Flutuante
+     */
+    data class FloatingTacticalOffer(
+        val appName: String = "iFood",
+        val packageName: String = "com.ifood.driver",
+        val value: Double = 28.50,
+        val distanceKm: Double = 3.9,
+        val pricePerKm: Double = 7.30,
+        val isGoodDeal: Boolean = true,
+        val dealLabel: String = "R$ 7,20/km 🟢 BOA",
+        val destination: String = "Av. Rebouças, 1200",
+        val pickup: String = "Shopping Eldorado",
+        val hasDualRoute: Boolean = true,
+        val dualRouteAppName: String = "99 Moto",
+        val dualRouteExtraGain: Double = 16.50
+    )
+
     private val windowManager: WindowManager =
         context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
@@ -65,21 +87,36 @@ class OverlayWindowManager private constructor(private val context: Context) {
     private var bubbleContainer: FrameLayout? = null
     private var hudContainer: LinearLayout? = null
 
-    // Componentes visuais para atualização dinâmica
+    // Componentes da Bolha Circular
     private var tvBubbleBadge: TextView? = null
     private var ivBubblePulse: View? = null
+
+    // Componentes do Card Flutuante de Corrida
+    private var offerCardBox: LinearLayout? = null
+    private var tvOfferAppTag: TextView? = null
+    private var tvOfferProfitMain: TextView? = null
+    private var tvOfferProfitSub: TextView? = null
+    private var tvOfferMetrics: TextView? = null
+    private var tvOfferAddresses: TextView? = null
+    private var dualRouteBox: LinearLayout? = null
+    private var tvDualRouteText: TextView? = null
+    private var btnAcceptRide: TextView? = null
+    private var btnDeclineRide: TextView? = null
+    private var btnSwitchApp: TextView? = null
+
+    // Componentes de Status Geral
     private var tvHudTitle: TextView? = null
     private var tvHudSubstatus: TextView? = null
     private var tvHudProfit: TextView? = null
     private var tvHudBlitz: TextView? = null
-    private var tvHudOffer: TextView? = null
-    private var offerContainer: LinearLayout? = null
+    private var defaultMetricsBox: LinearLayout? = null
 
     private var layoutParams: WindowManager.LayoutParams? = null
 
     private var isExpanded = false
     private var isShowing = false
     private var currentStatus = JarvisOverlayStatus()
+    private var currentOffer: FloatingTacticalOffer? = null
 
     // Variáveis para cálculo de arraste
     private var initialX = 0
@@ -100,16 +137,10 @@ class OverlayWindowManager private constructor(private val context: Context) {
             }
         }
 
-        /**
-         * Verifica se o aplicativo possui a permissão SYSTEM_ALERT_WINDOW concedida.
-         */
         fun canDrawOverlays(context: Context): Boolean {
             return Settings.canDrawOverlays(context)
         }
 
-        /**
-         * Direciona o entregador diretamente para a tela de concessão da permissão de sobreposição.
-         */
         fun requestOverlayPermission(context: Context) {
             val intent = Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -137,7 +168,7 @@ class OverlayWindowManager private constructor(private val context: Context) {
     }
 
     /**
-     * Oculta a interface flutuante sem destruir totalmente os dados.
+     * Oculta a interface flutuante.
      */
     fun hide() {
         mainHandler.post {
@@ -145,9 +176,6 @@ class OverlayWindowManager private constructor(private val context: Context) {
         }
     }
 
-    /**
-     * Alterna a visibilidade da bolha flutuante.
-     */
     fun toggle() {
         if (isShowing && overlayRootView?.visibility == View.VISIBLE) {
             hide()
@@ -156,13 +184,10 @@ class OverlayWindowManager private constructor(private val context: Context) {
         }
     }
 
-    /**
-     * Retorna se a sobreposição está atualmente exibida na tela.
-     */
     fun isShowing(): Boolean = isShowing && overlayRootView?.visibility == View.VISIBLE
 
     /**
-     * Atualiza o estado das informações exibidas na bolha e no HUD.
+     * Atualiza o estado geral exibido na bolha.
      */
     fun updateStatus(status: JarvisOverlayStatus) {
         this.currentStatus = status
@@ -172,7 +197,53 @@ class OverlayWindowManager private constructor(private val context: Context) {
     }
 
     /**
-     * Remove a sobreposição do WindowManager e libera recursos.
+     * Dispara o Card Flutuante Compacto de Inspeção de Corrida com cálculo de R$/km e Rota Dupla
+     */
+    fun showTacticalOffer(offer: FloatingTacticalOffer) {
+        this.currentOffer = offer
+        mainHandler.post {
+            if (!isShowing || overlayRootView == null) {
+                show()
+            }
+            // Força a expansão do HUD para visualização imediata pelo motorista
+            setExpandedState(true)
+            applyOfferToViews(offer)
+
+            // Resposta tátil e sonora
+            try {
+                if (offer.isGoodDeal) {
+                    HapticFeedbackHelper.vibrateSuccess(context)
+                } else {
+                    HapticFeedbackHelper.vibrateWarning(context)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            // Leitura automática em voz alta do resumo da oferta (valor, distância e lucro/km)
+            try {
+                OfferTextToSpeechEngine.getInstance(context).speakTacticalOffer(offer)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /**
+     * Limpa a oferta atual e recolhe o HUD
+     */
+    fun clearTacticalOffer() {
+        this.currentOffer = null
+        mainHandler.post {
+            offerCardBox?.visibility = View.GONE
+            defaultMetricsBox?.visibility = View.VISIBLE
+            setExpandedState(false)
+            applyStatusToViews()
+        }
+    }
+
+    /**
+     * Remove a sobreposição do WindowManager.
      */
     fun destroy() {
         mainHandler.post {
@@ -190,6 +261,7 @@ class OverlayWindowManager private constructor(private val context: Context) {
             hudContainer = null
             isShowing = false
             isExpanded = false
+            currentOffer = null
         }
     }
 
@@ -225,24 +297,20 @@ class OverlayWindowManager private constructor(private val context: Context) {
         }
         this.layoutParams = params
 
-        // Container Raiz
         val root = FrameLayout(context).apply {
             clipChildren = false
             clipToPadding = false
         }
 
-        // 1. Bolha Flutuante Compacta
         val bubble = buildBubbleView()
         this.bubbleContainer = bubble
 
-        // 2. Mini-HUD Tático Expansível
         val hud = buildHudView()
         this.hudContainer = hud
 
         root.addView(bubble)
         root.addView(hud)
 
-        // Configuração dos gestos de arraste e clique na bolha
         bubble.setOnTouchListener { _, event ->
             handleBubbleTouch(event)
         }
@@ -262,28 +330,27 @@ class OverlayWindowManager private constructor(private val context: Context) {
     }
 
     /**
-     * Monta visualmente a bolha circular compacta do Jarvis.
+     * Monta a bolha circular compacta
      */
     private fun buildBubbleView(): FrameLayout {
-        val bubbleSize = dpToPx(60)
+        val bubbleSize = dpToPx(62)
 
         val container = FrameLayout(context).apply {
             layoutParams = FrameLayout.LayoutParams(bubbleSize, bubbleSize)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#121820"))
-                setStroke(dpToPx(2), Color.parseColor("#00E676"))
+                setColor(Color.parseColor("#10151E"))
+                setStroke(dpToPx(2.2f), Color.parseColor("#00E676"))
             }
-            elevation = dpToPx(8).toFloat()
+            elevation = dpToPx(10).toFloat()
         }
 
-        // Ponto de pulso de status
         val pulse = View(context).apply {
-            val pulseSize = dpToPx(10)
+            val pulseSize = dpToPx(11)
             layoutParams = FrameLayout.LayoutParams(pulseSize, pulseSize).apply {
                 gravity = Gravity.TOP or Gravity.END
-                topMargin = dpToPx(6)
-                rightMargin = dpToPx(6)
+                topMargin = dpToPx(5)
+                rightMargin = dpToPx(5)
             }
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
@@ -293,7 +360,6 @@ class OverlayWindowManager private constructor(private val context: Context) {
         this.ivBubblePulse = pulse
         container.addView(pulse)
 
-        // Ícone / Letra central do Jarvis
         val tvIcon = TextView(context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -305,7 +371,6 @@ class OverlayWindowManager private constructor(private val context: Context) {
         }
         container.addView(tvIcon)
 
-        // Badge inferior com valor resumido (ex: R$18)
         val tvBadge = TextView(context).apply {
             val badgeHeight = dpToPx(18)
             layoutParams = FrameLayout.LayoutParams(
@@ -334,10 +399,10 @@ class OverlayWindowManager private constructor(private val context: Context) {
     }
 
     /**
-     * Monta o Mini-HUD tático com cantos arredondados e dados em tempo real.
+     * Monta o HUD tático compacto completo com a seção de inspeção de corridas
      */
     private fun buildHudView(): LinearLayout {
-        val hudWidth = dpToPx(290)
+        val hudWidth = dpToPx(310)
 
         val container = LinearLayout(context).apply {
             layoutParams = FrameLayout.LayoutParams(
@@ -349,11 +414,11 @@ class OverlayWindowManager private constructor(private val context: Context) {
             setPadding(dpToPx(16), dpToPx(14), dpToPx(16), dpToPx(14))
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = dpToPx(18).toFloat()
-                setColor(Color.parseColor("#EE121820"))
+                cornerRadius = dpToPx(20).toFloat()
+                setColor(Color.parseColor("#F40A0D14"))
                 setStroke(dpToPx(1.5f), Color.parseColor("#00E676"))
             }
-            elevation = dpToPx(12).toFloat()
+            elevation = dpToPx(14).toFloat()
         }
 
         // Cabeçalho: Título + Botão Fechar
@@ -368,20 +433,60 @@ class OverlayWindowManager private constructor(private val context: Context) {
 
         val tvTitle = TextView(context).apply {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            text = "JARVIS COCKPIT HUD"
+            text = "HUD TÁTICO COCKPIT"
             setTextColor(Color.WHITE)
-            textSize = 13f
+            textSize = 13.spToSp()
             typeface = Typeface.DEFAULT_BOLD
         }
         this.tvHudTitle = tvTitle
         headerRow.addView(tvTitle)
 
+        // Botão de Áudio TTS (Ouvir resumo em voz alta / Mudo)
+        val btnSpeaker = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(dpToPx(30), dpToPx(30)).apply {
+                rightMargin = dpToPx(6)
+            }
+            gravity = Gravity.CENTER
+            text = "🔊"
+            textSize = 14f
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.parseColor("#1C2533"))
+            }
+            setOnClickListener {
+                val ttsEngine = OfferTextToSpeechEngine.getInstance(context)
+                val offer = currentOffer
+                if (offer != null) {
+                    ttsEngine.speakTacticalOffer(offer)
+                    Toast.makeText(context, "🔊 Lendo resumo da oferta em voz alta...", Toast.LENGTH_SHORT).show()
+                } else {
+                    val repeated = ttsEngine.repeatLastOffer()
+                    if (!repeated) {
+                        ttsEngine.speak("Nenhuma oferta recente para leitura.")
+                    }
+                    Toast.makeText(context, "🔊 Reproduzindo áudio TTS...", Toast.LENGTH_SHORT).show()
+                }
+            }
+            setOnLongClickListener {
+                val ttsEngine = OfferTextToSpeechEngine.getInstance(context)
+                val isMuted = ttsEngine.toggleMute()
+                text = if (isMuted) "🔈" else "🔊"
+                Toast.makeText(
+                    context,
+                    if (isMuted) "Voz TTS silenciada" else "Voz TTS ativada",
+                    Toast.LENGTH_SHORT
+                ).show()
+                true
+            }
+        }
+        headerRow.addView(btnSpeaker)
+
         val btnClose = TextView(context).apply {
-            layoutParams = LinearLayout.LayoutParams(dpToPx(28), dpToPx(28))
+            layoutParams = LinearLayout.LayoutParams(dpToPx(30), dpToPx(30))
             gravity = Gravity.CENTER
             text = "✕"
             setTextColor(Color.parseColor("#90A4AE"))
-            textSize = 14f
+            textSize = 15f
             typeface = Typeface.DEFAULT_BOLD
             setOnClickListener {
                 setExpandedState(false)
@@ -390,7 +495,7 @@ class OverlayWindowManager private constructor(private val context: Context) {
         headerRow.addView(btnClose)
         container.addView(headerRow)
 
-        // Substatus / Aplicativo ativo
+        // Substatus / Aplicativos monitorados
         val tvSub = TextView(context).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -399,26 +504,309 @@ class OverlayWindowManager private constructor(private val context: Context) {
                 topMargin = dpToPx(2)
                 bottomMargin = dpToPx(8)
             }
-            text = "● Monitorando: iFood • Uber • 99 • Rappi"
+            text = "● Monitorando: iFood • Uber • 99 Moto"
             setTextColor(Color.parseColor("#00E676"))
-            textSize = 11f
+            textSize = 10.5f
         }
         this.tvHudSubstatus = tvSub
         container.addView(tvSub)
 
-        // Linha Divisória
-        val divider = View(context).apply {
+        // =====================================================================
+        // CARD FLUTUANTE COMPACTO DE OFERTA (CORRIDA DETECTADA)
+        // =====================================================================
+        val offerBox = LinearLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dpToPx(1)
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(10)
+            }
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+            setPadding(dpToPx(12), dpToPx(10), dpToPx(12), dpToPx(10))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(14).toFloat()
+                setColor(Color.parseColor("#151B26"))
+                setStroke(dpToPx(1.5f), Color.parseColor("#00E676"))
+            }
+        }
+        this.offerCardBox = offerBox
+
+        // Linha 1 do Card: Tag da Plataforma (ex: iFood 🔴) + Timer
+        val tagRow = LinearLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val tvAppTag = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(6).toFloat()
+                setColor(Color.parseColor("#EA1D2C"))
+            }
+            setPadding(dpToPx(8), dpToPx(3), dpToPx(8), dpToPx(3))
+            text = "iFood"
+            setTextColor(Color.WHITE)
+            textSize = 10f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        this.tvOfferAppTag = tvAppTag
+        tagRow.addView(tvAppTag)
+
+        val spacerTag = View(context).apply {
+            layoutParams = LinearLayout.LayoutParams(0, 1, 1f)
+        }
+        tagRow.addView(spacerTag)
+
+        val tvTimer = TextView(context).apply {
+            text = "⏱ 15s p/ aceitar"
+            setTextColor(Color.parseColor("#FFD700"))
+            textSize = 10f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        tagRow.addView(tvTimer)
+        offerBox.addView(tagRow)
+
+        // Linha 2 do Card: GANHO REAL POR KM (Destaque Principal)
+        val profitBanner = LinearLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dpToPx(8)
+                bottomMargin = dpToPx(6)
+            }
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(10), dpToPx(8), dpToPx(10), dpToPx(8))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(10).toFloat()
+                setColor(Color.parseColor("#122A1E"))
+                setStroke(dpToPx(1.2f), Color.parseColor("#00E676"))
+            }
+        }
+
+        val tvProfitMain = TextView(context).apply {
+            text = "R$ 7,20/km 🟢 BOA"
+            setTextColor(Color.parseColor("#00FF88"))
+            textSize = 17f
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+        }
+        this.tvOfferProfitMain = tvProfitMain
+        profitBanner.addView(tvProfitMain)
+
+        val tvProfitSub = TextView(context).apply {
+            text = "Excelente rentabilidade • Acima do piso"
+            setTextColor(Color.parseColor("#B0BEC5"))
+            textSize = 10f
+            gravity = Gravity.CENTER
+        }
+        this.tvOfferProfitSub = tvProfitSub
+        profitBanner.addView(tvProfitSub)
+        offerBox.addView(profitBanner)
+
+        // Linha 3 do Card: Métricas (Valor Total, Distância)
+        val tvMetrics = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(4)
+            }
+            text = "💰 R$ 28,50 • 📏 3,9 km • ⏱ 12 min"
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        this.tvOfferMetrics = tvMetrics
+        offerBox.addView(tvMetrics)
+
+        // Linha 4 do Card: Destino e Coleta
+        val tvAddresses = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 bottomMargin = dpToPx(8)
             }
-            setBackgroundColor(Color.parseColor("#263238"))
+            text = "📍 De: Shopping Eldorado ➔ Para: Av. Rebouças"
+            setTextColor(Color.parseColor("#90A4AE"))
+            textSize = 10.5f
+            maxLines = 2
         }
-        container.addView(divider)
+        this.tvOfferAddresses = tvAddresses
+        offerBox.addView(tvAddresses)
 
-        // Linha de Lucro e Blitz
+        // Linha 5: INDICADOR DE ROTA DUPLA COMPATÍVEL
+        val dualBox = LinearLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(10)
+            }
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dpToPx(8), dpToPx(6), dpToPx(8), dpToPx(6))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(8).toFloat()
+                setColor(Color.parseColor("#0C2030"))
+                setStroke(dpToPx(1f), Color.parseColor("#00E5FF"))
+            }
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        this.dualRouteBox = dualBox
+
+        val tvDual = TextView(context).apply {
+            text = "🔥 ROTA DUPLA COMPATÍVEL! (+R$ 16,50 c/ 99 Moto)"
+            setTextColor(Color.parseColor("#00E5FF"))
+            textSize = 10.5f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        this.tvDualRouteText = tvDual
+        dualBox.addView(tvDual)
+        offerBox.addView(dualBox)
+
+        // Banner Viva-Voz no HUD Flutuante (Speech-to-Text Ativo)
+        val voiceRow = LinearLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(8)
+            }
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dpToPx(8), dpToPx(5), dpToPx(8), dpToPx(5))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(8).toFloat()
+                setColor(Color.parseColor("#0F1E19"))
+                setStroke(dpToPx(1f), Color.parseColor("#00FF88"))
+            }
+            gravity = Gravity.CENTER_VERTICAL
+        }
+
+        val tvVoiceStatus = TextView(context).apply {
+            text = "🎤 VIVA-VOZ: Diga 'ACEITAR' ou 'RECUSAR'"
+            setTextColor(Color.parseColor("#00FF88"))
+            textSize = 10f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        voiceRow.addView(tvVoiceStatus)
+        offerBox.addView(voiceRow)
+
+        // =====================================================================
+        // BOTÕES GIGANTES DE AÇÃO EM 1 TOQUE (ACEITAR OU DISPENSAR)
+        // =====================================================================
+        val oneTouchActionsRow = LinearLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            orientation = LinearLayout.HORIZONTAL
+        }
+
+        // Botão Gigante 1: ACEITAR CORRIDA 🟢
+        val btnAccept = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(0, dpToPx(48), 1.2f).apply {
+                rightMargin = dpToPx(6)
+            }
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(12).toFloat()
+                setColor(Color.parseColor("#00E676"))
+            }
+            text = "ACEITAR 🟢"
+            setTextColor(Color.parseColor("#0A0E14"))
+            textSize = 13f
+            typeface = Typeface.DEFAULT_BOLD
+            setOnClickListener {
+                handleAcceptCurrentOffer()
+            }
+        }
+        this.btnAcceptRide = btnAccept
+        oneTouchActionsRow.addView(btnAccept)
+
+        // Botão Tático: ROTA 🗺️ (Waze / Google Maps em 1 toque)
+        val btnRoute = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(0, dpToPx(48), 0.9f).apply {
+                leftMargin = dpToPx(4)
+                rightMargin = dpToPx(4)
+            }
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(12).toFloat()
+                setColor(Color.parseColor("#0C2030"))
+                setStroke(dpToPx(1.2f), Color.parseColor("#00E5FF"))
+            }
+            text = "ROTA 🗺️"
+            setTextColor(Color.parseColor("#00E5FF"))
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setOnClickListener {
+                val offer = currentOffer
+                val targetAddress = offer?.pickup ?: "Ponto de Coleta"
+                NavigationQuickDispatcher.launchBestRoute(
+                    context = context,
+                    latitude = -23.5616,
+                    longitude = -46.6559,
+                    addressTitle = targetAddress,
+                    preferWaze = true
+                )
+            }
+        }
+        oneTouchActionsRow.addView(btnRoute)
+
+        // Botão Gigante 2: DISPENSAR 🔴
+        val btnDecline = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(0, dpToPx(48), 1f).apply {
+                leftMargin = dpToPx(4)
+            }
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(12).toFloat()
+                setColor(Color.parseColor("#2A1218"))
+                setStroke(dpToPx(1.2f), Color.parseColor("#FF3366"))
+            }
+            text = "DISPENSAR 🔴"
+            setTextColor(Color.parseColor("#FF5252"))
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setOnClickListener {
+                handleDeclineCurrentOffer()
+            }
+        }
+        this.btnDeclineRide = btnDecline
+        oneTouchActionsRow.addView(btnDecline)
+
+        offerBox.addView(oneTouchActionsRow)
+        container.addView(offerBox)
+
+        // =====================================================================
+        // MÉTRICAS PADRÃO QUANDO NÃO HÁ CORRIDA ATIVA
+        // =====================================================================
+        val defaultBox = LinearLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            orientation = LinearLayout.VERTICAL
+        }
+        this.defaultMetricsBox = defaultBox
+
         val metricsRow = LinearLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -427,18 +815,17 @@ class OverlayWindowManager private constructor(private val context: Context) {
             orientation = LinearLayout.HORIZONTAL
         }
 
-        // Card Rentabilidade
         val profitBox = LinearLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             orientation = LinearLayout.VERTICAL
         }
         val lblProfit = TextView(context).apply {
-            text = "RENTABILIDADE"
+            text = "PISO MÍNIMO"
             setTextColor(Color.parseColor("#90A4AE"))
             textSize = 9f
         }
         val valProfit = TextView(context).apply {
-            text = "R$ 3,85/km"
+            text = "R$ 4,50/km"
             setTextColor(Color.parseColor("#00E676"))
             textSize = 13f
             typeface = Typeface.DEFAULT_BOLD
@@ -448,7 +835,6 @@ class OverlayWindowManager private constructor(private val context: Context) {
         profitBox.addView(valProfit)
         metricsRow.addView(profitBox)
 
-        // Card Radar Blitz
         val blitzBox = LinearLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.2f)
             orientation = LinearLayout.VERTICAL
@@ -468,44 +854,10 @@ class OverlayWindowManager private constructor(private val context: Context) {
         blitzBox.addView(lblBlitz)
         blitzBox.addView(valBlitz)
         metricsRow.addView(blitzBox)
+        defaultBox.addView(metricsRow)
 
-        container.addView(metricsRow)
-
-        // Card de Oferta Ativa / Rota Dupla (Opcional)
-        val offerBox = LinearLayout(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dpToPx(8)
-            }
-            orientation = LinearLayout.VERTICAL
-            setPadding(dpToPx(8), dpToPx(6), dpToPx(8), dpToPx(6))
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dpToPx(8).toFloat()
-                setColor(Color.parseColor("#1B2631"))
-            }
-        }
-        val lblOffer = TextView(context).apply {
-            text = "OPORTUNIDADE DE ROTA DUPLA"
-            setTextColor(Color.parseColor("#00E5FF"))
-            textSize = 9.5f
-            typeface = Typeface.DEFAULT_BOLD
-        }
-        val valOffer = TextView(context).apply {
-            text = "iFood R$ 18,00 + 99 R$ 16,00 (+R$ 34,00)"
-            setTextColor(Color.WHITE)
-            textSize = 11f
-        }
-        this.tvHudOffer = valOffer
-        this.offerContainer = offerBox
-        offerBox.addView(lblOffer)
-        offerBox.addView(valOffer)
-        container.addView(offerBox)
-
-        // Botões de Ação Inferiores
-        val actionsRow = LinearLayout(context).apply {
+        // Botões Padrão: Abrir Jarvis e Trocar App
+        val defaultActionsRow = LinearLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -515,9 +867,8 @@ class OverlayWindowManager private constructor(private val context: Context) {
             orientation = LinearLayout.HORIZONTAL
         }
 
-        // Botão Abrir Cockpit
         val btnOpenApp = TextView(context).apply {
-            layoutParams = LinearLayout.LayoutParams(0, dpToPx(36), 1f).apply {
+            layoutParams = LinearLayout.LayoutParams(0, dpToPx(38), 1f).apply {
                 rightMargin = dpToPx(4)
             }
             gravity = Gravity.CENTER
@@ -535,11 +886,10 @@ class OverlayWindowManager private constructor(private val context: Context) {
                 setExpandedState(false)
             }
         }
-        actionsRow.addView(btnOpenApp)
+        defaultActionsRow.addView(btnOpenApp)
 
-        // Botão Alternar App (Opção B)
         val btnSwitch = TextView(context).apply {
-            layoutParams = LinearLayout.LayoutParams(0, dpToPx(36), 1f).apply {
+            layoutParams = LinearLayout.LayoutParams(0, dpToPx(38), 1f).apply {
                 leftMargin = dpToPx(4)
             }
             gravity = Gravity.CENTER
@@ -557,11 +907,81 @@ class OverlayWindowManager private constructor(private val context: Context) {
                 setExpandedState(false)
             }
         }
-        actionsRow.addView(btnSwitch)
+        this.btnSwitchApp = btnSwitch
+        defaultActionsRow.addView(btnSwitch)
 
-        container.addView(actionsRow)
+        defaultBox.addView(defaultActionsRow)
+        container.addView(defaultBox)
 
         return container
+    }
+
+    // =========================================================================
+    // AÇÕES EM 1 TOQUE (ACEITAR OU DISPENSAR)
+    // =========================================================================
+
+    /**
+     * Aciona o aceite da oferta atual via comando de voz (Speech-to-Text do Google)
+     */
+    fun acceptCurrentOfferByVoice(): Boolean {
+        if (currentOffer == null) return false
+        mainHandler.post {
+            handleAcceptCurrentOffer()
+        }
+        return true
+    }
+
+    /**
+     * Aciona a recusa da oferta atual via comando de voz (Speech-to-Text do Google)
+     */
+    fun declineCurrentOfferByVoice(): Boolean {
+        if (currentOffer == null) return false
+        mainHandler.post {
+            handleDeclineCurrentOffer()
+        }
+        return true
+    }
+
+    private fun handleAcceptCurrentOffer() {
+        val offer = currentOffer ?: return
+        try {
+            HapticFeedbackHelper.vibrateSuccess(context)
+            Toast.makeText(context, "✅ Corrida do ${offer.appName} Aceita!", Toast.LENGTH_SHORT).show()
+            try {
+                OfferTextToSpeechEngine.getInstance(context).speakAcceptance(offer.pickup, offer.value)
+            } catch (_: Exception) {}
+
+            // Registra os ganhos no Rastreador de Meta Diária
+            try {
+                val fuelCost = offer.distanceKm * 0.45
+                DailyGoalTrackerManager.getInstance(context).recordDeliveryEarnings(offer.value, fuelCost)
+            } catch (_: Exception) {}
+
+            // Alterna para o app da entrega se o pacote estiver disponível
+            if (offer.packageName.isNotBlank()) {
+                AssistedQuickSwitchManager.switchToSecondaryApp(context, offer.packageName)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            clearTacticalOffer()
+        }
+    }
+
+    private fun handleDeclineCurrentOffer() {
+        val offer = currentOffer
+        try {
+            HapticFeedbackHelper.vibrateWarning(context)
+            val name = offer?.appName ?: "Corrida"
+            Toast.makeText(context, "❌ $name Dispensada!", Toast.LENGTH_SHORT).show()
+            try {
+                OfferTextToSpeechEngine.getInstance(context).speakDecline()
+            } catch (_: Exception) {}
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            clearTacticalOffer()
+        }
     }
 
     // =========================================================================
@@ -605,10 +1025,8 @@ class OverlayWindowManager private constructor(private val context: Context) {
                 val distance = hypot(deltaX.toDouble(), deltaY.toDouble())
 
                 if (!isDragging && (duration < 300 || distance < touchSlop)) {
-                    // Clique detectado! Alterna entre expandido e recolhido
                     toggleExpandedState()
                 } else if (isDragging && !isExpanded) {
-                    // Ancoragem suave na borda lateral mais próxima (Snap-to-edge)
                     snapBubbleToEdge(params)
                 }
                 isDragging = false
@@ -639,16 +1057,15 @@ class OverlayWindowManager private constructor(private val context: Context) {
     private fun snapBubbleToEdge(params: WindowManager.LayoutParams) {
         val displayMetrics = context.resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
-        val bubbleWidth = dpToPx(60)
+        val bubbleWidth = dpToPx(62)
         val edgePadding = dpToPx(12)
 
         val targetX = if (params.x + (bubbleWidth / 2) < screenWidth / 2) {
-            edgePadding // Grudar na esquerda
+            edgePadding
         } else {
-            screenWidth - bubbleWidth - edgePadding // Grudar na direita
+            screenWidth - bubbleWidth - edgePadding
         }
 
-        // Animação suave de transição de coordenada X
         val animator = ValueAnimator.ofInt(params.x, targetX)
         animator.duration = 200
         animator.addUpdateListener { va ->
@@ -671,21 +1088,23 @@ class OverlayWindowManager private constructor(private val context: Context) {
     }
 
     private fun applyStatusToViews() {
-        // Cor de alerta
         val alertColor = when (currentStatus.alertLevel) {
             JarvisOverlayStatus.AlertLevel.NORMAL -> Color.parseColor("#00E676")
             JarvisOverlayStatus.AlertLevel.OPPORTUNITY -> Color.parseColor("#00E5FF")
             JarvisOverlayStatus.AlertLevel.WARNING -> Color.parseColor("#FF5252")
         }
 
-        // Atualizar Bolha
         ivBubblePulse?.background = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(alertColor)
         }
 
         tvBubbleBadge?.apply {
-            text = if (currentStatus.latestOffer != null) "OFERTA" else "JARVIS"
+            text = if (currentOffer != null) {
+                if (currentOffer!!.isGoodDeal) "BOA" else "RUIM"
+            } else {
+                "JARVIS"
+            }
             background = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dpToPx(9).toFloat()
@@ -693,7 +1112,6 @@ class OverlayWindowManager private constructor(private val context: Context) {
             }
         }
 
-        // Atualizar Mini-HUD
         tvHudTitle?.text = currentStatus.headline
         tvHudSubstatus?.apply {
             text = "● ${currentStatus.activeApp}"
@@ -705,11 +1123,99 @@ class OverlayWindowManager private constructor(private val context: Context) {
             setTextColor(if (currentStatus.blitzAlert.contains("Blitz", ignoreCase = true)) Color.parseColor("#FF5252") else Color.parseColor("#81C784"))
         }
 
-        if (currentStatus.latestOffer != null) {
-            offerContainer?.visibility = View.VISIBLE
-            tvHudOffer?.text = currentStatus.latestOffer
+        if (currentOffer == null) {
+            offerCardBox?.visibility = View.GONE
+            defaultMetricsBox?.visibility = View.VISIBLE
+        }
+    }
+
+    /**
+     * Aplica os dados da oferta ativa no Card Flutuante Compacto
+     */
+    private fun applyOfferToViews(offer: FloatingTacticalOffer) {
+        offerCardBox?.visibility = View.VISIBLE
+        defaultMetricsBox?.visibility = View.GONE
+
+        // 1. Tag do App
+        val (appColor, appName) = when (offer.appName.lowercase()) {
+            "uber" -> Pair(Color.parseColor("#000000"), "Uber")
+            "99", "99 moto", "99moto" -> Pair(Color.parseColor("#FFB300"), "99 Moto")
+            else -> Pair(Color.parseColor("#EA1D2C"), "iFood")
+        }
+        tvOfferAppTag?.apply {
+            text = appName
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(6).toFloat()
+                setColor(appColor)
+            }
+        }
+
+        // 2. Cálculo em Tempo Real de Rentabilidade e Combustível via RealTimeProfitEngine
+        val metrics = RealTimeProfitEngine.calculateTripMetrics(
+            fareValue = offer.value,
+            distanceKm = offer.distanceKm
+        )
+
+        val profitColor = Color.parseColor(metrics.thresholdLevel.colorHex)
+        val profitBgColor = Color.parseColor(metrics.thresholdLevel.bgHex)
+
+        tvOfferProfitMain?.apply {
+            text = metrics.thresholdLabel
+            setTextColor(profitColor)
+        }
+        tvOfferProfitSub?.apply {
+            text = "Líq: %s • Gasolina: %s • Margem: %s".format(
+                metrics.formattedNetPerKm,
+                metrics.formattedFuelCost,
+                metrics.formattedMargin
+            )
+            setTextColor(Color.parseColor("#CFD8DC"))
+        }
+
+        (tvOfferProfitMain?.parent as? LinearLayout)?.background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dpToPx(10).toFloat()
+            setColor(profitBgColor)
+            setStroke(dpToPx(1.5f), profitColor)
+        }
+
+        // 3. Métricas Detalhadas (Tarifa Bruta, Lucro Líquido Real, Distância)
+        val estMinutes = (offer.distanceKm * 3.2).toInt().coerceAtLeast(6)
+        tvOfferMetrics?.text = "💰 Tarifa R$ %.2f (Líq: %s) • 📏 %.1f km • ⏱ %d min".format(
+            offer.value,
+            metrics.formattedNetProfit,
+            offer.distanceKm,
+            estMinutes
+        )
+        tvOfferAddresses?.text = "📍 De: ${offer.pickup}\n➔ Para: ${offer.destination}"
+
+        // 4. Indicador de Rota Dupla
+        if (offer.hasDualRoute) {
+            dualRouteBox?.visibility = View.VISIBLE
+            tvDualRouteText?.text = "🔥 ROTA DUPLA DETECTADA! (+R$ %.2f c/ %s)".format(offer.dualRouteExtraGain, offer.dualRouteAppName)
         } else {
-            offerContainer?.visibility = View.GONE
+            dualRouteBox?.visibility = View.GONE
+        }
+
+        // Atualiza a bolha quando minimizada com o threshold exato
+        tvBubbleBadge?.apply {
+            text = when (metrics.thresholdLevel) {
+                ProfitThresholdLevel.HIGH_PROFIT -> "R$ %.1f/k 🟢".format(metrics.grossPricePerKm)
+                ProfitThresholdLevel.MEDIUM_PROFIT -> "R$ %.1f/k 🟡".format(metrics.grossPricePerKm)
+                ProfitThresholdLevel.LOW_PROFIT -> "R$ %.1f/k 🔴".format(metrics.grossPricePerKm)
+            }
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(9).toFloat()
+                setColor(profitColor)
+            }
+            setTextColor(if (metrics.thresholdLevel == ProfitThresholdLevel.HIGH_PROFIT) Color.BLACK else Color.WHITE)
+        }
+
+        ivBubblePulse?.background = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(profitColor)
         }
     }
 
@@ -738,5 +1244,9 @@ class OverlayWindowManager private constructor(private val context: Context) {
             dp,
             context.resources.displayMetrics
         ).toInt()
+    }
+
+    private fun Int.spToSp(): Float {
+        return this.toFloat()
     }
 }
