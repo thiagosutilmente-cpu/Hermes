@@ -62,22 +62,16 @@ class LocationForegroundService : Service() {
         private val _telemetryState = MutableStateFlow(TelemetryData())
         val telemetryState: StateFlow<TelemetryData> = _telemetryState.asStateFlow()
 
+        fun updateTelemetry(data: TelemetryData) {
+            _telemetryState.value = data
+        }
+
         fun start(context: Context) {
-            val intent = Intent(context, LocationForegroundService::class.java).apply {
-                action = ACTION_START_SERVICE
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            LocationService.start(context)
         }
 
         fun stop(context: Context) {
-            val intent = Intent(context, LocationForegroundService::class.java).apply {
-                action = ACTION_STOP_SERVICE
-            }
-            context.startService(intent)
+            LocationService.stop(context)
         }
 
         /**
@@ -133,11 +127,20 @@ class LocationForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START_SERVICE -> startForegroundTracking()
-            ACTION_STOP_SERVICE -> stopForegroundTracking()
-            else -> startForegroundTracking()
+            ACTION_START_SERVICE -> {
+                LocationService.start(this)
+                stopSelf()
+            }
+            ACTION_STOP_SERVICE -> {
+                LocationService.stop(this)
+                stopSelf()
+            }
+            else -> {
+                LocationService.start(this)
+                stopSelf()
+            }
         }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     @SuppressLint("MissingPermission")

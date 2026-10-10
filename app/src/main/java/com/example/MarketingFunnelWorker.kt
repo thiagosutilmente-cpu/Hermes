@@ -49,6 +49,13 @@ class MarketingFunnelWorker(
 
         // Conteúdo da mensagem e notificação de acordo com o estágio do funil
         val (notificationTitle, notificationBody, fullMessageText) = when (stage) {
+            SmartMarketingMilestoneManager.STAGE_FUEL_SAVED_30,
+            SmartMarketingMilestoneManager.STAGE_BAD_RIDES_10,
+            SmartMarketingMilestoneManager.STAGE_NET_PROFIT_100 -> {
+                val pair = SmartMarketingMilestoneManager.generatePersonalizedCopy(context, stage, userName)
+                Triple(pair.first, "Toque para ver a economia de gasolina gerada pelo Jarvis no guidão!", pair.second)
+            }
+
             STAGE_DAY_3_ENGAGEMENT -> Triple(
                 "⛽ Jarvis: Economizou combustível hoje?",
                 "Veja como a dica da Rota Dupla duplica seus ganhos na mesma viagem de moto!",
@@ -62,7 +69,8 @@ Com o Jarvis filtrando corridas lixo de R$ 6,00, a média dos entregadores econo
                 """.trimIndent()
             )
 
-            STAGE_DAY_7_ANNUAL_CLOSE -> Triple(
+            STAGE_DAY_7_ANNUAL_CLOSE,
+            SmartMarketingMilestoneManager.STAGE_AGGRESSIVE_CLOSING -> Triple(
                 "🚨 OFERTA AGRESSIVA: Seu Teste de 7 Dias Acabou!",
                 "Garanta o Plano Anual por R$ 650 (R$ 54/mês) ou Semanal de R$ 25 antes que o filtro expire!",
                 """

@@ -571,6 +571,10 @@ fun D3HeatmapVisualizationCard(
                             webViewInstance = this
                         }
                     },
+                    update = { webView ->
+                        val html = D3HeatmapDataEngine.buildD3HeatmapHtml(heatmapData)
+                        webView.loadDataWithBaseURL("https://d3js.org", html, "text/html", "UTF-8", null)
+                    },
                     modifier = Modifier.fillMaxWidth().height(280.dp)
                 )
             }

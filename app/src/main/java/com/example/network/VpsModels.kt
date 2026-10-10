@@ -129,3 +129,26 @@ data class PingResponse(
     @SerializedName("version")
     val version: String? = null
 )
+
+/**
+ * Payload para registro e atualização do Token FCM do dispositivo na VPS
+ */
+data class FcmTokenRegisterRequest(
+    @SerializedName("eventType")
+    val eventType: String = "FCM_TOKEN_REGISTER",
+
+    @SerializedName("token")
+    val token: String,
+
+    @SerializedName("deviceId")
+    val deviceId: String = android.os.Build.MODEL,
+
+    @SerializedName("androidVersion")
+    val androidVersion: String = android.os.Build.VERSION.RELEASE,
+
+    @SerializedName("driverId")
+    val driverId: String = "driver_${android.os.Build.ID}",
+
+    @SerializedName("timestamp")
+    val timestamp: Long = System.currentTimeMillis()
+)

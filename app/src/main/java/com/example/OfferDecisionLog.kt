@@ -3,6 +3,9 @@ package com.example
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.runtime.mutableStateListOf
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -16,7 +19,8 @@ import java.util.UUID
 enum class DecisionAction(val label: String, val icon: String, val colorHex: Long) {
     ACCEPTED("Aceita", "✅", 0xFF00FF88),
     DECLINED("Rejeitada", "❌", 0xFFFF4757),
-    FAILED("Falha / Erro", "⚠️", 0xFFFF9F43)
+    FAILED("Falha / Erro", "⚠️", 0xFFFF9F43),
+    CANCELLED_PARTIAL("Mesclada Cancelada", "⚡", 0xFFFFB800)
 }
 
 /**
@@ -71,6 +75,7 @@ object OfferDecisionLogManager {
                     val actionParsed = when (obj.optString("action")) {
                         "ACCEPTED" -> DecisionAction.ACCEPTED
                         "FAILED" -> DecisionAction.FAILED
+                        "CANCELLED_PARTIAL" -> DecisionAction.CANCELLED_PARTIAL
                         else -> DecisionAction.DECLINED
                     }
                     logs.add(
@@ -208,6 +213,37 @@ object OfferDecisionLogManager {
     }
 
     /**
+     * Registra evento de cancelamento parcial em entrega mesclada (Multi-Stack).
+     */
+    fun logPartialCancellation(
+        context: Context,
+        offerId: String,
+        appName: String,
+        cancelledRestaurant: String,
+        cancelledValue: Double,
+        remainingValue: Double,
+        remainingGainPerKm: Double,
+        reason: String
+    ): OfferDecisionLog {
+        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        val item = OfferDecisionLog(
+            offerId = offerId,
+            appName = appName,
+            restaurant = "Cancelado: $cancelledRestaurant",
+            value = cancelledValue,
+            distanceKm = 0.0,
+            gainPerKm = remainingGainPerKm,
+            action = DecisionAction.CANCELLED_PARTIAL,
+            reason = reason,
+            source = "Stack Dissolution Engine",
+            timestampFormatted = timeFormat.format(Date())
+        )
+        logs.add(0, item)
+        saveToDisk(context)
+        return item
+    }
+
+    /**
      * Limpa todo o histórico de logs.
      */
     fun clearLogs(context: Context) {
@@ -240,7 +276,10 @@ object OfferDecisionLogManager {
 
     private fun saveToDisk(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        persistLogs(prefs)
+        // Execução em background IO para evitar engasgos e ANR na thread da interface
+        CoroutineScope(Dispatchers.IO).launch {
+            persistLogs(prefs)
+        }
     }
 
     private fun persistLogs(prefs: SharedPreferences) {

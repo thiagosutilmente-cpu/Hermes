@@ -103,6 +103,29 @@ object NavigationQuickDispatcher {
         }
     }
 
+    /**
+     * Avisa o piloto via TTS que a rota foi recalculada após cancelamento de sub-pedido em corrida mesclada.
+     */
+    fun announceRouteRecalculated(context: Context, remainingDestination: String, newKm: Double) {
+        try {
+            HapticFeedbackHelper.vibrateAccept(context)
+            val kmText = String.format(Locale.ROOT, "%.1f", newKm)
+            val tts = TextToSpeechManager.getInstance(context)
+            tts.speak("Rota recalculada: nova entrega para $remainingDestination, restando $kmText quilômetros.", priority = true)
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Avisa o piloto via TTS que a corrida mesclada foi abortada e retorna para espera de chamadas.
+     */
+    fun announceRouteAborted(context: Context) {
+        try {
+            HapticFeedbackHelper.vibrateDecline(context)
+            val tts = TextToSpeechManager.getInstance(context)
+            tts.speak("Corrida abortada com sucesso. Retornando ao radar de espera.", priority = true)
+        } catch (_: Exception) {}
+    }
+
     private fun announceNavStart(context: Context, appName: String, address: String) {
         try {
             HapticFeedbackHelper.vibrateSuccess(context)

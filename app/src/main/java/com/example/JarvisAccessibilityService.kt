@@ -70,6 +70,40 @@ class JarvisAccessibilityService : AccessibilityService() {
 
         if (textNodes.isEmpty()) return
 
+        // 0. Detecção Crítica de Cancelamento de Pedido na Tela do App Parceiro (Multi-Stack Dissolution)
+        val cancellationKeywords = listOf(
+            "pedido cancelado",
+            "entrega cancelada",
+            "cancelado pelo cliente",
+            "cancelada pelo cliente",
+            "cancelada pelo restaurante",
+            "cancelamento de corrida",
+            "coleta cancelada"
+        )
+        val isScreenCancellation = textNodes.any { text ->
+            cancellationKeywords.any { kw -> text.contains(kw, ignoreCase = true) }
+        }
+
+        if (isScreenCancellation) {
+            val restaurantTarget = textNodes.firstOrNull {
+                it.contains("Restaurante", true) ||
+                it.contains("Habib", true) ||
+                it.contains("Burger", true) ||
+                it.contains("Shopping", true) ||
+                it.contains("Lanches", true)
+            } ?: appName
+
+            try {
+                StackedOrderCancellationManager.processSubOrderCancellationByTarget(
+                    context = applicationContext,
+                    targetRestaurantOrApp = restaurantTarget,
+                    offersList = emptyList(),
+                    completedDeliveriesList = emptyList()
+                )
+            } catch (_: Exception) {}
+            return
+        }
+
         // 1. Extração do Valor da Corrida (Ex: "R$ 18,50" ou "R$22.00")
         val valueRegex = Regex("""R\$\s*(\d+[.,]\d{2})""")
         var extractedValue: Double = 0.0

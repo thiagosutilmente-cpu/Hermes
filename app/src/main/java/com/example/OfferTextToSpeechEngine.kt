@@ -3,6 +3,8 @@ package com.example
 import android.content.Context
 import android.content.SharedPreferences
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
@@ -15,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.Locale
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.roundToInt
 
 /**
@@ -74,6 +77,134 @@ class OfferTextToSpeechEngine private constructor(private val context: Context) 
                 INSTANCE ?: OfferTextToSpeechEngine(context.applicationContext).also { INSTANCE = it }
             }
         }
+
+        /**
+         * Limpa e padroniza a pontuação e termos abreviados para pronúncia natural em pt-BR.
+         * Converte "R$ 28,50" para "28 reais e 50 centavos" e "4,2 km" para "4 vírgula 2 quilômetros",
+         * garantindo que o motor de síntese de voz (TTS) do Android soe cristalino no capacete sem distrair o condutor.
+         */
+        fun cleanAlertForSpeech(raw: String): String {
+            var cleaned = raw
+
+            // Converte valores monetários como "R$ 28,50" ou "R$ 28.50" para "28 reais e 50 centavos"
+            val currencyRegex = Regex("""(?:R\$|r\$)\s*(\d+)(?:[.,](\d{1,2}))?""")
+            cleaned = currencyRegex.replace(cleaned) { matchResult ->
+                val reais = matchResult.groupValues[1]
+                val centavosRaw = matchResult.groupValues.getOrNull(2) ?: ""
+                val centavosFormatted = if (centavosRaw.length == 1) "${centavosRaw}0" else centavosRaw
+                val centavosInt = centavosFormatted.toIntOrNull() ?: 0
+                if (centavosInt > 0) {
+                    "$reais reais e $centavosInt centavos"
+                } else {
+                    "$reais reais"
+                }
+            }
+
+            // Converte distâncias fracionadas como "3.8 km" ou "3,8 km" para "3 vírgula 8 quilômetros"
+            val kmDecimalRegex = Regex("""(\d+)[.,](\d+)\s*(?:km|KM|Km)""")
+            cleaned = kmDecimalRegex.replace(cleaned) { match ->
+                "${match.groupValues[1]} vírgula ${match.groupValues[2]} quilômetros"
+            }
+
+            // Converte distâncias inteiras como "5 km" para "5 quilômetros"
+            val kmIntRegex = Regex("""(\d+)\s*(?:km|KM|Km)""")
+            cleaned = kmIntRegex.replace(cleaned) { match ->
+                "${match.groupValues[1]} quilômetros"
+            }
+
+            return cleaned
+                .replace("km/h", "quilômetros por hora", ignoreCase = true)
+                .replace("/km", " por quilômetro", ignoreCase = true)
+                .replace("/", " por ")
+                .trim()
+        }
+
+        /**
+         * Gera a frase natural e fluida do resumo da oferta para o piloto.
+         */
+        fun buildOfferSpeechText(
+            appName: String,
+            restaurant: String,
+            value: Double,
+            distanceKm: Double,
+            profitPerKm: Double,
+            isGoodDeal: Boolean,
+            hasDualRoute: Boolean = false,
+            dualRouteAppName: String = "",
+            dualRouteExtraGain: Double = 0.0
+        ): String {
+            val spokenValue = formatSpokenCurrency(value)
+            val spokenDistance = formatSpokenDistance(distanceKm)
+            val spokenProfit = formatSpokenProfitPerKm(profitPerKm)
+
+            val verdict = if (isGoodDeal) {
+                "Corrida excelente! Recomendação: aceitar."
+            } else {
+                "Atenção: margem muito baixa, corrida em prejuízo."
+            }
+
+            val dualRouteClause = if (hasDualRoute && dualRouteExtraGain > 0.0) {
+                val extraFmt = formatSpokenCurrency(dualRouteExtraGain)
+                " Alerta: rota dupla compatível com $dualRouteAppName, mais $extraFmt na mesma viagem!"
+            } else ""
+
+            val placeClause = if (restaurant.isNotBlank() && restaurant != "Coleta Próxima") {
+                " no $restaurant"
+            } else ""
+
+            return "Nova oferta $appName$placeClause. Valor: $spokenValue para $spokenDistance. Lucro de $spokenProfit. $verdict$dualRouteClause"
+        }
+
+        /**
+         * Formata valores monetários em linguagem natural brasileira:
+         * ex: 28.50 -> "28 reais e 50 centavos"
+         * ex: 15.00 -> "15 reais"
+         * ex: 0.75 -> "75 centavos"
+         */
+        fun formatSpokenCurrency(amount: Double): String {
+            val totalCents = (Math.round(amount * 100)).toInt()
+            val reais = totalCents / 100
+            val centavos = totalCents % 100
+
+            return when {
+                reais > 0 && centavos > 0 -> "$reais reais e $centavos centavos"
+                reais > 0 && centavos == 0 -> "$reais reais"
+                reais == 0 && centavos > 0 -> "$centavos centavos"
+                else -> "zero reais"
+            }
+        }
+
+        /**
+         * Formata distâncias para leitura natural do copiloto:
+         * ex: 3.9 -> "3 vírgula 9 quilômetros"
+         * ex: 4.0 -> "4 quilômetros"
+         * ex: 0.8 -> "800 metros"
+         */
+        fun formatSpokenDistance(km: Double): String {
+            return if (km < 1.0 && km > 0.0) {
+                val meters = (km * 1000).toInt()
+                "$meters metros"
+            } else {
+                val roundedOneDecimal = (Math.round(km * 10.0)) / 10.0
+                val intPart = roundedOneDecimal.toInt()
+                val decPart = ((roundedOneDecimal - intPart) * 10).toInt()
+                if (decPart > 0) {
+                    "$intPart vírgula $decPart quilômetros"
+                } else {
+                    "$intPart quilômetros"
+                }
+            }
+        }
+
+        /**
+         * Formata o lucro por km para a voz:
+         * ex: 7.30 -> "7 reais e 30 centavos por quilômetro"
+         * ex: 5.00 -> "5 reais por quilômetro"
+         */
+        fun formatSpokenProfitPerKm(profitPerKm: Double): String {
+            val currencyPart = formatSpokenCurrency(profitPerKm)
+            return "$currencyPart por quilômetro"
+        }
     }
 
     private val prefs: SharedPreferences =
@@ -84,6 +215,10 @@ class OfferTextToSpeechEngine private constructor(private val context: Context) 
 
     private var tts: TextToSpeech? = null
     private var isInitialized = false
+
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private val pendingSpeechQueue = ConcurrentLinkedQueue<String>()
 
     private val _engineState = MutableStateFlow(
         TtsEngineState(
@@ -132,9 +267,10 @@ class OfferTextToSpeechEngine private constructor(private val context: Context) 
                 tts?.setAudioAttributes(audioAttributes)
             }
 
-            // Monitor de progresso da fala
+            // Monitor de progresso da fala com gerenciamento de foco de áudio (Audio Ducking)
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {
+                    requestAudioFocus()
                     mainScope.launch {
                         _engineState.value = _engineState.value.copy(isSpeaking = true)
                     }
@@ -142,6 +278,7 @@ class OfferTextToSpeechEngine private constructor(private val context: Context) 
                 }
 
                 override fun onDone(utteranceId: String?) {
+                    releaseAudioFocus()
                     mainScope.launch {
                         _engineState.value = _engineState.value.copy(isSpeaking = false)
                     }
@@ -149,6 +286,7 @@ class OfferTextToSpeechEngine private constructor(private val context: Context) 
                 }
 
                 override fun onError(utteranceId: String?) {
+                    releaseAudioFocus()
                     mainScope.launch {
                         _engineState.value = _engineState.value.copy(isSpeaking = false)
                     }
@@ -159,6 +297,12 @@ class OfferTextToSpeechEngine private constructor(private val context: Context) 
             isInitialized = true
             _engineState.value = _engineState.value.copy(isReady = true)
             Log.i(TAG, "Motor TTS de Ofertas pronto em pt-BR com taxa ${currentRate}x.")
+
+            // Despacha frases que foram enfileiradas antes da inicialização do hardware (ex: FCM em background)
+            while (pendingSpeechQueue.isNotEmpty()) {
+                val queued = pendingSpeechQueue.poll() ?: break
+                speak(queued, TextToSpeech.QUEUE_ADD)
+            }
         } else {
             Log.e(TAG, "Erro na inicialização do TextToSpeech Android: status=$status")
             _engineState.value = _engineState.value.copy(isReady = false)
@@ -283,7 +427,13 @@ class OfferTextToSpeechEngine private constructor(private val context: Context) 
      * Fala um texto genérico no motor TTS
      */
     fun speak(text: String, queueMode: Int = TextToSpeech.QUEUE_FLUSH) {
-        if (!isInitialized || text.isBlank() || _engineState.value.isMuted) return
+        if (text.isBlank() || _engineState.value.isMuted) return
+
+        if (!isInitialized || tts == null) {
+            Log.w(TAG, "TTS ainda não inicializado. Enfileirando áudio de oferta: \"$text\"")
+            pendingSpeechQueue.add(text)
+            return
+        }
 
         try {
             val utteranceId = "OFFER_TTS_${System.currentTimeMillis()}"
@@ -296,6 +446,104 @@ class OfferTextToSpeechEngine private constructor(private val context: Context) 
             Log.e(TAG, "Erro ao enviar texto para síntese de voz: ${e.message}", e)
         }
     }
+
+    /**
+     * Converte e vocaliza uma oferta recebida via Firebase Cloud Messaging (FCM) em tempo real,
+     * permitindo que o condutor ouça instantaneamente sem desviar os olhos da pista.
+     */
+    fun speakFcmOffer(alert: RadarFirebaseMessagingService.FcmOfferAlert) {
+        if (_engineState.value.isMuted) {
+            Log.d(TAG, "Leitura de oferta FCM ignorada pois TTS está pausado/mutado.")
+            return
+        }
+
+        val speechText = if (alert.voiceAlert.isNotBlank()) {
+            cleanAlertForSpeech(alert.voiceAlert)
+        } else {
+            buildOfferSpeechText(
+                appName = alert.appName,
+                restaurant = alert.restaurant,
+                value = alert.value,
+                distanceKm = alert.distanceKm,
+                profitPerKm = alert.gainPerKm,
+                isGoodDeal = alert.decision == "ACCEPT" || alert.gainPerKm >= 2.0
+            )
+        }
+
+        val summary = SpokenOfferSummary(
+            appName = alert.appName,
+            restaurant = alert.restaurant,
+            value = alert.value,
+            distanceKm = alert.distanceKm,
+            profitPerKm = alert.gainPerKm,
+            isGoodDeal = alert.decision == "ACCEPT" || alert.gainPerKm >= 2.0,
+            fullSpeechText = speechText
+        )
+
+        _engineState.value = _engineState.value.copy(
+            lastOfferSummary = summary,
+            lastSpokenText = speechText
+        )
+
+        speak(speechText, TextToSpeech.QUEUE_FLUSH)
+    }
+
+    /**
+     * Solicita foco de áudio com ducking para atenuar Waze, Spotify e rádio durante a fala
+     */
+    private fun requestAudioFocus(): Boolean {
+        val am = audioManager ?: return false
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val playbackAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+                val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    .setAudioAttributes(playbackAttributes)
+                    .setAcceptsDelayedFocusGain(false)
+                    .setOnAudioFocusChangeListener { /* no-op listener */ }
+                    .build()
+                audioFocusRequest = request
+                am.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            } else {
+                @Suppress("DEPRECATION")
+                am.requestAudioFocus(
+                    null,
+                    AudioManager.STREAM_MUSIC,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+                ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Falha ao solicitar AudioFocus no OfferTtsEngine: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Libera o foco de áudio restaurando o volume normal dos outros aplicativos
+     */
+    private fun releaseAudioFocus() {
+        val am = audioManager ?: return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusRequest?.let { am.abandonAudioFocusRequest(it) }
+                audioFocusRequest = null
+            } else {
+                @Suppress("DEPRECATION")
+                am.abandonAudioFocus(null)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Falha ao liberar AudioFocus: ${e.message}")
+        }
+    }
+
+    /**
+     * Limpa e padroniza a pontuação e termos abreviados para pronúncia natural em pt-BR.
+     * Converte "R$ 28,50" para "28 reais e 50 centavos" e "4,2 km" para "4 vírgula 2 quilômetros",
+     * garantindo que o motor de síntese de voz (TTS) do Android soe cristalino no capacete sem distrair o condutor.
+     */
+    fun cleanAlertForSpeech(raw: String): String = Companion.cleanAlertForSpeech(raw)
 
     /**
      * Anuncia a decisão de aceite
@@ -363,9 +611,6 @@ class OfferTextToSpeechEngine private constructor(private val context: Context) 
     // FORMATADORES HUMANIZADOS EM PORTUGUÊS BRASILEIRO (PT-BR)
     // =========================================================================
 
-    /**
-     * Gera a frase natural e fluida do resumo da oferta para o piloto.
-     */
     fun buildOfferSpeechText(
         appName: String,
         restaurant: String,
@@ -376,77 +621,21 @@ class OfferTextToSpeechEngine private constructor(private val context: Context) 
         hasDualRoute: Boolean = false,
         dualRouteAppName: String = "",
         dualRouteExtraGain: Double = 0.0
-    ): String {
-        val spokenValue = formatSpokenCurrency(value)
-        val spokenDistance = formatSpokenDistance(distanceKm)
-        val spokenProfit = formatSpokenProfitPerKm(profitPerKm)
+    ): String = Companion.buildOfferSpeechText(
+        appName = appName,
+        restaurant = restaurant,
+        value = value,
+        distanceKm = distanceKm,
+        profitPerKm = profitPerKm,
+        isGoodDeal = isGoodDeal,
+        hasDualRoute = hasDualRoute,
+        dualRouteAppName = dualRouteAppName,
+        dualRouteExtraGain = dualRouteExtraGain
+    )
 
-        val verdict = if (isGoodDeal) {
-            "Corrida excelente! Recomendação: aceitar."
-        } else {
-            "Atenção: margem muito baixa, corrida em prejuízo."
-        }
+    fun formatSpokenCurrency(amount: Double): String = Companion.formatSpokenCurrency(amount)
 
-        val dualRouteClause = if (hasDualRoute && dualRouteExtraGain > 0.0) {
-            val extraFmt = formatSpokenCurrency(dualRouteExtraGain)
-            " Alerta: rota dupla compatível com $dualRouteAppName, mais $extraFmt na mesma viagem!"
-        } else ""
+    fun formatSpokenDistance(km: Double): String = Companion.formatSpokenDistance(km)
 
-        val placeClause = if (restaurant.isNotBlank() && restaurant != "Coleta Próxima") {
-            " no $restaurant"
-        } else ""
-
-        return "Nova oferta $appName$placeClause. Valor: $spokenValue para $spokenDistance. Lucro de $spokenProfit. $verdict$dualRouteClause"
-    }
-
-    /**
-     * Formata valores monetários em linguagem natural brasileira:
-     * ex: 28.50 -> "28 reais e 50 centavos"
-     * ex: 15.00 -> "15 reais"
-     * ex: 0.75 -> "75 centavos"
-     */
-    fun formatSpokenCurrency(amount: Double): String {
-        val totalCents = (Math.round(amount * 100)).toInt()
-        val reais = totalCents / 100
-        val centavos = totalCents % 100
-
-        return when {
-            reais > 0 && centavos > 0 -> "$reais reais e $centavos centavos"
-            reais > 0 && centavos == 0 -> "$reais reais"
-            reais == 0 && centavos > 0 -> "$centavos centavos"
-            else -> "zero reais"
-        }
-    }
-
-    /**
-     * Formata distâncias para leitura natural do copiloto:
-     * ex: 3.9 -> "3 vírgula 9 quilômetros"
-     * ex: 4.0 -> "4 quilômetros"
-     * ex: 0.8 -> "800 metros"
-     */
-    fun formatSpokenDistance(km: Double): String {
-        return if (km < 1.0 && km > 0.0) {
-            val meters = (km * 1000).roundToInt()
-            "$meters metros"
-        } else {
-            val roundedOneDecimal = (Math.round(km * 10.0)) / 10.0
-            val intPart = roundedOneDecimal.toInt()
-            val decPart = ((roundedOneDecimal - intPart) * 10).roundToInt()
-            if (decPart > 0) {
-                "$intPart vírgula $decPart quilômetros"
-            } else {
-                "$intPart quilômetros"
-            }
-        }
-    }
-
-    /**
-     * Formata o lucro por km para a voz:
-     * ex: 7.30 -> "7 reais e 30 centavos por quilômetro"
-     * ex: 5.00 -> "5 reais por quilômetro"
-     */
-    fun formatSpokenProfitPerKm(profitPerKm: Double): String {
-        val currencyPart = formatSpokenCurrency(profitPerKm)
-        return "$currencyPart por quilômetro"
-    }
+    fun formatSpokenProfitPerKm(profitPerKm: Double): String = Companion.formatSpokenProfitPerKm(profitPerKm)
 }

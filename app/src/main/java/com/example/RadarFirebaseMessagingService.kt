@@ -51,6 +51,80 @@ class RadarFirebaseMessagingService : FirebaseMessagingService() {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             return prefs.getString(KEY_FCM_TOKEN, "") ?: ""
         }
+
+        fun clearLatestOffer() {
+            _latestPushOffer.value = null
+        }
+
+        /**
+         * Inicializa o Firebase Cloud Messaging, obtém o token de registro atual,
+         * sincroniza com o backend VPS Hostinger e assina os tópicos de broadcast de ofertas.
+         */
+        fun initializeFcm(context: Context) {
+            try {
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        val token = task.result ?: return@addOnCompleteListener
+                        Log.i(TAG, "Token FCM obtido na inicialização: $token")
+                        _fcmTokenState.value = token
+                        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        prefs.edit().putString(KEY_FCM_TOKEN, token).apply()
+                        RadarBackendSyncManager.registerDeviceFcmToken(context, token)
+                    } else {
+                        Log.w(TAG, "Falha ao obter token FCM na inicialização: ${task.exception?.message}")
+                    }
+                }
+
+                // Assina tópicos padrão para recebimento de chamadas de entrega
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("offers")
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("delivery_alerts")
+            } catch (e: Exception) {
+                Log.w(TAG, "Erro ao configurar FirebaseMessaging: ${e.message}")
+            }
+        }
+
+        /**
+         * Simula a recepção de uma oferta de entrega via FCM diretamente no app para testes práticos.
+         */
+        fun simulateIncomingOffer(
+            context: Context,
+            appName: String = "iFood",
+            restaurant: String = "Habib's Radial Leste",
+            value: Double = 28.50,
+            distanceKm: Double = 4.2
+        ) {
+            val gainPerKm = if (distanceKm > 0) value / distanceKm else value
+            val decision = if (gainPerKm >= 2.0) "ACCEPT" else "REJECT"
+            val offerId = "fcm_test_${System.currentTimeMillis() % 10000}"
+            val ttsEngine = OfferTextToSpeechEngine.getInstance(context)
+            val voiceAlert = ttsEngine.buildOfferSpeechText(
+                appName = appName,
+                restaurant = restaurant,
+                value = value,
+                distanceKm = distanceKm,
+                profitPerKm = gainPerKm,
+                isGoodDeal = decision == "ACCEPT"
+            )
+
+            val alert = FcmOfferAlert(
+                offerId = offerId,
+                appName = appName,
+                restaurant = restaurant,
+                value = value,
+                distanceKm = distanceKm,
+                gainPerKm = gainPerKm,
+                voiceAlert = voiceAlert,
+                decision = decision
+            )
+
+            _latestPushOffer.value = alert
+
+            // Áudio via OfferTextToSpeechEngine (Android TTS) e vibração
+            try {
+                ttsEngine.speakFcmOffer(alert)
+                HapticFeedbackHelper.vibrateSuccess(context)
+            } catch (_: Exception) {}
+        }
     }
 
     data class FcmOfferAlert(
@@ -67,6 +141,17 @@ class RadarFirebaseMessagingService : FirebaseMessagingService() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO)
 
+    override fun onCreate() {
+        super.onCreate()
+        try {
+            // Pré-aquece e inicializa o motor Text-to-Speech nativo do Android
+            OfferTextToSpeechEngine.getInstance(applicationContext)
+            Log.i(TAG, "OfferTextToSpeechEngine pré-aquecido no RadarFirebaseMessagingService")
+        } catch (e: Exception) {
+            Log.w(TAG, "Falha ao pré-aquecer Text-to-Speech: ${e.message}")
+        }
+    }
+
     /**
      * Acionado quando o Firebase gera ou atualiza o token de push deste dispositivo.
      * Envia o token para a VPS Hostinger associar com o ID do entregador.
@@ -78,6 +163,12 @@ class RadarFirebaseMessagingService : FirebaseMessagingService() {
 
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_FCM_TOKEN, token).apply()
+
+        // Subscreve nos tópicos de entregas em tempo real
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("offers")
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("delivery_alerts")
+        } catch (_: Exception) {}
 
         // Sincroniza o novo token com a VPS Hostinger
         syncFcmTokenWithHostinger(token)
@@ -98,6 +189,12 @@ class RadarFirebaseMessagingService : FirebaseMessagingService() {
             val title = remoteMessage.notification?.title ?: "Radar Coordinator"
             val body = remoteMessage.notification?.body ?: "Nova oportunidade disponível"
             showPushNotification(title, body, null)
+            try {
+                OfferTextToSpeechEngine.getInstance(applicationContext).speak(
+                    "$title. $body",
+                    android.speech.tts.TextToSpeech.QUEUE_FLUSH
+                )
+            } catch (_: Exception) {}
         }
     }
 
@@ -105,18 +202,46 @@ class RadarFirebaseMessagingService : FirebaseMessagingService() {
      * Processa os dados estruturados enviados pela API da Hostinger
      */
     private fun processOfferDataPayload(data: Map<String, String>) {
+        val type = data["type"] ?: data["action"] ?: ""
+        if (type.contains("CANCEL", ignoreCase = true) || data.containsKey("cancelled_restaurant")) {
+            val cancelledRestaurant = data["cancelled_restaurant"] ?: data["restaurant"] ?: "Restaurante Parceiro"
+            Log.w(TAG, "Push FCM de cancelamento recebido para: $cancelledRestaurant")
+            try {
+                StackedOrderCancellationManager.processSubOrderCancellationByTarget(
+                    context = applicationContext,
+                    targetRestaurantOrApp = cancelledRestaurant,
+                    offersList = emptyList(),
+                    completedDeliveriesList = emptyList()
+                )
+                HapticFeedbackHelper.vibrateDecline(applicationContext)
+                OfferTextToSpeechEngine.getInstance(applicationContext).speak(
+                    "Atenção: pedido cancelado no $cancelledRestaurant. Rota recalculada.",
+                    android.speech.tts.TextToSpeech.QUEUE_FLUSH
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao processar push de cancelamento: ${e.message}")
+            }
+            return
+        }
+
         val offerId = data["offer_id"] ?: data["id"] ?: "fcm_${System.currentTimeMillis() % 10000}"
         val appName = data["app_name"] ?: data["platform"] ?: "iFood"
         val restaurant = data["restaurant"] ?: data["store"] ?: "Restaurante Parceiro"
         val value = data["value"]?.toDoubleOrNull() ?: data["payout"]?.toDoubleOrNull() ?: 24.50
         val distanceKm = data["distance_km"]?.toDoubleOrNull() ?: data["distance"]?.toDoubleOrNull() ?: 3.8
         val gainPerKm = if (distanceKm > 0) value / distanceKm else value
-        val decision = data["decision"] ?: if (gainPerKm >= 2.0) "ACCEPT" else "REJECT"
+        val isGoodDeal = gainPerKm >= 2.0
+        val decision = data["decision"] ?: if (isGoodDeal) "ACCEPT" else "REJECT"
 
-        val voiceAlert = data["voice_alert"] ?: when (decision) {
-            "ACCEPT" -> "Nova corrida no $appName! ${String.format(Locale.GERMAN, "R$ %.2f", value)} por ${String.format(Locale.GERMAN, "%.1f", distanceKm)} km. Recomendação: Aceitar!"
-            else -> "Atenção: corrida de baixo ganho no $appName. Apenas ${String.format(Locale.GERMAN, "R$ %.2f", gainPerKm)} por km. Recomendo rejeitar."
-        }
+        // Constrói áudio humanizado com pronúncia perfeita em português brasileiro (R$, km, centavos)
+        val voiceAlert = data["voice_alert"]?.takeIf { it.isNotBlank() } ?: OfferTextToSpeechEngine.getInstance(applicationContext).buildOfferSpeechText(
+            appName = appName,
+            restaurant = restaurant,
+            value = value,
+            distanceKm = distanceKm,
+            profitPerKm = gainPerKm,
+            isGoodDeal = decision == "ACCEPT" || isGoodDeal
+        )
 
         val alertObj = FcmOfferAlert(
             offerId = offerId,
@@ -131,9 +256,9 @@ class RadarFirebaseMessagingService : FirebaseMessagingService() {
 
         _latestPushOffer.value = alertObj
 
-        // 1. Converte a recomendação em áudio falado no capacete imediatamente via TTS
+        // 1. Converte a recomendação FCM em áudio falado no capacete imediatamente via TTS nativo do Android
         try {
-            TextToSpeechManager.getInstance(applicationContext).speakVoiceAlert(voiceAlert)
+            OfferTextToSpeechEngine.getInstance(applicationContext).speakFcmOffer(alertObj)
         } catch (e: Exception) {
             Log.w(TAG, "Erro ao reproduzir voice_alert via TTS: ${e.message}")
         }
@@ -195,6 +320,20 @@ class RadarFirebaseMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // Ação rápida para aceitar corrida direto da notificação Heads-Up
+        val acceptIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            action = "ACTION_ACCEPT_OFFER_FROM_NOTIFICATION"
+            putExtra("EXTRA_FCM_OFFER_ID", alert?.offerId)
+            putExtra("EXTRA_AUTO_ACCEPT", true)
+        }
+        val acceptPendingIntent = PendingIntent.getActivity(
+            this,
+            (alert?.offerId?.hashCode() ?: 1002) + 1,
+            acceptIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -206,6 +345,8 @@ class RadarFirebaseMessagingService : FirebaseMessagingService() {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .addAction(android.R.drawable.ic_input_add, "Aceitar Corrida", acceptPendingIntent)
+            .addAction(android.R.drawable.ic_delete, "Dispensar", pendingIntent)
             .setSound(soundUri)
             .setVibrate(longArrayOf(0, 250, 150, 250))
             .build()
@@ -245,14 +386,7 @@ class RadarFirebaseMessagingService : FirebaseMessagingService() {
     private fun syncFcmTokenWithHostinger(token: String) {
         serviceScope.launch {
             try {
-                val apiService = RetrofitClient.getApiService()
-                // Registra telemetria de token no servidor
-                RadarBackendSyncManager.sendVoiceCommandEvent(
-                    context = applicationContext,
-                    commandName = "FCM_TOKEN_REGISTERED",
-                    spokenText = token.take(24) + "...",
-                    actionTaken = "DEVICE_TOKEN_SYNCED"
-                )
+                RadarBackendSyncManager.registerDeviceFcmToken(applicationContext, token)
                 Log.i(TAG, "Token FCM sincronizado com a Hostinger.")
             } catch (e: Exception) {
                 Log.w(TAG, "Falha ao registrar token na Hostinger: ${e.message}")

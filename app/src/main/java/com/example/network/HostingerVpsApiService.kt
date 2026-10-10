@@ -36,4 +36,13 @@ interface HostingerVpsApiService {
      */
     @GET("/api/ping")
     suspend fun checkHealth(): Response<PingResponse>
+
+    /**
+     * Registra o token FCM do dispositivo para recepção de ofertas em tempo real
+     */
+    @Headers("Content-Type: application/json")
+    @POST("/api/fcm/token")
+    suspend fun registerFcmToken(
+        @Body request: FcmTokenRegisterRequest
+    ): Response<ApiResponse<Map<String, Any>>>
 }

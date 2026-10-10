@@ -33,6 +33,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +58,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -153,6 +156,13 @@ class MainActivity : ComponentActivity() {
         // Inicializa o cliente de sincronização de telemetria e decisões com o servidor
         RadarBackendSyncManager.initialize(this)
 
+        // Inicializa o Firebase Cloud Messaging para alertas em tempo real de ofertas (VPS Hostinger)
+        try {
+            RadarFirebaseMessagingService.initializeFcm(this)
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Falha ao inicializar FCM: ${e.message}")
+        }
+
         // Inicializa o TextToSpeechManager em português brasileiro para alertas de voz
         TextToSpeechManager.getInstance(this)
 
@@ -161,7 +171,28 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val context = LocalContext.current
-            var isNightMode by remember { mutableStateOf(ThemePreferencesManager.isNightMode(context)) }
+            val systemDark = isSystemInDarkTheme()
+            var isNightMode by remember {
+                mutableStateOf(ThemePreferencesManager.resolveEffectiveNightMode(context, systemDark))
+            }
+
+            // Monitoramento contínuo em segundo plano para detecção automática de anoitecer/amanhecer e sistema
+            LaunchedEffect(systemDark) {
+                while (true) {
+                    val resolved = ThemePreferencesManager.resolveEffectiveNightMode(context, systemDark)
+                    if (isNightMode != resolved) {
+                        isNightMode = resolved
+                        if (ThemePreferencesManager.isEyeFatigueProtectionEnabled(context)) {
+                            if (resolved) {
+                                vm.speak("Modo Cockpit Noturno ativado automaticamente. Reduzindo fadiga ocular para corridas noturnas.")
+                            } else {
+                                vm.speak("Modo Sol ativado automaticamente para alta visibilidade sob luz solar direta.")
+                            }
+                        }
+                    }
+                    delay(30_000L) // Varredura periódica a cada 30 segundos
+                }
+            }
 
             DeliveryHighContrastTheme(
                 sunlightMode = !isNightMode,
@@ -181,6 +212,9 @@ class MainActivity : ComponentActivity() {
                         } else {
                             vm.speak("Modo Sol ativado. Alto contraste para luz solar direta.")
                         }
+                    },
+                    onThemeModeChanged = { newNight ->
+                        isNightMode = newNight
                     }
                 )
             }
@@ -191,6 +225,16 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         currentIntentState.value = intent
+    }
+
+    override fun onResume() {
+        super.onResume()
+        ShakeEmergencyManager.resume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        ShakeEmergencyManager.pause()
     }
 
     override fun onDestroy() {
@@ -212,7 +256,8 @@ fun RadarDeliveryDashboard(
     notificationIntent: Intent? = null,
     onIntentConsumed: () -> Unit = {},
     isNightMode: Boolean = true,
-    onToggleNightMode: () -> Unit = {}
+    onToggleNightMode: () -> Unit = {},
+    onThemeModeChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -280,7 +325,9 @@ fun RadarDeliveryDashboard(
     // Inicialização do Gerenciador de Assinaturas Pro e Google Play Billing
     LaunchedEffect(Unit) {
         SubscriptionManager.initialize(context)
+        EmergencySosManager.initialize(context)
         RealTimeProfitEngine.initialize(context)
+        SmartMarketingMilestoneManager.initialize(context)
         PlayBillingManager.initialize(context)
         FirebaseAnalyticsManager.initialize(context)
         FirebaseAnalyticsManager.logScreenView("RadarDeliveryDashboard", "MainActivity")
@@ -290,6 +337,9 @@ fun RadarDeliveryDashboard(
     var showAnalyticsDashboard by remember { mutableStateOf(false) }
     var showWebViewCockpit by remember { mutableStateOf(false) }
     var showMarketingHubScreen by remember { mutableStateOf(false) }
+    var showMarketingDashboard by remember { mutableStateOf(false) }
+    var showAsaasCockpit by remember { mutableStateOf(false) }
+    var showEmergencySosDialog by remember { mutableStateOf(false) }
 
     // Rota Dupla / Entregas Mescladas (Recurso Exclusivo do Plano Pro)
     val activeDualOpp by JarvisAccessibilityService.activeDualOpportunity.collectAsState()
@@ -543,6 +593,19 @@ fun RadarDeliveryDashboard(
         }
     }
 
+    // Vincula o callback do ShakeGestureDetector à lista de ofertas ativa do cockpit
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        ShakeEmergencyManager.onReprocessRequested = {
+            val latest = offersList.firstOrNull()
+            if (latest != null) {
+                voiceManager?.announceNewOffer(latest.restaurant, latest.value, latest.distanceKm)
+            }
+        }
+        onDispose {
+            ShakeEmergencyManager.onReprocessRequested = null
+        }
+    }
+
     // 8.1. Oferta em Destaque no Card de Coleta Google Maps
     var selectedPickupOfferId by remember { mutableStateOf<String?>(null) }
 
@@ -772,6 +835,15 @@ fun RadarDeliveryDashboard(
                 onDeclineOffer(targetOffer, "Notificação Push")
             }
             localNotificationManager.cancelOfferNotification(offerId)
+        }
+        // Tratamento de ação direta das notificações FCM da Hostinger
+        val fcmOfferId = intent.getStringExtra("EXTRA_FCM_OFFER_ID")
+        val isFcmAccept = intent.action == "ACTION_ACCEPT_OFFER_FROM_NOTIFICATION" || intent.getBooleanExtra("EXTRA_AUTO_ACCEPT", false)
+        if (isFcmAccept && fcmOfferId != null) {
+            val targetOffer = offersList.find { it.id == fcmOfferId } ?: offersList.firstOrNull()
+            if (targetOffer != null) {
+                onAcceptOffer(targetOffer, "Notificação Push FCM")
+            }
         }
         onIntentConsumed()
     }
@@ -1116,8 +1188,11 @@ fun RadarDeliveryDashboard(
     val effectiveSpeedKmh = maxOf(speedState.currentSpeedKmh, locationState.currentSpeedKmh)
 
     // Lista filtrada derivada das ofertas ativas e critérios dinâmicos
-    val displayedOffers = remember(offersList.toList(), filterCriteria) {
-        offersList.filter { filterCriteria.matches(it) }
+    val displayedOffers = remember(offersList.toList(), filterCriteria, locationState.latitude, locationState.longitude) {
+        val currentGpsLat = if (locationState.latitude != 0.0) locationState.latitude else filterCriteria.driverCurrentLat
+        val currentGpsLng = if (locationState.longitude != 0.0) locationState.longitude else filterCriteria.driverCurrentLng
+        val criteriaWithGps = filterCriteria.copy(driverCurrentLat = currentGpsLat, driverCurrentLng = currentGpsLng)
+        offersList.filter { criteriaWithGps.matches(it) }
     }
 
     // 6. Dynamic Dispatch Loop (Simulador Ativo de Despacho em Tempo Real)
@@ -1214,10 +1289,21 @@ fun RadarDeliveryDashboard(
         }
     }
 
-    // Observador Reativo de Auto-Aceite: Quando o entregador ativa o Auto-Aceite ou reduz o gatilho de ganho/km,
+    // Observador Reativo de Auto-Aceite: Quando o entregador ativa o Auto-Aceite ou ajusta critérios de lucratividade,
     // verifica se já existe alguma oferta em espera que atenda aos critérios pré-definidos
-    LaunchedEffect(filterCriteria.isAutoAcceptEnabled, filterCriteria.autoAcceptMinGainPerKm, offersList.size) {
-        if (filterCriteria.isAutoAcceptEnabled) {
+    LaunchedEffect(autoAcceptCriteria.isEnabled, autoAcceptCriteria.minGainPerKm, autoAcceptCriteria.minValueBrl, autoAcceptCriteria.maxDistanceKm, filterCriteria.isAutoAcceptEnabled, filterCriteria.autoAcceptMinGainPerKm, offersList.size) {
+        val isMoving = (speedState.currentSpeedKmh > 10.0)
+        if (autoAcceptCriteria.isEnabled) {
+            val eligibleUltra = offersList.firstOrNull { autoAcceptManager.evaluateOffer(it).isApproved }
+            if (eligibleUltra != null) {
+                delay(300L)
+                autoAcceptManager.processIncomingOffer(
+                    offer = eligibleUltra,
+                    isCurrentlyMoving = isMoving,
+                    onAcceptedCallback = onAcceptOffer
+                )
+            }
+        } else if (filterCriteria.isAutoAcceptEnabled) {
             val eligibleOffer = offersList.firstOrNull { filterCriteria.matchesAutoAccept(it) }
             if (eligibleOffer != null) {
                 delay(400L)
@@ -1230,6 +1316,95 @@ fun RadarDeliveryDashboard(
                         "Auto aceite: ${eligibleOffer.restaurant} por ${String.format(Locale("pt", "BR"), "R$ %.2f", eligibleOffer.value)}. Aceito automaticamente sem toque!"
                     )
                 }
+            }
+        }
+    }
+
+    // 4.2. Observador de Ofertas Interceptadas de Notificações (iFood, Uber, Rappi, 99)
+    val interceptedNotifOffer by AppNotificationListenerService.lastInterceptedOffer.collectAsState()
+    LaunchedEffect(interceptedNotifOffer) {
+        val offer = interceptedNotifOffer ?: return@LaunchedEffect
+        if (offersList.none { it.id == offer.id }) {
+            offersList.add(0, offer)
+            scannedOffersCount++
+            coroutineScope.launch {
+                cacheRepository.cacheOffer(
+                    CachedOfferEntity(
+                        offerId = offer.id,
+                        appName = offer.appName,
+                        restaurant = offer.restaurant,
+                        payoutValue = offer.value,
+                        distanceKm = offer.distanceKm,
+                        gainPerKm = offer.gainPerKm,
+                        isMultiStack = offer.isMultiStack,
+                        neuralDecision = offer.neuralDecision.decision,
+                        status = "PENDING"
+                    )
+                )
+            }
+            val isMoving = (speedState.currentSpeedKmh > 10.0)
+            if (autoAcceptCriteria.isEnabled && autoAcceptManager.evaluateOffer(offer).isApproved) {
+                autoAcceptManager.processIncomingOffer(offer, isMoving, onAcceptOffer)
+            } else if (isVoiceEnabled && voiceManager != null) {
+                voiceManager.announceNewOffer(offer.restaurant, offer.value, offer.distanceKm)
+            }
+        }
+    }
+
+    // 4.3. Observador de Ofertas Detectadas na Tela via Serviço de Acessibilidade
+    val detectedScreenOffer by JarvisAccessibilityService.latestDetectedOffer.collectAsState()
+    LaunchedEffect(detectedScreenOffer) {
+        val detected = detectedScreenOffer ?: return@LaunchedEffect
+        val offerId = "scr_${detected.timestamp % 100000}"
+        if (offersList.none { it.id == offerId || (it.restaurant == detected.pickupLocation && it.value == detected.value) }) {
+            val pricePerKm = if (detected.distanceKm > 0) detected.value / detected.distanceKm else detected.value
+            val screenOffer = RadarOffer(
+                id = offerId,
+                appName = detected.appName,
+                restaurant = detected.pickupLocation,
+                value = detected.value,
+                distanceKm = detected.distanceKm,
+                timeMinutes = (detected.distanceKm * 3.5).toInt().coerceAtLeast(10),
+                pickupAddress = detected.pickupLocation,
+                destinationAddress = detected.destinationAddress,
+                neuralDecision = NeuralDecision(
+                    if (pricePerKm >= 3.8) "accept" else "decline",
+                    "Capturado na tela via Acessibilidade",
+                    0.92
+                )
+            )
+            offersList.add(0, screenOffer)
+            scannedOffersCount++
+            val isMoving = (speedState.currentSpeedKmh > 10.0)
+            if (autoAcceptCriteria.isEnabled && autoAcceptManager.evaluateOffer(screenOffer).isApproved) {
+                autoAcceptManager.processIncomingOffer(screenOffer, isMoving, onAcceptOffer)
+            }
+        }
+    }
+
+    // 4.4. Observador de Ofertas Push de Alta Velocidade via Firebase Cloud Messaging (FCM)
+    val fcmPushOffer by RadarFirebaseMessagingService.latestPushOffer.collectAsState()
+    LaunchedEffect(fcmPushOffer) {
+        val push = fcmPushOffer ?: return@LaunchedEffect
+        if (offersList.none { it.id == push.offerId }) {
+            val radarOffer = RadarOffer(
+                id = push.offerId,
+                appName = push.appName,
+                restaurant = push.restaurant,
+                value = push.value,
+                distanceKm = push.distanceKm,
+                timeMinutes = (push.distanceKm * 3.0).toInt().coerceAtLeast(8),
+                neuralDecision = NeuralDecision(
+                    if (push.decision == "ACCEPT") "accept" else "decline",
+                    push.voiceAlert,
+                    0.95
+                )
+            )
+            offersList.add(0, radarOffer)
+            scannedOffersCount++
+            val isMoving = (speedState.currentSpeedKmh > 10.0)
+            if (autoAcceptCriteria.isEnabled && autoAcceptManager.evaluateOffer(radarOffer).isApproved) {
+                autoAcceptManager.processIncomingOffer(radarOffer, isMoving, onAcceptOffer)
             }
         }
     }
@@ -1259,6 +1434,20 @@ fun RadarDeliveryDashboard(
     if (showMarketingHubScreen) {
         AutomatedMarketingHubScreen(
             onNavigateBack = { showMarketingHubScreen = false }
+        )
+        return
+    }
+
+    if (showMarketingDashboard) {
+        MarketingDashboard(
+            onNavigateBack = { showMarketingDashboard = false }
+        )
+        return
+    }
+
+    if (showAsaasCockpit) {
+        AsaasAutomationCockpitScreen(
+            onNavigateBack = { showAsaasCockpit = false }
         )
         return
     }
@@ -1537,6 +1726,22 @@ fun RadarDeliveryDashboard(
                         Text("🚀", fontSize = 16.sp)
                     }
 
+                    // Botão Direto para Gráficos Recharts & Marketing Dashboard
+                    IconButton(
+                        onClick = { showMarketingDashboard = true },
+                        modifier = Modifier.testTag("action_open_marketing_dashboard")
+                    ) {
+                        Text("📊", fontSize = 16.sp)
+                    }
+
+                    // Botão Cockpit de Automação Asaas Webhook & WhatsApp
+                    IconButton(
+                        onClick = { showAsaasCockpit = true },
+                        modifier = Modifier.testTag("action_open_asaas_cockpit")
+                    ) {
+                        Text("💳", fontSize = 16.sp)
+                    }
+
                     // Botão da Bolha Flutuante do Jarvis (OverlayWindowManager)
                     IconButton(
                         onClick = {
@@ -1609,71 +1814,14 @@ fun RadarDeliveryDashboard(
                 contentPadding = PaddingValues(top = 14.dp, bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Banner de Visibilidade & Alternância Global de Tema (Noturno vs Sol)
+                // Card de Gestão & Detecção Automática de Tema Escuro Anti-Fadiga Ocular
                 item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("banner_theme_visibility_control"),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isNightMode) Color(0xFF0C1017) else Color(0xFFF1F8E9)
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (isNightMode) Color(0xFF00FF88).copy(alpha = 0.4f) else Color(0xFF007A3D).copy(alpha = 0.5f)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text(
-                                    text = if (isNightMode) "🌙" else "☀️",
-                                    fontSize = 20.sp
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(
-                                        text = if (isNightMode) "COCKPIT NOTURNO (ANTI-REFLEXO)" else "MODO SOL (ALTO CONTRASTE)",
-                                        color = if (isNightMode) Color(0xFF00FF88) else Color(0xFF007A3D),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Black,
-                                        letterSpacing = 0.5.sp
-                                    )
-                                    Text(
-                                        text = if (isNightMode) "Otimizado para entrega noturna: zero reflexo na viseira e economia OLED" else "Otimizado para luz solar intensa: contraste máximo WCAG AAA",
-                                        color = if (isNightMode) Color(0xFF9EABB8) else Color(0xFF374151),
-                                        fontSize = 10.sp,
-                                        lineHeight = 13.sp
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            OutlinedButton(
-                                onClick = {
-                                    onToggleNightMode()
-                                    HapticFeedbackHelper.vibrateTap(context)
-                                },
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                modifier = Modifier.testTag("btn_toggle_theme_banner")
-                            ) {
-                                Text(
-                                    text = if (isNightMode) "☀️ Modo Sol" else "🌙 Modo Noite",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isNightMode) Color(0xFF00FF88) else Color(0xFF007A3D)
-                                )
-                            }
+                    AutoNightThemeControlCard(
+                        isNightMode = isNightMode,
+                        onThemeModeChanged = { newNight ->
+                            onThemeModeChanged(newNight)
                         }
-                    }
+                    )
                 }
 
                 // Card de Rota Dupla / Entregas Mescladas (Bloqueado para Free com Gatilho Pro)
@@ -1887,6 +2035,16 @@ fun RadarDeliveryDashboard(
                     RadarBackendSyncCard()
                 }
 
+                // 5.1.A. DIAGNÓSTICO E STATUS FCM (FIREBASE CLOUD MESSAGING)
+                item {
+                    FcmStatusDiagnosticsCard()
+                }
+
+                // 5.1.B. JARVIS NEURAL COCKPIT (MOTOR TÁTICO & MISSÃO EMBAIXADOR BLINDADO)
+                item {
+                    JarvisNeuralCockpitCard()
+                }
+
                 // 6. DASHBOARD DE VELOCIDADE EM TEMPO REAL E TRAVA DE SEGURANÇA
                 item {
                     RealTimeSpeedSafetyDashboardCard(
@@ -1912,6 +2070,41 @@ fun RadarDeliveryDashboard(
                         },
                         onSimulateSpeed = { speedMonitor?.setSimulatedSpeed(it) },
                         onResetRealGps = { speedMonitor?.disableSimulation() }
+                    )
+                }
+
+                // 6.1.A. RESPOSTA AUTOMÁTICA • AUTO-ACEITE DE CORRIDAS ULTRA-LUCRATIVAS (PILOTO AUTOMÁTICO)
+                item {
+                    UltraProfitAutoAcceptCard(
+                        autoAcceptManager = autoAcceptManager,
+                        onAcceptOfferCallback = onAcceptOffer
+                    )
+                }
+
+                // 6.1.A2. ALERTA DE OFERTA EM TEMPO REAL VIA FCM (HOSTINGER VPS)
+                item {
+                    FcmRealtimeOfferAlertCard(
+                        onAcceptOffer = onAcceptOffer
+                    )
+                }
+
+                // 6.1.B. RESOLUÇÃO DE CANCELAMENTOS EM ENTREGAS MESCLADAS (MULTI-STACK DISSOLUTION)
+                item {
+                    StackedCancellationAlertCard(
+                        offersList = offersList,
+                        completedDeliveriesList = completedDeliveriesList,
+                        onAdjustTodayEarnings = { adjustment ->
+                            todayEarnings = (todayEarnings + adjustment).coerceAtLeast(0.0)
+                        },
+                        onAdjustTotalKm = { adjustment ->
+                            totalKmDriven = (totalKmDriven + adjustment).coerceAtLeast(0.0)
+                        },
+                        onDecrementDeliveries = {
+                            completedDeliveries = (completedDeliveries - 1).coerceAtLeast(0)
+                        },
+                        onClearPickupSelection = {
+                            selectedPickupOfferId = null
+                        }
                     )
                 }
 
@@ -1967,7 +2160,8 @@ fun RadarDeliveryDashboard(
                         dailyGoal = 350.0,
                         onExportReport = {
                             val totalGross = completedDeliveriesList.sumOf { it.grossValue }
-                            val totalNet = totalGross - ((completedDeliveriesList.sumOf { it.distanceKm } / fuelConfig.kmPerLiter) * fuelConfig.fuelPricePerLiter)
+                            val safeKmPerLiter = fuelConfig.kmPerLiter.coerceAtLeast(1.0)
+                            val totalNet = totalGross - ((completedDeliveriesList.sumOf { it.distanceKm } / safeKmPerLiter) * fuelConfig.fuelPricePerLiter)
                             val summaryText = "📊 FECHAMENTO RADAR AI: R$ ${String.format(Locale.GERMANY, "%.2f", totalGross)} Bruto | R$ ${String.format(Locale.GERMANY, "%.2f", totalNet)} Líquido | ${completedDeliveriesList.size} entregas finalizadas."
                             try {
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager

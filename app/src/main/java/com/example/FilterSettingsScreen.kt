@@ -98,6 +98,8 @@ fun FilterSettingsScreen(
     var notificationMinGainPerKm by remember { mutableDoubleStateOf(currentCriteria.notificationMinGainPerKm) }
     var notificationAllowMultiStackBypass by remember { mutableStateOf(currentCriteria.notificationAllowMultiStackBypass) }
     var notificationOnlyJarvisApproved by remember { mutableStateOf(currentCriteria.notificationOnlyJarvisApproved) }
+    var isGeoRadiusFilterActive by remember { mutableStateOf(currentCriteria.isGeoRadiusFilterActive) }
+    var maxPickupRadiusKm by remember { mutableDoubleStateOf(currentCriteria.maxPickupRadiusKm) }
 
     val formattedMinVal = if (minValue > 0.0) String.format(Locale("pt", "BR"), "R$ %.2f", minValue) else "Sem Mínimo"
     val formattedMaxDist = if (maxDistanceKm < 15.0) String.format(Locale("pt", "BR"), "%.1f km", maxDistanceKm) else "Sem Limite"
@@ -155,6 +157,8 @@ fun FilterSettingsScreen(
                             safetySpeedThresholdKm = 10.0
                             isAutoAcceptEnabled = false
                             autoAcceptMinGainPerKm = 5.0
+                            isGeoRadiusFilterActive = false
+                            maxPickupRadiusKm = 10.0
                             HapticFeedbackHelper.vibrateClick(context)
                             Toast.makeText(context, "Filtros redefinidos para padrão!", Toast.LENGTH_SHORT).show()
                         },
@@ -454,6 +458,227 @@ fun FilterSettingsScreen(
                         QuickChip(label = "Até 8 km", isSelected = maxDistanceKm == 8.0) { maxDistanceKm = 8.0 }
                         QuickChip(label = "Até 12 km", isSelected = maxDistanceKm == 12.0) { maxDistanceKm = 12.0 }
                         QuickChip(label = "Sem Limite", isSelected = maxDistanceKm >= 15.0) { maxDistanceKm = 15.0 }
+                    }
+                }
+            }
+
+            // =========================================================================
+            // 4.1. CONTROLE: RAIO DE ALCANCE MÁXIMO DE RESTAURANTES (GPS DO PILOTO)
+            // =========================================================================
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("card_geo_pickup_radius_filter"),
+                    colors = CardDefaults.cardColors(containerColor = DarkCard),
+                    border = BorderStroke(1.dp, if (isGeoRadiusFilterActive) Color(0xFF00FFCC).copy(alpha = 0.5f) else DarkBorder),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        // Header com Ícone, Título, Descrição e Switch
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(text = "🛰️", fontSize = 18.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "Raio de Alcance do Restaurante (GPS)",
+                                        color = TextLight,
+                                        fontSize = 13.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Ignora chamadas de restaurantes muito distantes da sua localização GPS atual",
+                                        color = TextMuted,
+                                        fontSize = 10.5.sp,
+                                        lineHeight = 14.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Switch(
+                                checked = isGeoRadiusFilterActive,
+                                onCheckedChange = {
+                                    isGeoRadiusFilterActive = it
+                                    HapticFeedbackHelper.vibrateClick(context)
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color(0xFF00FFCC),
+                                    checkedTrackColor = Color(0xFF00FFCC).copy(alpha = 0.35f),
+                                    uncheckedThumbColor = TextMuted,
+                                    uncheckedTrackColor = DarkBg
+                                ),
+                                modifier = Modifier.testTag("switch_geo_radius_filter")
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Status do Raio e Valor
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isGeoRadiusFilterActive) "Filtro Ativo: bloqueando restaurantes distantes" else "Filtro Desativado (aceita qualquer distância)",
+                                color = if (isGeoRadiusFilterActive) Color(0xFF00FFCC) else TextMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (isGeoRadiusFilterActive) "${maxPickupRadiusKm.toInt()} km (GPS)" else "Sem Limite",
+                                color = if (isGeoRadiusFilterActive) Color(0xFF00FFCC) else TextMuted,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Controles: Botão Menos, Slider Contínuo e Botão Mais
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    if (!isGeoRadiusFilterActive) isGeoRadiusFilterActive = true
+                                    val nextVal = (maxPickupRadiusKm - 1.0).coerceAtLeast(1.0)
+                                    maxPickupRadiusKm = nextVal
+                                    HapticFeedbackHelper.vibrateClick(context)
+                                },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .testTag("btn_decrement_pickup_radius"),
+                                contentPadding = PaddingValues(0.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, DarkBorder)
+                            ) {
+                                Text("−", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Slider(
+                                value = maxPickupRadiusKm.toFloat(),
+                                onValueChange = {
+                                    if (!isGeoRadiusFilterActive) isGeoRadiusFilterActive = true
+                                    val rounded = (it.toDouble() * 2).toInt() / 2.0
+                                    maxPickupRadiusKm = rounded
+                                },
+                                valueRange = 1f..25f,
+                                steps = 23,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFF00FFCC),
+                                    activeTrackColor = Color(0xFF00FFCC),
+                                    inactiveTrackColor = DarkBorder
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("slider_max_pickup_radius")
+                            )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    if (!isGeoRadiusFilterActive) isGeoRadiusFilterActive = true
+                                    val nextVal = (maxPickupRadiusKm + 1.0).coerceAtMost(25.0)
+                                    maxPickupRadiusKm = nextVal
+                                    HapticFeedbackHelper.vibrateClick(context)
+                                },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .testTag("btn_increment_pickup_radius"),
+                                contentPadding = PaddingValues(0.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, DarkBorder)
+                            ) {
+                                Text("+", color = Color(0xFF00FFCC), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Box de Cobertura Geográfica e Estimativa de Deslocamento
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(DarkCardElevated)
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "🎯 Área Coberta: ~${(Math.PI * maxPickupRadiusKm * maxPickupRadiusKm).toInt()} km²",
+                                    color = Color(0xFF00FFCC),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Deslocamento até coleta: ~${(maxPickupRadiusKm * 2.2).toInt()} a ${(maxPickupRadiusKm * 3.0).toInt()} min",
+                                    color = TextMuted,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Chips Pré-calibrados: 3km, 5km, 10km, 15km e 20km
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val radiusChips = listOf(3.0, 5.0, 10.0, 15.0, 20.0)
+                            radiusChips.forEach { r ->
+                                val isSelected = isGeoRadiusFilterActive && maxPickupRadiusKm == r
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) Color(0xFF00FFCC).copy(alpha = 0.2f) else DarkCardElevated)
+                                        .border(
+                                            1.dp,
+                                            if (isSelected) Color(0xFF00FFCC) else DarkBorder,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable {
+                                            isGeoRadiusFilterActive = true
+                                            maxPickupRadiusKm = r
+                                            HapticFeedbackHelper.vibrateClick(context)
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                        .testTag("chip_radius_${r.toInt()}km")
+                                ) {
+                                    Text(
+                                        text = "${r.toInt()} km",
+                                        color = if (isSelected) Color(0xFF00FFCC) else TextMuted,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Black else FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1087,6 +1312,8 @@ fun FilterSettingsScreen(
                             notificationMinGainPerKm = 5.0
                             notificationAllowMultiStackBypass = true
                             notificationOnlyJarvisApproved = false
+                            isGeoRadiusFilterActive = false
+                            maxPickupRadiusKm = 10.0
                             HapticFeedbackHelper.vibrateClick(context)
                         },
                         modifier = Modifier
@@ -1120,7 +1347,9 @@ fun FilterSettingsScreen(
                                 isNotificationFilterEnabled = isNotificationFilterEnabled,
                                 notificationMinGainPerKm = notificationMinGainPerKm,
                                 notificationAllowMultiStackBypass = notificationAllowMultiStackBypass,
-                                notificationOnlyJarvisApproved = notificationOnlyJarvisApproved
+                                notificationOnlyJarvisApproved = notificationOnlyJarvisApproved,
+                                isGeoRadiusFilterActive = isGeoRadiusFilterActive,
+                                maxPickupRadiusKm = maxPickupRadiusKm
                             )
                             // Salva no SharedPreferences
                             FilterPreferencesManager.saveCriteria(context, newCriteria)

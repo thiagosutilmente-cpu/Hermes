@@ -118,6 +118,7 @@ data class OfferFilterCriteria(
      */
     fun matchesNotification(offer: RadarOffer): Boolean {
         if (!isNotificationFilterEnabled) return true
+        if (isGeoRadiusFilterActive && offer.distanceFromPilotKm(driverCurrentLat, driverCurrentLng) > maxPickupRadiusKm) return false
         if (notificationAllowMultiStackBypass && offer.isMultiStack) return true
         if (notificationOnlyJarvisApproved && !offer.neuralDecision.isAccept) return false
         if (offer.gainPerKm < notificationMinGainPerKm) return false
@@ -1541,6 +1542,85 @@ fun FilterSettingsDialog(
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // 2.0. RAIO DE ALCANCE MÁXIMO DE RESTAURANTES (GPS)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Raio Máximo de Restaurantes (GPS)",
+                            color = TextLight,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (tempCriteria.isGeoRadiusFilterActive) "Bloqueia coletas a mais de ${tempCriteria.maxPickupRadiusKm.toInt()} km" else "Filtro desativado (aceita tudo)",
+                            color = if (tempCriteria.isGeoRadiusFilterActive) Color(0xFF00FFCC) else TextMuted,
+                            fontSize = 10.sp
+                        )
+                    }
+                    Switch(
+                        checked = tempCriteria.isGeoRadiusFilterActive,
+                        onCheckedChange = {
+                            tempCriteria = tempCriteria.copy(isGeoRadiusFilterActive = it)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color(0xFF00FFCC),
+                            checkedTrackColor = Color(0xFF00FFCC).copy(alpha = 0.35f),
+                            uncheckedThumbColor = TextMuted,
+                            uncheckedTrackColor = DarkBg
+                        ),
+                        modifier = Modifier.testTag("dialog_switch_geo_radius_filter")
+                    )
+                }
+
+                if (tempCriteria.isGeoRadiusFilterActive) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Slider(
+                        value = tempCriteria.maxPickupRadiusKm.toFloat(),
+                        onValueChange = {
+                            val rounded = (it.toDouble() * 2).toInt() / 2.0
+                            tempCriteria = tempCriteria.copy(maxPickupRadiusKm = rounded)
+                        },
+                        valueRange = 1f..25f,
+                        steps = 23,
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFF00FFCC),
+                            activeTrackColor = Color(0xFF00FFCC),
+                            inactiveTrackColor = DarkBorder
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("dialog_slider_max_pickup_radius")
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(3.0, 5.0, 10.0, 15.0, 20.0).forEach { r ->
+                            val isSel = tempCriteria.maxPickupRadiusKm == r
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSel) Color(0xFF00FFCC).copy(alpha = 0.2f) else DarkCardElevated)
+                                    .border(1.dp, if (isSel) Color(0xFF00FFCC) else DarkBorder, RoundedCornerShape(8.dp))
+                                    .clickable { tempCriteria = tempCriteria.copy(maxPickupRadiusKm = r) }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "${r.toInt()} km",
+                                    color = if (isSel) Color(0xFF00FFCC) else TextMuted,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(14.dp))
 

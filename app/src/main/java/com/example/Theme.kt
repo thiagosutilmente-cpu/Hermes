@@ -272,25 +272,200 @@ fun DeliveryHighContrastTheme(
 }
 
 // =============================================================================
-// GERENCIADOR DE PREFERÊNCIAS DE TEMA & VISIBILIDADE DO ENTREGADOR
+// MODOS DE PREFERÊNCIA DE TEMA & DETECÇÃO AUTOMÁTICA NOTURNA
+// =============================================================================
+enum class ThemeModePreference(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val description: String,
+    val icon: String
+) {
+    AUTO_INTELLIGENT(
+        id = "auto_intelligent",
+        title = "Auto Inteligente",
+        subtitle = "Horário (18h-06h) + Sistema",
+        description = "Ativa o tema escuro automaticamente entre 18:00 e 06:00 OU quando o Android estiver em tema escuro.",
+        icon = "⚡"
+    ),
+    AUTO_SCHEDULE(
+        id = "auto_schedule",
+        title = "Horário do Turno",
+        subtitle = "Programado no Relógio",
+        description = "Ativa o Modo Cockpit Noturno no período de entregas noturnas (padrão: 18:00 às 06:00).",
+        icon = "⏰"
+    ),
+    AUTO_SYSTEM(
+        id = "auto_system",
+        title = "Seguir Sistema",
+        subtitle = "Configuração do Android",
+        description = "Sincroniza automaticamente com o modo claro ou escuro configurado no sistema operacional.",
+        icon = "📱"
+    ),
+    MANUAL_DARK(
+        id = "manual_dark",
+        title = "Noturno Fixo",
+        subtitle = "Preto OLED Anti-Reflexo",
+        description = "Mantém a interface sempre no modo escuro para zero ofuscamento e máxima economia de bateria.",
+        icon = "🌙"
+    ),
+    MANUAL_LIGHT(
+        id = "manual_light",
+        title = "Modo Sol Fixo",
+        subtitle = "Alto Contraste WCAG AAA",
+        description = "Mantém a interface sempre no modo ultra-claro para leitura sob luz solar direta.",
+        icon = "☀️"
+    );
+
+    companion object {
+        fun fromId(id: String?): ThemeModePreference {
+            return entries.firstOrNull { it.id.equals(id, ignoreCase = true) } ?: AUTO_INTELLIGENT
+        }
+    }
+}
+
+// =============================================================================
+// GERENCIADOR DE PREFERÊNCIAS DE TEMA & DETECÇÃO AUTOMÁTICA NOTURNA
 // =============================================================================
 object ThemePreferencesManager {
     private const val PREFS_NAME = "radar_theme_preferences"
     private const val KEY_NIGHT_MODE = "radar_night_mode_active"
+    private const val KEY_THEME_MODE = "radar_theme_mode_preference"
+    private const val KEY_NIGHT_START_HOUR = "radar_night_start_hour"
+    private const val KEY_NIGHT_END_HOUR = "radar_night_end_hour"
+    private const val KEY_EYE_FATIGUE_ENABLED = "radar_eye_fatigue_reduction_enabled"
 
-    /**
-     * Retorna se o Modo Noturno está ativado.
-     * O padrão é true (Modo Cockpit Noturno com Preto OLED anti-reflexo para entregas à noite).
-     */
-    fun isNightMode(context: Context): Boolean {
+    fun getThemeMode(context: Context): ThemeModePreference {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_NIGHT_MODE, true)
+        val id = prefs.getString(KEY_THEME_MODE, ThemeModePreference.AUTO_INTELLIGENT.id)
+        return ThemeModePreference.fromId(id)
+    }
+
+    fun setThemeMode(context: Context, mode: ThemeModePreference) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_THEME_MODE, mode.id).apply()
+    }
+
+    fun getNightStartHour(context: Context): Int {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getInt(KEY_NIGHT_START_HOUR, 18) // 18:00
+    }
+
+    fun setNightStartHour(context: Context, hour: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_NIGHT_START_HOUR, hour.coerceIn(0, 23)).apply()
+    }
+
+    fun getNightEndHour(context: Context): Int {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getInt(KEY_NIGHT_END_HOUR, 6) // 06:00
+    }
+
+    fun setNightEndHour(context: Context, hour: Int) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_NIGHT_END_HOUR, hour.coerceIn(0, 23)).apply()
+    }
+
+    fun isEyeFatigueProtectionEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_EYE_FATIGUE_ENABLED, true)
+    }
+
+    fun setEyeFatigueProtectionEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_EYE_FATIGUE_ENABLED, enabled).apply()
     }
 
     /**
-     * Salva a preferência de tema do piloto (Noturno ou Modo Sol).
+     * Determina se o momento atual se encontra dentro do intervalo de horário noturno.
+     */
+    fun isNightTimeNow(startHour: Int = 18, endHour: Int = 6): Boolean {
+        val cal = java.util.Calendar.getInstance()
+        val currentHour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+        val currentMinute = cal.get(java.util.Calendar.MINUTE)
+        val currentTimeMinutes = currentHour * 60 + currentMinute
+        val startMinutes = startHour * 60
+        val endMinutes = endHour * 60
+
+        return if (startMinutes > endMinutes) {
+            // Turno noturno atravessa meia-noite (ex: 18h às 06h)
+            currentTimeMinutes >= startMinutes || currentTimeMinutes < endMinutes
+        } else {
+            // Turno no mesmo dia
+            currentTimeMinutes in startMinutes until endMinutes
+        }
+    }
+
+    /**
+     * Resolve em tempo real se o tema deve ser escuro (Modo Cockpit Noturno)
+     * avaliando a preferência do entregador, o horário solar do relógio e o sistema Android.
+     */
+    fun resolveEffectiveNightMode(context: Context, isSystemDark: Boolean): Boolean {
+        val mode = getThemeMode(context)
+        val startHour = getNightStartHour(context)
+        val endHour = getNightEndHour(context)
+        val isNightBySchedule = isNightTimeNow(startHour, endHour)
+
+        return when (mode) {
+            ThemeModePreference.MANUAL_DARK -> true
+            ThemeModePreference.MANUAL_LIGHT -> false
+            ThemeModePreference.AUTO_SYSTEM -> isSystemDark
+            ThemeModePreference.AUTO_SCHEDULE -> isNightBySchedule
+            ThemeModePreference.AUTO_INTELLIGENT -> isNightBySchedule || isSystemDark
+        }
+    }
+
+    /**
+     * Descrição amigável do status de detecção para feedback visual ao entregador.
+     */
+    fun getThemeStatusDescription(context: Context, isSystemDark: Boolean): String {
+        val mode = getThemeMode(context)
+        val isEffectiveNight = resolveEffectiveNightMode(context, isSystemDark)
+        val startHour = getNightStartHour(context)
+        val endHour = getNightEndHour(context)
+        val isNightBySchedule = isNightTimeNow(startHour, endHour)
+
+        return when (mode) {
+            ThemeModePreference.AUTO_INTELLIGENT -> {
+                if (isEffectiveNight) {
+                    val trigger = if (isNightBySchedule) "Horário Noturno ($startHour:00 às 0$endHour:00)" else "Sistema Android"
+                    "🌙 Cockpit Noturno Ativo: Detectado via $trigger. Zero reflexo na viseira e anti-fadiga ocular."
+                } else {
+                    "☀️ Modo Sol Ativo: Período diurno detectado. Alto contraste WCAG AAA para luz solar direta."
+                }
+            }
+            ThemeModePreference.AUTO_SCHEDULE -> {
+                if (isEffectiveNight) {
+                    "🌙 Cockpit Noturno Ativo: Turno noturno programado ($startHour:00 às 0$endHour:00)."
+                } else {
+                    "☀️ Modo Sol Ativo: Fora do turno noturno ($startHour:00 às 0$endHour:00)."
+                }
+            }
+            ThemeModePreference.AUTO_SYSTEM -> {
+                if (isEffectiveNight) {
+                    "🌙 Cockpit Noturno Ativo: Sincronizado com o tema escuro do Android."
+                } else {
+                    "☀️ Modo Sol Ativo: Sincronizado com o tema claro do Android."
+                }
+            }
+            ThemeModePreference.MANUAL_DARK -> "🌙 Cockpit Noturno Fixo: Modo escuro OLED forçado permanentemente."
+            ThemeModePreference.MANUAL_LIGHT -> "☀️ Modo Sol Fixo: Modo claro de alta claridade forçado permanentemente."
+        }
+    }
+
+    /**
+     * Retorna se o Modo Noturno está ativado (compatibilidade com chamadas legadas).
+     */
+    fun isNightMode(context: Context): Boolean {
+        return resolveEffectiveNightMode(context, isNightTimeNow())
+    }
+
+    /**
+     * Alternância rápida manual. Se o entregador tocar no botão de alternância rápida,
+     * alterna entre MANUAL_DARK e MANUAL_LIGHT ou volta para AUTO.
      */
     fun setNightMode(context: Context, isNight: Boolean) {
+        setThemeMode(context, if (isNight) ThemeModePreference.MANUAL_DARK else ThemeModePreference.MANUAL_LIGHT)
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putBoolean(KEY_NIGHT_MODE, isNight).apply()
     }

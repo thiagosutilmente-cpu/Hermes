@@ -2,6 +2,8 @@ package com.example
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
@@ -47,6 +49,9 @@ class TextToSpeechManager private constructor(private val context: Context) : Te
     }
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    private var audioFocusRequest: AudioFocusRequest? = null
 
     private var textToSpeech: TextToSpeech? = null
 
@@ -111,22 +116,26 @@ class TextToSpeechManager private constructor(private val context: Context) : Te
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {
                     _isSpeaking.value = true
+                    requestAudioFocus()
                     Log.d(TAG, "Iniciando síntese de voz (utterance: $utteranceId)")
                 }
 
                 override fun onDone(utteranceId: String?) {
                     _isSpeaking.value = false
+                    releaseAudioFocus()
                     Log.d(TAG, "Síntese concluída (utterance: $utteranceId)")
                 }
 
                 @Deprecated("Deprecated in Java")
                 override fun onError(utteranceId: String?) {
                     _isSpeaking.value = false
+                    releaseAudioFocus()
                     Log.w(TAG, "Erro na síntese de voz (utterance: $utteranceId)")
                 }
 
                 override fun onError(utteranceId: String?, errorCode: Int) {
                     _isSpeaking.value = false
+                    releaseAudioFocus()
                     Log.w(TAG, "Erro na síntese de voz código $errorCode (utterance: $utteranceId)")
                 }
             })
@@ -143,6 +152,56 @@ class TextToSpeechManager private constructor(private val context: Context) : Te
         } else {
             Log.e(TAG, "Falha na inicialização do TextToSpeech (status: $status)")
             _isInitialized.value = false
+        }
+    }
+
+    /**
+     * Solicita foco de áudio com ducking para atenuar música/Waze durante o aviso de voz do capacete
+     */
+    private fun requestAudioFocus(): Boolean {
+        val am = audioManager ?: return false
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val playbackAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+                val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    .setAudioAttributes(playbackAttributes)
+                    .setAcceptsDelayedFocusGain(false)
+                    .setOnAudioFocusChangeListener { /* no-op listener */ }
+                    .build()
+                audioFocusRequest = request
+                am.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            } else {
+                @Suppress("DEPRECATION")
+                am.requestAudioFocus(
+                    null,
+                    AudioManager.STREAM_MUSIC,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+                ) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Falha ao solicitar AudioFocus: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Libera o foco de áudio para restaurar o volume normal de outras aplicações
+     */
+    private fun releaseAudioFocus() {
+        val am = audioManager ?: return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                audioFocusRequest?.let { am.abandonAudioFocusRequest(it) }
+                audioFocusRequest = null
+            } else {
+                @Suppress("DEPRECATION")
+                am.abandonAudioFocus(null)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Falha ao liberar AudioFocus: ${e.message}")
         }
     }
 
@@ -173,7 +232,7 @@ class TextToSpeechManager private constructor(private val context: Context) : Te
     /**
      * Fala qualquer texto arbitrário via TTS
      */
-    fun speak(text: String, queueMode: Int = TextToSpeech.QUEUE_FLUSH) {
+    fun speak(text: String, queueMode: Int = TextToSpeech.QUEUE_FLUSH, priority: Boolean = false) {
         if (text.isBlank()) return
 
         if (!_isInitialized.value || textToSpeech == null) {
@@ -187,7 +246,8 @@ class TextToSpeechManager private constructor(private val context: Context) : Te
             val params = Bundle().apply {
                 putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
             }
-            textToSpeech?.speak(text, queueMode, params, utteranceId)
+            val effectiveQueueMode = if (priority) TextToSpeech.QUEUE_FLUSH else queueMode
+            textToSpeech?.speak(text, effectiveQueueMode, params, utteranceId)
             Log.i(TAG, "Reproduzindo voice_alert: \"$text\"")
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao enviar texto para o motor TTS: ${e.message}", e)
@@ -201,6 +261,7 @@ class TextToSpeechManager private constructor(private val context: Context) : Te
         try {
             textToSpeech?.stop()
             _isSpeaking.value = false
+            releaseAudioFocus()
         } catch (e: Exception) {
             Log.w(TAG, "Erro ao parar TTS: ${e.message}")
         }

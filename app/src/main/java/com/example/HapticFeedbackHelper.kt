@@ -148,4 +148,52 @@ object HapticFeedbackHelper {
             Log.d("HapticFeedback", "Falha vibrateHighPriorityOffer: ${e.message}")
         }
     }
+
+    /**
+     * Feedback Háptico Discreto de Confirmação do Alerta Silencioso de SOS.
+     * Assinatura tátil: 2 micro-pulsos suaves (45ms, pausa 90ms, 45ms) com baixa amplitude.
+     * Projetado para confirmar ao condutor que o WorkManager disparou o alerta silencioso
+     * sem alertar ou chamar a atenção de agressores ou pessoas próximas.
+     */
+    fun vibrateSilentSosConfirmation(context: Context) {
+        val vibrator = getVibrator(context) ?: return
+        if (!vibrator.hasVibrator()) return
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val timings = longArrayOf(0, 45, 90, 45)
+                val amplitudes = intArrayOf(0, 110, 0, 120)
+                val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+                vibrator.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(longArrayOf(0, 45, 90, 45), -1)
+            }
+        } catch (e: Exception) {
+            Log.d("HapticFeedback", "Falha vibrateSilentSosConfirmation: ${e.message}")
+        }
+    }
+
+    /**
+     * Pulso sutil para cada segundo da contagem regressiva do SOS (5s, 4s, 3s...)
+     */
+    fun vibrateSosCountdownTick(context: Context) {
+        val vibrator = getVibrator(context) ?: return
+        if (!vibrator.hasVibrator()) return
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val effect = VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
+                vibrator.vibrate(effect)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val effect = VibrationEffect.createOneShot(25, 100)
+                vibrator.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(25)
+            }
+        } catch (e: Exception) {
+            Log.d("HapticFeedback", "Falha vibrateSosCountdownTick: ${e.message}")
+        }
+    }
 }

@@ -117,9 +117,13 @@ fun UltraOledBatterySaverCard(
                         }
 
                         Text(
-                            text = "Preto absoluto (#000000) economiza até 40% de bateria",
-                            color = TextMuted,
-                            fontSize = 10.5.sp
+                            text = if (oledState.isThermalThrottlingWarning)
+                                "⚠️ Alerta Térmico: ${String.format(java.util.Locale("pt", "BR"), "%.1f°C", oledState.batteryTemperatureCelsius)} • Proteção Ativa"
+                            else
+                                "Bateria: ${oledState.currentBatteryPercent}% • Temp: ${String.format(java.util.Locale("pt", "BR"), "%.1f°C", oledState.batteryTemperatureCelsius)} (Preto absoluto #000000)",
+                            color = if (oledState.isThermalThrottlingWarning) Color(0xFFFFB800) else TextMuted,
+                            fontSize = 10.5.sp,
+                            fontWeight = if (oledState.isThermalThrottlingWarning) FontWeight.Bold else FontWeight.Normal
                         )
                     }
                 }

@@ -1,5 +1,6 @@
 package com.example
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -8,6 +9,8 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.location.Location
 import android.os.Binder
 import android.os.Build
@@ -20,6 +23,7 @@ import android.os.VibratorManager
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -43,6 +47,7 @@ data class LocationSpeedState(
     val currentSpeedKmh: Double = 0.0,
     val isSafetyLockActive: Boolean = false, // true quando > 10.0 km/h (bloqueio da interface do app)
     val isNotificationsMuted: Boolean = false, // true quando > 10.0 km/h (silenciamento de notificações Heads-Up)
+    val isMoving: Boolean = false, // true quando veículo está em movimento (> 2.0 km/h)
     val latitude: Double = -23.561684,
     val longitude: Double = -46.655981,
     val accuracyMeters: Float = 0f,
@@ -141,6 +146,11 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
                     isNotificationsMuted = isLock
                 )
             }
+            LocationForegroundService.updateTelemetry(
+                LocationForegroundService.telemetryState.value.copy(
+                    isSafetyLockActive = isLock
+                )
+            )
         }
 
         /**
@@ -152,13 +162,40 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
             if (isLock && context != null) {
                 LocalNotificationManager.cancelAllActiveOfferNotifications(context)
             }
-            _globalLocationState.value = _globalLocationState.value.copy(
+            val newState = _globalLocationState.value.copy(
                 currentSpeedKmh = speedKmh,
                 isSafetyLockActive = isLock,
                 isNotificationsMuted = isLock,
+                isMoving = speedKmh > 2.0,
                 speedSource = "Simulação Manual",
                 lastUpdateTimeMillis = System.currentTimeMillis()
             )
+            _globalLocationState.value = newState
+
+            // Sincroniza com o LocationForegroundService (Android Auto e WebView)
+            LocationForegroundService.updateTelemetry(
+                LocationForegroundService.TelemetryData(
+                    latitude = newState.latitude,
+                    longitude = newState.longitude,
+                    speedKmh = speedKmh,
+                    accuracyMeters = newState.accuracyMeters,
+                    isSafetyLockActive = isLock,
+                    isRunning = true,
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+
+            // Emite broadcast para receptores
+            context?.let { ctx ->
+                val broadcastIntent = Intent(LocationForegroundService.ACTION_LOCATION_BROADCAST).apply {
+                    putExtra(LocationForegroundService.EXTRA_LATITUDE, newState.latitude)
+                    putExtra(LocationForegroundService.EXTRA_LONGITUDE, newState.longitude)
+                    putExtra(LocationForegroundService.EXTRA_SPEED_KMH, speedKmh)
+                    putExtra(LocationForegroundService.EXTRA_ACCURACY, newState.accuracyMeters)
+                    putExtra(LocationForegroundService.EXTRA_SAFETY_LOCK, isLock)
+                }
+                ctx.sendBroadcast(broadcastIntent)
+            }
         }
 
         /**
@@ -223,7 +260,8 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
         fun calculateSpeedKmh(currentLocation: Location, previousLocation: Location? = null): Double {
             // 1. Se o hardware de localização reporta a velocidade nativa com precisão
             if (currentLocation.hasSpeed() && currentLocation.speed >= 0f) {
-                return (currentLocation.speed * 3.6).coerceAtLeast(0.0)
+                val hwSpeedKmh = currentLocation.speed * 3.6
+                return if (hwSpeedKmh < 1.2) 0.0 else Math.round(hwSpeedKmh * 10.0) / 10.0
             }
 
             // 2. Caso o sensor não forneça speed direto, computamos via deslocamento geodésico e delta t
@@ -232,7 +270,8 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
                 val timeDeltaSeconds = (currentLocation.time - previousLocation.time) / 1000.0
                 if (timeDeltaSeconds in 0.3..15.0) {
                     val speedMps = distanceMeters / timeDeltaSeconds
-                    return (speedMps * 3.6).coerceIn(0.0, 180.0)
+                    val calculatedKmh = speedMps * 3.6
+                    return if (calculatedKmh < 1.5) 0.0 else Math.round(calculatedKmh.coerceIn(0.0, 180.0) * 10.0) / 10.0
                 }
             }
 
@@ -321,18 +360,28 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val notification = buildForegroundNotification(_globalLocationState.value)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+
         when (intent?.action) {
             ACTION_START_LOCATION_TRACKING -> {
-                startForeground(NOTIFICATION_ID, buildForegroundNotification(_globalLocationState.value))
                 startLocationUpdates()
             }
             ACTION_STOP_LOCATION_TRACKING -> {
                 stopLocationUpdates()
-                stopForeground(STOP_FOREGROUND_REMOVE)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                } else {
+                    @Suppress("DEPRECATION")
+                    stopForeground(true)
+                }
                 stopSelf()
             }
             else -> {
-                startForeground(NOTIFICATION_ID, buildForegroundNotification(_globalLocationState.value))
                 startLocationUpdates()
             }
         }
@@ -348,6 +397,12 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
                 val location = locationResult.lastLocation ?: return
                 processNewLocation(location)
             }
+
+            override fun onLocationAvailability(availability: com.google.android.gms.location.LocationAvailability) {
+                if (!availability.isLocationAvailable) {
+                    Log.w(TAG, "Sinal de GPS temporariamente indisponível no FusedLocationProviderClient.")
+                }
+            }
         }
     }
 
@@ -357,13 +412,23 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
     private fun processNewLocation(location: Location) {
         val previousLock = _globalLocationState.value.isSafetyLockActive
         val speedKmh = calculateSpeedKmh(location, lastValidLocation)
-        val isSafetyLockActive = speedKmh > dynamicSafetySpeedThresholdKmh
+        val threshold = dynamicSafetySpeedThresholdKmh
+        val unlockThreshold = (threshold - 1.5).coerceAtLeast(0.0)
+
+        // Histerese de segurança anti-oscilação: ativa em >= threshold e destrava em <= unlockThreshold
+        val isSafetyLockActive = when {
+            speedKmh >= threshold -> true
+            speedKmh <= unlockThreshold -> false
+            else -> previousLock
+        }
+        val isMoving = speedKmh > 2.0
         val isNotificationsMuted = isSafetyLockActive
 
         val newState = LocationSpeedState(
             currentSpeedKmh = speedKmh,
             isSafetyLockActive = isSafetyLockActive,
             isNotificationsMuted = isNotificationsMuted,
+            isMoving = isMoving,
             latitude = location.latitude,
             longitude = location.longitude,
             accuracyMeters = location.accuracy,
@@ -377,6 +442,29 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
         _globalLocationState.value = newState
         lastValidLocation = location
 
+        // Sincroniza estado de telemetria global (Android Auto e WebView Cockpit)
+        LocationForegroundService.updateTelemetry(
+            LocationForegroundService.TelemetryData(
+                latitude = location.latitude,
+                longitude = location.longitude,
+                speedKmh = speedKmh,
+                accuracyMeters = location.accuracy,
+                isSafetyLockActive = isSafetyLockActive,
+                isRunning = true,
+                timestamp = System.currentTimeMillis()
+            )
+        )
+
+        // Transmite via broadcast para a WebView nativa e componentes externos desacoplados
+        val broadcastIntent = Intent(LocationForegroundService.ACTION_LOCATION_BROADCAST).apply {
+            putExtra(LocationForegroundService.EXTRA_LATITUDE, location.latitude)
+            putExtra(LocationForegroundService.EXTRA_LONGITUDE, location.longitude)
+            putExtra(LocationForegroundService.EXTRA_SPEED_KMH, speedKmh)
+            putExtra(LocationForegroundService.EXTRA_ACCURACY, location.accuracy)
+            putExtra(LocationForegroundService.EXTRA_SAFETY_LOCK, isSafetyLockActive)
+        }
+        sendBroadcast(broadcastIntent)
+
         // Atualiza silenciador de notificações globais e cancela flutuantes pendentes em movimento
         LocalNotificationManager.isSpeedMuteActive = isNotificationsMuted
         if (isNotificationsMuted) {
@@ -385,10 +473,10 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
 
         // Disparo de alertas sensoriais (Áudio TTS + Vibração Tática) quando a trava é ativada ou liberada
         if (previousLock != isSafetyLockActive) {
-            val limit = dynamicSafetySpeedThresholdKmh.toInt()
+            val limit = threshold.toInt()
             triggerVibrationAlert(isSafetyLockActive)
             if (isSafetyLockActive) {
-                speakAlert("Atenção: veículo acima de $limit por hora detectado por GPS. Interface do aplicativo bloqueada por segurança.")
+                speakAlert("Atenção: veículo em movimento acima de $limit por hora detectado por GPS. Trava de segurança ativada. Operação viva-voz habilitada.")
             } else {
                 speakAlert("Velocidade abaixo de $limit por hora. Interface do aplicativo liberada.")
             }
@@ -400,7 +488,7 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
                 .evaluateCurrentLocation(location.latitude, location.longitude)
         } catch (_: Exception) {}
 
-        // Atualiza a notificação foreground quando houver alteração significativa
+        // Atualiza a notificação foreground quando houver alteração de telemetria
         updateNotification(newState)
     }
 
@@ -409,6 +497,13 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
      */
     @SuppressLint("MissingPermission")
     fun startLocationUpdates() {
+        val hasFine = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!hasFine && !hasCoarse) {
+            Log.w(TAG, "Permissões de localização não concedidas. Aguardando autorização do usuário.")
+            return
+        }
+
         try {
             val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
                 .setMinUpdateIntervalMillis(500L)
@@ -448,7 +543,9 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
      * Constrói a notificação persistente de telemetria em segundo plano.
      */
     private fun buildForegroundNotification(state: LocationSpeedState): Notification {
-        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName) ?: Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
         val pendingIntent = PendingIntent.getActivity(
             this,
             0,
@@ -457,21 +554,40 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
         )
 
         val threshold = dynamicSafetySpeedThresholdKmh.toInt()
-        val speedStr = String.format(java.util.Locale.US, "%.0f", state.currentSpeedKmh)
-        val lockStatus = if (state.isSafetyLockActive) {
-            "🚨 TRAVA DE SEGURANÇA ATIVA (> $threshold km/h) • $speedStr km/h"
+        val speedStr = String.format(Locale.GERMANY, "%.1f", state.currentSpeedKmh)
+        
+        val title = if (state.isSafetyLockActive) {
+            "🔒 TRAVA DE SEGURANÇA ATIVA • $speedStr km/h"
         } else {
-            "🟢 VELOCIDADE SEGURA (<= $threshold km/h) • $speedStr km/h"
+            "🟢 RADAR COCKPIT • $speedStr km/h"
+        }
+
+        val contentText = if (state.isSafetyLockActive) {
+            "Modo Pilotagem (> $threshold km/h) • Toques bloqueados para segurança"
+        } else {
+            "Velocidade Segura (<= $threshold km/h) • GPS de Alta Precisão"
+        }
+
+        val bigText = if (state.isSafetyLockActive) {
+            "Veículo em movimento a $speedStr km/h detectado por GPS.\nA interface de pedidos foi bloqueada automaticamente para sua segurança no trânsito.\nOperação 100% viva-voz via comandos de voz habilitada."
+        } else {
+            "Monitorando telemetria em tempo real.\nVelocidade atual: $speedStr km/h.\nInterface liberada para toques e visualização de ofertas."
         }
 
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("Radar Coordinator • Proteção Ativa")
-            .setContentText(lockStatus)
+            .setContentTitle(title)
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .addAction(
+                android.R.drawable.ic_menu_view,
+                "Abrir Cockpit",
+                pendingIntent
+            )
             .build()
     }
 
@@ -488,6 +604,8 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Monitora a velocidade do entregador para ativar a trava de segurança em condução."
+                setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager?.createNotificationChannel(channel)

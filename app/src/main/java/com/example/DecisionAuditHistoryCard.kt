@@ -339,8 +339,18 @@ private fun DecisionAuditItemRow(
     log: OfferDecisionLog,
     onSpeakItem: () -> Unit
 ) {
-    val isAccepted = log.action == DecisionAction.ACCEPTED
-    val accentColor = if (isAccepted) Color(0xFF10B981) else Color(0xFFEF4444)
+    val accentColor = when (log.action) {
+        DecisionAction.ACCEPTED -> Color(0xFF10B981)
+        DecisionAction.CANCELLED_PARTIAL -> Color(0xFFFFB800)
+        DecisionAction.FAILED -> Color(0xFFF97316)
+        else -> Color(0xFFEF4444)
+    }
+    val statusLabel = when (log.action) {
+        DecisionAction.ACCEPTED -> "✅ ACCEPT"
+        DecisionAction.CANCELLED_PARTIAL -> "⚡ MESCLADA CANCELADA"
+        DecisionAction.FAILED -> "⚠️ FALHA"
+        else -> "❌ REJECT"
+    }
     val bgColor = Color(0xFF090D16)
 
     Box(
@@ -368,7 +378,7 @@ private fun DecisionAuditItemRow(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = if (isAccepted) "✅ ACCEPT" else "❌ REJECT",
+                                text = statusLabel,
                                 color = accentColor,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Black

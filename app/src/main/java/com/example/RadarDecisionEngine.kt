@@ -68,6 +68,8 @@ data class SystemHealthData(
 /**
  * Motor Neural de Avaliação e Sincronização com a API REST do Radar Coordinator
  */
+typealias DecisionEngine = RadarDecisionEngine
+
 object RadarDecisionEngine {
 
     private const val API_BASE_URL_EMULATOR_5000 = "http://10.0.2.2:5000"

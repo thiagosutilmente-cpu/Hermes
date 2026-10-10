@@ -103,9 +103,12 @@ class JarvisJavascriptBridge(
     @JavascriptInterface
     fun playAlertSound(soundType: String?) {
         val sound = when (soundType?.lowercase(Locale.ROOT)) {
-            "sonar", "radar" -> NotificationSoundType.CHIME_MELODIC
-            "urgent", "rush" -> NotificationSoundType.TACTICAL_URGENT
-            else -> NotificationSoundType.CHIME_MELODIC
+            "vip", "gold" -> NotificationSoundType.VIP_FANFARE
+            "turbo", "fast", "sprint" -> NotificationSoundType.TURBO_SPRINT
+            "horn", "siren", "tactical" -> NotificationSoundType.TACTICAL_HORN
+            "urgent", "rush" -> NotificationSoundType.URGENT_SONAR
+            "sonar", "radar" -> NotificationSoundType.RADAR_CHIME
+            else -> NotificationSoundType.AUTO_DISTINCT
         }
         CustomSoundPlayer.previewSound(context, sound)
     }

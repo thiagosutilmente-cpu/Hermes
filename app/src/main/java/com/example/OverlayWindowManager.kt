@@ -230,6 +230,25 @@ class OverlayWindowManager private constructor(private val context: Context) {
     }
 
     /**
+     * Exibe alerta flutuante de cancelamento parcial em corrida mesclada sobre os apps de entrega
+     */
+    fun showCancellationAlert(event: StackCancellationEvent) {
+        val tacticalOffer = FloatingTacticalOffer(
+            appName = event.appName,
+            packageName = "com.ifood.driver",
+            value = event.remainingValue,
+            distanceKm = event.remainingDistanceKm,
+            pricePerKm = event.remainingGainPerKm,
+            isGoodDeal = event.isViable,
+            dealLabel = if (event.isViable) "⚠️ SUB-PEDIDO CANCELADO • RESTANTE VIÁVEL" else "🚨 ALERTA: RESTANTE PREJUDICIAL",
+            destination = event.remainingRestaurants,
+            pickup = "Cancelado: ${event.cancelledRestaurant} (-R$ ${String.format(java.util.Locale.ROOT, "%.2f", event.cancelledValue)})",
+            hasDualRoute = false
+        )
+        showTacticalOffer(tacticalOffer)
+    }
+
+    /**
      * Limpa a oferta atual e recolhe o HUD
      */
     fun clearTacticalOffer() {

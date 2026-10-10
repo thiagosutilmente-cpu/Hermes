@@ -156,6 +156,16 @@ object ShakeEmergencyManager {
         _selectedAction.value = action
     }
 
+    fun pause() {
+        shakeDetector?.stop()
+    }
+
+    fun resume() {
+        if (_isShakeEnabled.value) {
+            shakeDetector?.start()
+        }
+    }
+
     fun destroy() {
         shakeDetector?.stop()
         shakeDetector = null

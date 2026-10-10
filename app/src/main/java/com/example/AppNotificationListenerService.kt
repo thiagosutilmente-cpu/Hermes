@@ -76,12 +76,55 @@ class AppNotificationListenerService : NotificationListenerService() {
                 fullPayload.contains("entrega", ignoreCase = true) ||
                 fullPayload.contains("pedido", ignoreCase = true)
 
+        // DETECÇÃO CRÍTICA DE CANCELAMENTOS DE PEDIDOS (MULTI-STACK / PEDIDOS MESCLADOS)
+        val isCancellationNotice = fullPayload.contains("cancelad", ignoreCase = true) ||
+                fullPayload.contains("cancelou", ignoreCase = true) ||
+                fullPayload.contains("cancelamento", ignoreCase = true) ||
+                fullPayload.contains("desistência", ignoreCase = true)
+
+        if (isCancellationNotice && (isDeliveryApp || fullPayload.contains("pedido", ignoreCase = true))) {
+            scope.launch {
+                handleCancellationNotification(packageName, title, text, fullPayload)
+            }
+            return
+        }
+
         if (!isDeliveryApp && !fullPayload.contains("R$")) {
             return
         }
 
         scope.launch {
             parseDeliveryOffer(packageName, title, text, fullPayload)
+        }
+    }
+
+    private fun handleCancellationNotification(pkg: String, title: String, text: String, fullText: String) {
+        val appName = when {
+            pkg.contains("ifood", ignoreCase = true) -> "iFood"
+            pkg.contains("uber", ignoreCase = true) -> "Uber Direct"
+            pkg.contains("rappi", ignoreCase = true) -> "Rappi"
+            pkg.contains("didi", ignoreCase = true) || pkg.contains("99", ignoreCase = true) -> "99 Food"
+            else -> "App Parceiro"
+        }
+
+        val restaurantTarget = if (title.isNotBlank() && !title.contains("Cancel", ignoreCase = true)) {
+            title
+        } else {
+            text.take(35).ifBlank { appName }
+        }
+
+        Log.w(TAG, "Notificação de cancelamento interceptada de $appName: $fullText")
+
+        try {
+            StackedOrderCancellationManager.processSubOrderCancellationByTarget(
+                context = applicationContext,
+                targetRestaurantOrApp = restaurantTarget,
+                offersList = emptyList(),
+                completedDeliveriesList = emptyList()
+            )
+            HapticFeedbackHelper.vibrateDecline(applicationContext)
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao repassar cancelamento de notificação: ${e.message}")
         }
     }
 
@@ -122,6 +165,55 @@ class AppNotificationListenerService : NotificationListenerService() {
             return
         }
 
+        // Processamento tático via JARVIS NEURAL COCKPIT
+        val jarvisResponse = JarvisNeuralCockpitEngine.processInput(fullText)
+        if (jarvisResponse.status == "SUCCESS" && jarvisResponse.rideData != null) {
+            val rd = jarvisResponse.rideData
+            val isAccept = (rd.decision.action == "ACCEPT" || rd.decision.action == "BATCH")
+            val decision = NeuralDecision(
+                if (isAccept) RadarDecision.ACCEPT else RadarDecision.DECLINE,
+                rd.decision.reason,
+                (rd.decision.score / 100.0).coerceIn(0.1, 0.99)
+            )
+
+            val restaurantName = if (title.isNotBlank() && !title.contains("Nova Entrega", ignoreCase = true)) {
+                title
+            } else {
+                text.take(30).ifBlank { "Coleta Delivery" }
+            }
+
+            val offer = RadarOffer(
+                id = "notif_${System.currentTimeMillis() % 100000}",
+                appName = rd.platform,
+                restaurant = restaurantName,
+                value = rd.financials.payoutBrl,
+                distanceKm = rd.financials.totalDistanceKm,
+                estimatedTimeMin = rd.financials.estimatedTimeMinutes,
+                neuralDecision = decision,
+                itemsCount = 1,
+                gainPerKm = rd.financials.ratePerKm,
+                fuelCost = rd.financials.totalDistanceKm * 0.17,
+                netProfit = rd.financials.payoutBrl - (rd.financials.totalDistanceKm * 0.17)
+            )
+
+            _lastInterceptedOffer.value = offer
+            _interceptedOffersCount.value += 1
+
+            // Vocaliza imediatamente no capacete via TTS nativo do Android
+            try {
+                OfferTextToSpeechEngine.getInstance(applicationContext).speak(
+                    rd.voiceAlert,
+                    android.speech.tts.TextToSpeech.QUEUE_FLUSH
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "Falha ao emitir áudio TTS da corrida Jarvis: ${e.message}")
+            }
+
+            Log.i(TAG, "Jarvis Cockpit processou oferta de ${rd.platform}: R$ ${rd.financials.payoutBrl} (${rd.financials.ratePerKm} R$/km) -> Decisão: ${rd.decision.action}")
+            return
+        }
+
+        // Fallback legado se a notificação não tiver o formato completo
         val gainPerKm = if (distanceKm > 0) value / distanceKm else value
         val fuelCost = distanceKm * 0.17
         val netProfit = value - fuelCost

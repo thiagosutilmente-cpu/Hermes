@@ -294,6 +294,43 @@ object RadarBackendSyncManager {
     }
 
     /**
+     * Registra o token FCM do dispositivo com a VPS Hostinger para envio de ofertas
+     */
+    fun registerDeviceFcmToken(context: Context, token: String, onResult: ((Boolean) -> Unit)? = null) {
+        scope.launch {
+            try {
+                val apiService = RetrofitClient.getApiService(_syncState.value.serverUrl)
+                val request = com.example.network.FcmTokenRegisterRequest(
+                    token = token,
+                    deviceId = android.os.Build.MODEL,
+                    driverId = "driver_${android.os.Build.ID}"
+                )
+                val response = apiService.registerFcmToken(request)
+                if (response.isSuccessful) {
+                    Log.i(TAG, "Token FCM registrado com sucesso na VPS Hostinger.")
+                    _syncState.value = _syncState.value.copy(
+                        lastSyncSummary = "Token FCM registrado na Hostinger"
+                    )
+                    withContext(Dispatchers.Main) { onResult?.invoke(true) }
+                } else {
+                    Log.w(TAG, "VPS respondeu ${response.code()} ao registrar token FCM. Registrando fallback de telemetria.")
+                    // Fallback de telemetria
+                    sendVoiceCommandEvent(
+                        context = context,
+                        commandName = "FCM_TOKEN_REGISTERED",
+                        spokenText = token.take(24) + "...",
+                        actionTaken = "DEVICE_TOKEN_SYNCED"
+                    )
+                    withContext(Dispatchers.Main) { onResult?.invoke(true) }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Erro ao registrar token FCM na VPS: ${e.message}")
+                withContext(Dispatchers.Main) { onResult?.invoke(false) }
+            }
+        }
+    }
+
+    /**
      * Força a sincronização de todos os itens pendentes na fila
      */
     fun flushPendingQueue(context: Context) {

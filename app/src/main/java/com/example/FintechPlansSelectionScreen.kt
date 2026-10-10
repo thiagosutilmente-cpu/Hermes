@@ -194,6 +194,7 @@ fun FintechPlansSelectionScreen(
     var pixFormattedAmount by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
+        AsaasCheckoutManager.initialize(context)
         FirebaseAnalyticsManager.logScreenView("FintechPlansSelectionScreen", "FintechPlansSelection")
         FirebaseAnalyticsManager.logPaywallImpression("fintech_plans_screen", subState.tier.name)
     }
@@ -356,6 +357,44 @@ fun FintechPlansSelectionScreen(
                             fontSize = 13.sp
                         )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Botão Checkout Oficial Asaas (Abre no Navegador para Cartão, Boleto ou Pix)
+            OutlinedButton(
+                onClick = {
+                    AsaasCheckoutManager.openCheckout(
+                        context = context,
+                        planId = selectedPlan.id,
+                        planTitle = selectedPlan.title
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .testTag("btn_open_asaas_checkout_browser"),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = FintechCyan
+                ),
+                border = androidx.compose.foundation.BorderStroke(1.5.dp, FintechCyan.copy(alpha = 0.85f))
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.OpenInNew,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = FintechCyan
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Pagar no Checkout Asaas (Cartão / Boleto / Pix) 🌐",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White
+                    )
                 }
             }
 
@@ -1001,6 +1040,30 @@ fun RealtimePixCheckoutModal(
                     Icon(imageVector = Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Abrir App do Meu Banco 🏦", fontSize = 11.sp)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // BOTÃO ALTERNATIVO: CHECKOUT WEB OFICIAL ASAAS
+                OutlinedButton(
+                    onClick = {
+                        AsaasCheckoutManager.openCheckout(
+                            context = context,
+                            planId = plan.id,
+                            planTitle = plan.title
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(38.dp)
+                        .testTag("btn_modal_open_asaas_web"),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = FintechCyan),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, FintechCyan.copy(alpha = 0.6f))
+                ) {
+                    Icon(imageVector = Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(13.dp), tint = FintechCyan)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Pagar no Checkout Web Oficial do Asaas 🌐", fontSize = 10.5.sp, color = FintechCyan, fontWeight = FontWeight.Bold)
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))

@@ -119,6 +119,24 @@ class DailyGoalTrackerManager private constructor(private val context: Context) 
         checkAndCelebrateGoalAchieved()
     }
 
+    /**
+     * Estorna ganhos e combustível caso um pedido ou sub-pedido em corrida mesclada seja cancelado.
+     */
+    fun rollbackDeliveryEarnings(cancelledGross: Double, cancelledFuel: Double = 0.0, decrementRides: Boolean = false) {
+        val current = _goalState.value
+        val newGross = (current.grossEarned - cancelledGross).coerceAtLeast(0.0)
+        val newFuel = (current.fuelExpense - cancelledFuel).coerceAtLeast(0.0)
+        val newRides = if (decrementRides) (current.completedRidesCount - 1).coerceAtLeast(0) else current.completedRidesCount
+
+        prefs.edit()
+            .putFloat(KEY_GROSS_EARNED, newGross.toFloat())
+            .putFloat(KEY_FUEL_EXPENSE, newFuel.toFloat())
+            .putInt(KEY_RIDES_COUNT, newRides)
+            .apply()
+
+        updateInternalState(current.targetAmount, newGross, newFuel, newRides, current.shiftStartTimestamp)
+    }
+
     private fun updateInternalState(
         target: Double,
         gross: Double,
