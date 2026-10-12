@@ -199,14 +199,41 @@ class AppNotificationListenerService : NotificationListenerService() {
             _lastInterceptedOffer.value = offer
             _interceptedOffersCount.value += 1
 
+            // Validação rigorosa dos filtros definidos pelo entregador (raio de alcance e piso de ganho)
+            val savedCriteria = FilterPreferencesManager.getSavedCriteria(applicationContext)
+            val locState = LocationService.globalLocationState.value
+            val gpsCriteria = if (locState.latitude != 0.0 && locState.longitude != 0.0) {
+                savedCriteria.copy(driverCurrentLat = locState.latitude, driverCurrentLng = locState.longitude)
+            } else {
+                savedCriteria
+            }
+
+            if (!gpsCriteria.matchesNotification(offer)) {
+                Log.d(TAG, "Notificação de ${rd.platform} filtrada silenciosamente: fora do raio GPS de restaurante ou abaixo do piso de R$/km.")
+                return
+            }
+
             // Vocaliza imediatamente no capacete via TTS nativo do Android
             try {
                 OfferTextToSpeechEngine.getInstance(applicationContext).speak(
-                    rd.voiceAlert,
+                    rd.voiceAlert.text,
                     android.speech.tts.TextToSpeech.QUEUE_FLUSH
                 )
             } catch (e: Exception) {
                 Log.w(TAG, "Falha ao emitir áudio TTS da corrida Jarvis: ${e.message}")
+            }
+
+            // Dispara assinatura tátil calibrada para guidão de moto (identificação sem olhar a tela)
+            try {
+                val isRejected = (rd.decision.action == "DECLINE" || rd.decision.action == "REJECT")
+                HapticFeedbackEngine.getInstance(applicationContext).classifyAndVibrate(
+                    payout = rd.financials.payoutBrl,
+                    distanceKm = rd.financials.totalDistanceKm,
+                    isAutoRejected = isRejected,
+                    platform = rd.platform
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "Falha ao acionar feedback háptico: ${e.message}")
             }
 
             Log.i(TAG, "Jarvis Cockpit processou oferta de ${rd.platform}: R$ ${rd.financials.payoutBrl} (${rd.financials.ratePerKm} R$/km) -> Decisão: ${rd.decision.action}")
@@ -217,6 +244,18 @@ class AppNotificationListenerService : NotificationListenerService() {
         val gainPerKm = if (distanceKm > 0) value / distanceKm else value
         val fuelCost = distanceKm * 0.17
         val netProfit = value - fuelCost
+
+        // Dispara assinatura tátil para a notificação de fallback
+        try {
+            HapticFeedbackEngine.getInstance(applicationContext).classifyAndVibrate(
+                payout = value,
+                distanceKm = distanceKm,
+                isAutoRejected = !isAccept,
+                platform = appName
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Falha no feedback tátil legado: ${e.message}")
+        }
 
         // Decisão Neural preliminar com base nas metas do condutor
         val isAccept = gainPerKm >= 3.0

@@ -167,6 +167,7 @@ fun ShakeEmergencyControlCard(
                                     ShakeActionPreference.SILENCE_AUDIO_EMERGENCY -> "🔇"
                                     ShakeActionPreference.REPROCESS_LAST_OFFER -> "🔄"
                                     ShakeActionPreference.DUAL_ACTION -> "⚡"
+                                    ShakeActionPreference.DISPATCH_SILENT_SOS -> "🚨"
                                 },
                                 fontSize = 14.sp
                             )

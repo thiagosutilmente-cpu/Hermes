@@ -163,11 +163,15 @@ class MainActivity : ComponentActivity() {
             android.util.Log.e("MainActivity", "Falha ao inicializar FCM: ${e.message}")
         }
 
-        // Inicializa o TextToSpeechManager em português brasileiro para alertas de voz
+        // Inicializa o TextToSpeechManager e OfferTextToSpeechEngine em português brasileiro
         TextToSpeechManager.getInstance(this)
+        OfferTextToSpeechEngine.getInstance(this)
 
         // Inicializa o detector de gestos de Shake para silenciamento de emergência e re-processamento
         ShakeEmergencyManager.initialize(this)
+
+        // Inicializa os links de checkout do Asaas
+        AsaasCheckoutManager.initialize(this)
 
         setContent {
             val context = LocalContext.current
@@ -1768,6 +1772,32 @@ fun RadarDeliveryDashboard(
                     containerColor = DarkCard
                 )
             )
+        },
+        floatingActionButton = {
+            val sosState by EmergencySosManager.sosState.collectAsState()
+            val isSosTriggered = sosState is EmergencySosState.Active || sosState is EmergencySosState.Countdown
+            FloatingActionButton(
+                onClick = {
+                    showEmergencySosDialog = true
+                },
+                containerColor = if (isSosTriggered) Color(0xFFFF1744) else Color(0xFFD50000),
+                contentColor = Color.White,
+                modifier = Modifier
+                    .testTag("sos_emergency_fab")
+                    .size(56.dp)
+                    .border(
+                        width = 2.dp,
+                        color = if (isSosTriggered) Color.White else Color(0xFFFF5252),
+                        shape = CircleShape
+                    ),
+                shape = CircleShape,
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 8.dp)
+            ) {
+                Text(
+                    text = "🚨",
+                    fontSize = 24.sp
+                )
+            }
         }
     ) { innerPadding ->
         Column(
@@ -1820,6 +1850,15 @@ fun RadarDeliveryDashboard(
                         isNightMode = isNightMode,
                         onThemeModeChanged = { newNight ->
                             onThemeModeChanged(newNight)
+                        }
+                    )
+                }
+
+                // Card do Sistema de Emergência SOS Silencioso (WorkManager + GPS em Tempo Real)
+                item(key = "emergency_sos_cockpit_card") {
+                    EmergencySosCard(
+                        onOpenManageContacts = {
+                            showEmergencySosDialog = true
                         }
                     )
                 }
@@ -1905,6 +1944,21 @@ fun RadarDeliveryDashboard(
                 item {
                     ReferralViralShareCard(
                         onOpenMarketingHub = { showMarketingHubScreen = true }
+                    )
+                }
+
+                // MONITORAMENTO EM TEMPO REAL DA LICENÇA (FASTAPI + SUBSCRIPTION REPOSITORY)
+                item {
+                    val app = context.applicationContext as android.app.Application
+                    val subscriptionVm = remember {
+                        androidx.lifecycle.ViewModelProvider(
+                            context as androidx.activity.ComponentActivity,
+                            androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(app)
+                        )[com.example.network.SubscriptionViewModel::class.java]
+                    }
+                    SubscriptionStatusLiveCard(
+                        viewModel = subscriptionVm,
+                        onOpenPaywall = { showSubscriptionPaywall = true }
                     )
                 }
 
@@ -2043,6 +2097,16 @@ fun RadarDeliveryDashboard(
                 // 5.1.B. JARVIS NEURAL COCKPIT (MOTOR TÁTICO & MISSÃO EMBAIXADOR BLINDADO)
                 item {
                     JarvisNeuralCockpitCard()
+                }
+
+                // 5.1.C. HUD DE SAÚDE DA VPS HOSTINGER & LATÊNCIA OKHTTP
+                item {
+                    VpsHealthHudComponent()
+                }
+
+                // 5.1.D. TELEMETRIA E INTERCEPTOR DE LATÊNCIA OKHTTP VPS HOSTINGER (>500ms)
+                item {
+                    HostingerLatencyCockpitCard()
                 }
 
                 // 6. DASHBOARD DE VELOCIDADE EM TEMPO REAL E TRAVA DE SEGURANÇA
@@ -2230,6 +2294,11 @@ fun RadarDeliveryDashboard(
                             }
                         }
                     )
+                }
+
+                // 8.4. MOTOR HÁPTICO DE GUIDÃO (ALTA RENTABILIDADE, CORRIDA LONGA E REJEIÇÃO AUTOMÁTICA)
+                item {
+                    HapticCockpitControlCard()
                 }
 
                 // 9. GESTÃO DE NOTIFICAÇÕES EM SEGUNDO PLANO (HEADS-UP COM SONS PERSONALIZADOS)
@@ -2951,6 +3020,13 @@ fun RadarDeliveryDashboard(
                 onCloseWebView = { showWebViewCockpit = false }
             )
         }
+    }
+
+    // Diálogo Modal da Central de Emergência SOS (Contatos, Auditoria de Logs WorkManager e GPS)
+    if (showEmergencySosDialog) {
+        EmergencySosDialog(
+            onDismissRequest = { showEmergencySosDialog = false }
+        )
     }
 }
 

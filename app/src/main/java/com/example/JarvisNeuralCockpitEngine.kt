@@ -1,6 +1,7 @@
 package com.example
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
@@ -9,18 +10,23 @@ import java.util.Locale
 import java.util.regex.Pattern
 
 /**
- * JARVIS NEURAL COCKPIT
+ * JARVIS NEURAL COCKPIT 2.0 (CODENAME: SINDICATO INVISÍVEL)
  *
- * Motor de inteligência tática e copiloto em tempo real para entregadores no Brasil
- * (iFood, 99Food, Uber Direct, Rappi).
+ * Cérebro tático e motor de gamificação em tempo real para entregadores de aplicativo
+ * no Brasil (iFood, 99Food, Uber Direct, Rappi).
  *
- * Processa notificações brutas, OCR e eventos de sistema, gerando estritamente um
- * JSON determinístico de altíssima velocidade (< 5ms) com matriz de decisão matemática,
- * alertas vocais táticos (TTS) para o capacete e controle da Missão Embaixador VIP.
+ * Diretrizes:
+ * 1. SAÍDA ESTRITA: Formato JSON limpo determinístico.
+ * 2. DETERMINISMO E VELOCIDADE: Execução ultra-rápida sem inventar dados.
+ * 3. TRATAMENTO DE ERROS: Dados ausentes ou inválidos geram status "INVALID_DATA" e tipo "SYSTEM_ERROR".
+ * 4. MODOS DE VOZ: TACTICAL_ANGRY (padrão), STANDARD, WAR_GENERAL (máx 12 palavras).
+ * 5. GERADOR VIRAL: Produz cards para WhatsApp sempre que a corrida for REJECT.
  */
 object JarvisNeuralCockpitEngine {
 
     private const val TAG = "JarvisNeuralCockpit"
+    private const val PREFS_NAME = "jarvis_neural_cockpit_prefs"
+    private const val KEY_VOICE_STYLE = "key_jarvis_voice_style_preference"
 
     private val gson: Gson = GsonBuilder()
         .setPrettyPrinting()
@@ -28,22 +34,23 @@ object JarvisNeuralCockpitEngine {
         .create()
 
     // =========================================================================
-    // ESTRUTURA UNIFICADA DO SCHEMA JSON
+    // SCHEMA ESTRITO DE SAÍDA JSON
     // =========================================================================
 
     data class JarvisResponse(
-        @SerializedName("type") val type: String, // "RIDE_ANALYSIS" | "REFERRAL_EVENT" | "SYSTEM_ERROR"
+        @SerializedName("type") val type: String, // "RIDE_ANALYSIS" | "SYSTEM_ERROR" | "REFERRAL_EVENT"
         @SerializedName("status") val status: String, // "SUCCESS" | "INVALID_DATA"
         @SerializedName("error_message") val errorMessage: String?,
         @SerializedName("ride_data") val rideData: JarvisRideData?,
-        @SerializedName("referral_data") val referralData: JarvisReferralData?
+        @SerializedName("referral_data") val referralData: JarvisReferralData? = null
     )
 
     data class JarvisRideData(
         @SerializedName("platform") val platform: String, // "iFood" | "Uber Direct" | "99Food" | "Rappi" | "Desconhecido"
         @SerializedName("financials") val financials: JarvisFinancials,
         @SerializedName("decision") val decision: JarvisDecision,
-        @SerializedName("voice_alert") val voiceAlert: String
+        @SerializedName("voice_alert") val voiceAlert: JarvisVoiceAlert,
+        @SerializedName("viral_group_card") val viralGroupCard: JarvisViralGroupCard?
     )
 
     data class JarvisFinancials(
@@ -60,6 +67,16 @@ object JarvisNeuralCockpitEngine {
         @SerializedName("reason") val reason: String
     )
 
+    data class JarvisVoiceAlert(
+        @SerializedName("style_used") val styleUsed: String, // "TACTICAL_ANGRY" | "STANDARD" | "WAR_GENERAL"
+        @SerializedName("text") val text: String
+    )
+
+    data class JarvisViralGroupCard(
+        @SerializedName("headline") val headline: String,
+        @SerializedName("share_text_whatsapp") val shareTextWhatsapp: String
+    )
+
     data class JarvisReferralData(
         @SerializedName("user_name") val userName: String,
         @SerializedName("confirmed_referrals") val confirmedReferrals: Int,
@@ -70,44 +87,88 @@ object JarvisNeuralCockpitEngine {
     )
 
     // =========================================================================
-    // MOTOR DE PROCESSAMENTO DETERMINÍSTICO
+    // CONFIGURAÇÃO DE ESTILO DE VOZ
+    // =========================================================================
+
+    enum class VoiceAlertStyle(val id: String, val label: String) {
+        TACTICAL_ANGRY("TACTICAL_ANGRY", "Revoltado / Debochado (Padrão)"),
+        STANDARD("STANDARD", "Padrão / Profissional"),
+        WAR_GENERAL("WAR_GENERAL", "Estrategista / Militar");
+
+        companion object {
+            fun fromId(id: String?): VoiceAlertStyle {
+                return entries.firstOrNull { it.id.equals(id, ignoreCase = true) } ?: TACTICAL_ANGRY
+            }
+        }
+    }
+
+    private var activeVoiceStyle: VoiceAlertStyle = VoiceAlertStyle.TACTICAL_ANGRY
+
+    fun getActiveVoiceStyle(): VoiceAlertStyle = activeVoiceStyle
+
+    fun setVoiceStyle(style: VoiceAlertStyle, context: Context? = null) {
+        activeVoiceStyle = style
+        context?.let {
+            it.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_VOICE_STYLE, style.id)
+                .apply()
+        }
+    }
+
+    fun initialize(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val saved = prefs.getString(KEY_VOICE_STYLE, VoiceAlertStyle.TACTICAL_ANGRY.id)
+        activeVoiceStyle = VoiceAlertStyle.fromId(saved)
+    }
+
+    // =========================================================================
+    // PROCESSAMENTO DETERMINÍSTICO
     // =========================================================================
 
     /**
-     * Processa a entrada e retorna a estrutura do JARVIS.
+     * Processa a entrada de texto e retorna o objeto estrito de resposta.
      */
-    fun processInput(rawText: String): JarvisResponse {
+    fun processInput(
+        rawText: String,
+        styleOverride: VoiceAlertStyle? = null
+    ): JarvisResponse {
         val trimmed = rawText.trim()
         if (trimmed.isEmpty()) {
-            return buildErrorResponse("Nenhum texto de oferta de corrida ou evento de sistema fornecido para processamento.")
+            return buildErrorResponse("Nenhum texto de oferta fornecido para processamento.")
         }
 
-        // 1. Checa se é um evento do Programa Missão Embaixador (REFERRAL_EVENT)
         if (isReferralEvent(trimmed)) {
             return processReferralEvent(trimmed)
         }
 
-        // 2. Processa como Análise de Corrida (RIDE_ANALYSIS)
-        return processRideAnalysis(trimmed)
+        return processRideAnalysis(trimmed, styleOverride ?: activeVoiceStyle)
     }
 
     /**
-     * Processa e retorna estritamente a string JSON formatada.
+     * Retorna estritamente o JSON limpo, sem nenhuma saudação ou texto extra.
      */
-    fun processInputToJson(rawText: String): String {
-        val response = processInput(rawText)
+    fun processInputToJson(
+        rawText: String,
+        styleOverride: VoiceAlertStyle? = null
+    ): String {
+        val response = processInput(rawText, styleOverride)
         return gson.toJson(response)
     }
 
     /**
-     * Processa a notificação, atualiza o HUD e vocaliza no capacete via TTS do Android.
+     * Processa a notificação e emite o alerta em áudio direto para o capacete via TTS.
      */
-    fun processAndVoice(context: Context, rawText: String): JarvisResponse {
-        val response = processInput(rawText)
+    fun processAndVoice(
+        context: Context,
+        rawText: String,
+        styleOverride: VoiceAlertStyle? = null
+    ): JarvisResponse {
+        val response = processInput(rawText, styleOverride)
         if (response.status == "SUCCESS" && response.rideData != null) {
             try {
                 OfferTextToSpeechEngine.getInstance(context).speak(
-                    response.rideData.voiceAlert,
+                    response.rideData.voiceAlert.text,
                     android.speech.tts.TextToSpeech.QUEUE_FLUSH
                 )
             } catch (e: Exception) {
@@ -125,32 +186,35 @@ object JarvisNeuralCockpitEngine {
     }
 
     // =========================================================================
-    // MODO 1: ANÁLISE DE CORRIDAS (RIDE_ANALYSIS)
+    // ANÁLISE DE CORRIDAS (RIDE_ANALYSIS)
     // =========================================================================
 
-    private fun processRideAnalysis(text: String): JarvisResponse {
+    private fun processRideAnalysis(
+        text: String,
+        style: VoiceAlertStyle
+    ): JarvisResponse {
         val payout = extractPayout(text)
         val distanceKm = extractDistance(text)
 
-        // REGRA DE TRATAMENTO DE ERROS E DADOS INCOMPLETOS:
-        // Se o valor pago (R$) ou a distância total (KM) estiverem ausentes ou <= 0.0
+        // REGRA DE TRATAMENTO DE ERROS:
+        // Se o valor (R$) ou a distância (KM) estiverem ocultos ou ausentes/inválidos
         if (payout == null || payout <= 0.0 || distanceKm == null || distanceKm <= 0.0) {
             return buildErrorResponse(
-                "Não foi possível identificar o valor em R$ ou a distância total em KM na notificação enviada."
+                "Valor financeiro em R$ ou distância em KM ausentes ou ilegíveis na notificação."
             )
         }
 
         val platform = detectPlatform(text)
 
         // FÓRMULAS DE CÁLCULO EXATAS:
-        // Taxa por KM = Payout / KM
+        // Taxa por KM (R$/KM) = Payout_Total_BRL / Distancia_Total_KM
         val ratePerKm = Math.round((payout / distanceKm) * 100.0) / 100.0
 
-        // Tempo Estimado (Minutos) = (KM / 25 * 60) + 8 (assumindo 25 km/h média urbana + 8 min coleta/entrega)
+        // Tempo Estimado (Minutos) = (Distancia_Total_KM / 25 * 60) + 8
         val estimatedTimeMinutes = Math.round((distanceKm / 25.0 * 60.0) + 8.0).toInt().coerceAtLeast(8)
 
-        // Ganho Hora Estimado (R$/H) = (Payout / Minutos) * 60
-        val estimatedHourlyRate = Math.round((payout / estimatedTimeMinutes * 60.0) * 100.0) / 100.0
+        // Ganho Hora Estimado (R$/H) = (Payout_Total_BRL / Tempo_Estimado_Minutos) * 60
+        val estimatedHourlyRateBrl = Math.round((payout / estimatedTimeMinutes * 60.0) * 100.0) / 100.0
 
         // MATRIZ DE DECISÃO TÁTICA:
         val isBatch = text.contains("batch", ignoreCase = true) ||
@@ -158,49 +222,71 @@ object JarvisNeuralCockpitEngine {
                 text.contains("agrupada", ignoreCase = true) ||
                 text.contains("duas entregas", ignoreCase = true)
 
-        val isPickupFar = text.contains("coleta", ignoreCase = true) && extractPickupDistance(text)?.let { it > 4.0 } ?: false
+        val isPickupFar = text.contains("coleta", ignoreCase = true) &&
+                extractPickupDistance(text)?.let { it > 4.0 } ?: false
 
         val decisionAction: String
         val decisionScore: Int
         val decisionReason: String
-        val voiceAlert: String
 
         val rateFmt = String.format(Locale.GERMAN, "%.2f", ratePerKm)
         val payoutFmt = String.format(Locale.GERMAN, "%.2f", payout)
         val distFmt = String.format(Locale.GERMAN, "%.1f", distanceKm)
-        val hourlyFmt = String.format(Locale.GERMAN, "%.2f", estimatedHourlyRate)
+        val hourlyFmt = String.format(Locale.GERMAN, "%.2f", estimatedHourlyRateBrl)
 
         if (isBatch) {
             decisionAction = "BATCH"
             decisionScore = 88
-            decisionReason = "Rota dupla compatível! Duas entregas na mesma direção com ganho otimizado."
-            voiceAlert = "Rota dupla parceiro! R$ $payoutFmt na mesma viagem. Pega que compensa!"
-        } else if (ratePerKm >= 1.80 && estimatedHourlyRate >= 30.00) {
+            decisionReason = "Rota dupla compatível com desvio mínimo e ganho total otimizado."
+        } else if (ratePerKm >= 1.80 && estimatedHourlyRateBrl >= 30.00) {
             decisionAction = "ACCEPT"
-            val calculatedScore = 80 + ((ratePerKm - 1.80) * 10.0).toInt() + ((estimatedHourlyRate - 30.0) / 5.0).toInt()
+            val calculatedScore = 80 + ((ratePerKm - 1.80) * 8.0).toInt() + ((estimatedHourlyRateBrl - 30.0) / 6.0).toInt()
             decisionScore = calculatedScore.coerceIn(80, 99)
-            decisionReason = "Excelente taxa de R$ $rateFmt por km e ganho estimado de R$ $hourlyFmt por hora."
-            voiceAlert = if (distanceKm <= 5.0) {
-                "Corrida top parceiro! R$ $payoutFmt por $distFmt km. Pega rápido!"
-            } else {
-                "Corrida boa! R$ $payoutFmt rendendo R$ $rateFmt o km. Pode aceitar."
-            }
+            decisionReason = "Excelente retorno de R$ $rateFmt por km e R$ $hourlyFmt/hora."
         } else if (ratePerKm < 1.50 || isPickupFar) {
             decisionAction = "REJECT"
             val calculatedScore = (ratePerKm * 15.0).toInt()
-            decisionScore = calculatedScore.coerceIn(5, 35)
+            decisionScore = calculatedScore.coerceIn(5, 30)
             decisionReason = if (isPickupFar) {
                 "Coleta excessiva superior a 4,0 km sem taxa compensatória."
             } else {
-                "Corrida lixo! R$ $rateFmt por km gera prejuízo direto de combustível."
+                "Taxa humilhante de R$ $rateFmt por km. Prejuízo financeiro direto."
             }
-            voiceAlert = "Fora de cogitação irmão! Apenas R$ $rateFmt o quilômetro. Rejeita isso."
         } else {
-            // Faixa intermediária (R$ 1,50 a R$ 1,79/km ou R$/h < 30) -> Regra de corte rigorosa
+            // Faixa intermediária: corte rigoroso
             decisionAction = "REJECT"
-            decisionScore = 45
-            decisionReason = "Taxa de R$ $rateFmt por km e R$ $hourlyFmt/h abaixo da meta de corte (mínimo R$ 1,80/km e R$ 30/h)."
-            voiceAlert = "Abaixo da meta! R$ $rateFmt o km. Melhor esperar outra oportunidade."
+            decisionScore = 42
+            decisionReason = "Taxa de R$ $rateFmt/km e R$ $hourlyFmt/h abaixo do corte (mínimo R$ 1,80/km e R$ 30,00/h)."
+        }
+
+        // GERAÇÃO DO ALERTA DE VOZ CONFORME ESTILO CONFIGURADO (MÁX 12 PALAVRAS)
+        val voiceAlertText = generateVoiceAlert(
+            style = style,
+            action = decisionAction,
+            payoutFmt = payoutFmt,
+            distFmt = distFmt,
+            rateFmt = rateFmt,
+            hourlyFmt = hourlyFmt,
+            ratePerKm = ratePerKm,
+            payout = payout,
+            distanceKm = distanceKm
+        )
+
+        val voiceAlert = JarvisVoiceAlert(
+            styleUsed = style.id,
+            text = voiceAlertText
+        )
+
+        // GERADOR DE CARDS VIRAIS (VIRAL_GROUP_CARD) - OBRIGATÓRIO EM DECISÃO REJECT
+        val viralCard: JarvisViralGroupCard? = if (decisionAction == "REJECT") {
+            generateViralGroupCard(
+                platform = platform,
+                payoutFmt = payoutFmt,
+                distFmt = distFmt,
+                rateFmt = rateFmt
+            )
+        } else {
+            null
         }
 
         val rideData = JarvisRideData(
@@ -210,14 +296,15 @@ object JarvisNeuralCockpitEngine {
                 totalDistanceKm = distanceKm,
                 ratePerKm = ratePerKm,
                 estimatedTimeMinutes = estimatedTimeMinutes,
-                estimatedHourlyRateBrl = estimatedHourlyRate
+                estimatedHourlyRateBrl = estimatedHourlyRateBrl
             ),
             decision = JarvisDecision(
                 action = decisionAction,
                 score_0_to_100 = decisionScore,
                 reason = decisionReason
             ),
-            voiceAlert = voiceAlert
+            voiceAlert = voiceAlert,
+            viralGroupCard = viralCard
         )
 
         return JarvisResponse(
@@ -229,8 +316,79 @@ object JarvisNeuralCockpitEngine {
         )
     }
 
+    /**
+     * Gera frases curtas (máx. 12 palavras) segundo a persona configurada.
+     */
+    private fun generateVoiceAlert(
+        style: VoiceAlertStyle,
+        action: String,
+        payoutFmt: String,
+        distFmt: String,
+        rateFmt: String,
+        hourlyFmt: String,
+        ratePerKm: Double,
+        payout: Double,
+        distanceKm: Double
+    ): String {
+        return when (style) {
+            VoiceAlertStyle.TACTICAL_ANGRY -> {
+                when (action) {
+                    "ACCEPT" -> "Oferta de respeito! R$ $rateFmt o km. Pega rápido antes que suma!"
+                    "BATCH" -> "Rota dupla patrão! R$ $payoutFmt na mesma viagem. Pega que compensa!"
+                    else -> {
+                        if (ratePerKm < 1.0) {
+                            "Cinco conto pra rodar oito quilômetros? Tá maluco patrão! Rejeita esse lixo agora!"
+                        } else {
+                            "Pelo amor de Deus! Quatro conto pra rodar oito km? A plataforma ficou louca, rejeita isso!"
+                        }
+                    }
+                }
+            }
+            VoiceAlertStyle.WAR_GENERAL -> {
+                when (action) {
+                    "ACCEPT" -> "Atenção soldado! Oferta de elite: R$ $rateFmt o quilômetro. Aceitar missão imediatamente!"
+                    "BATCH" -> "Comboio tático liberado! Dupla entrega em rota otimizada. Proceder com avanço!"
+                    else -> "Soldado, recuse essa missão! Prejuízo de combustível garantido. Aguarde a próxima."
+                }
+            }
+            VoiceAlertStyle.STANDARD -> {
+                when (action) {
+                    "ACCEPT" -> "Oferta recomendada: R$ $rateFmt por quilômetro e R$ $hourlyFmt por hora. Aceitar."
+                    "BATCH" -> "Dupla rota viável: ganho total de R$ $payoutFmt. Aceitar lote."
+                    else -> "Corrida rejeitada: taxa de R$ $rateFmt por km abaixo da meta estipulada."
+                }
+            }
+        }
+    }
+
+    /**
+     * Gera o card viral de indignação para envio rápido ao grupo de WhatsApp.
+     */
+    private fun generateViralGroupCard(
+        platform: String,
+        payoutFmt: String,
+        distFmt: String,
+        rateFmt: String
+    ): JarvisViralGroupCard {
+        val headlines = listOf(
+            "🚨 TENTATIVA DE ASSALTO DE ALGORITMO!",
+            "⛽ ALERTA DE PREJUÍZO: MOTO NÃO ANDA COM ÁGUA!",
+            "📉 TAXA DE FOME REJEITADA PELO JARVIS!",
+            "🗑️ MAIS UMA CORRIDA LIXO JOGADA FORA!"
+        )
+        val headline = headlines.random()
+
+        val shareLink = AsaasCheckoutManager.DEFAULT_URL_GENERAL
+        val shareText = "Acharam que minha moto anda com água! R$ $payoutFmt pra rodar $distFmt KM (R$ $rateFmt/km) no $platform. O Jarvis rejeitou na hora. Veja se o seu app te livra disso: $shareLink"
+
+        return JarvisViralGroupCard(
+            headline = headline,
+            shareTextWhatsapp = shareText
+        )
+    }
+
     // =========================================================================
-    // MODO 2: PROGRAMA MISSÃO EMBAIXADOR (REFERRAL_EVENT)
+    // PROGRAMA MISSÃO EMBAIXADOR (REFERRAL_EVENT)
     // =========================================================================
 
     private fun isReferralEvent(text: String): Boolean {
@@ -284,7 +442,7 @@ object JarvisNeuralCockpitEngine {
     }
 
     // =========================================================================
-    // EXTRATORES DETERMINÍSTICOS (REGEX ROBUSTO EM TEMPO REAL)
+    // EXTRATORES DETERMINÍSTICOS
     // =========================================================================
 
     private fun detectPlatform(text: String): String {
@@ -299,7 +457,6 @@ object JarvisNeuralCockpitEngine {
     }
 
     private fun extractPayout(text: String): Double? {
-        // Padrões como: "R$ 19,50", "R$ 19.50", "R$19,50", "19,50" precedido por cifrão ou ganho
         val pattern = Pattern.compile("""(?:R\$|r\$|\$)\s*(\d+[.,]\d{2})""")
         val matcher = pattern.matcher(text)
         if (matcher.find()) {
@@ -307,7 +464,6 @@ object JarvisNeuralCockpitEngine {
             return numStr.toDoubleOrNull()
         }
 
-        // Fallback: "recebido 19,50" ou "valor: 19.50"
         val fallback = Pattern.compile("""(?:valor|recebido|pago|tarifa|total)\s*[:=]?\s*(?:R\$)?\s*(\d+[.,]\d{2})""", Pattern.CASE_INSENSITIVE)
         val m2 = fallback.matcher(text)
         if (m2.find()) {
@@ -319,7 +475,6 @@ object JarvisNeuralCockpitEngine {
     }
 
     private fun extractDistance(text: String): Double? {
-        // Padrões como: "4.5 km", "4,5km", "Distância: 7.8 km"
         val pattern = Pattern.compile("""(\d+[.,]?\d*)\s*(?:km|KM|Km)\b""")
         val matcher = pattern.matcher(text)
         var lastFound: Double? = null

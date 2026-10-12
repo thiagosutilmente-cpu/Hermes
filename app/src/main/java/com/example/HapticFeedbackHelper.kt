@@ -196,4 +196,94 @@ object HapticFeedbackHelper {
             Log.d("HapticFeedback", "Falha vibrateSosCountdownTick: ${e.message}")
         }
     }
+
+    /**
+     * Feedback Háptico para Corrida VIP / Ouro (Ticket Alto > R$ 30,00 ou > R$ 4,00/km).
+     * Assinatura física: Arpeggio tátil em crescendo (fraco-médio-forte).
+     */
+    fun vibrateVipRideOffer(context: Context) {
+        val vibrator = getVibrator(context) ?: return
+        if (!vibrator.hasVibrator()) return
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val timings = longArrayOf(0, 80, 60, 120, 60, 220)
+                val amplitudes = intArrayOf(0, 140, 0, 200, 0, 255)
+                val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+                vibrator.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(longArrayOf(0, 80, 60, 120, 60, 220), -1)
+            }
+        } catch (e: Exception) {
+            Log.d("HapticFeedback", "Falha vibrateVipRideOffer: ${e.message}")
+        }
+    }
+
+    /**
+     * Feedback Háptico para Rota Dupla / Entrega Agrupada (Multi-Stack).
+     * Assinatura física: Duplo clique mecânico com reverberação.
+     */
+    fun vibrateBatchRideOffer(context: Context) {
+        val vibrator = getVibrator(context) ?: return
+        if (!vibrator.hasVibrator()) return
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val timings = longArrayOf(0, 110, 80, 110)
+                val amplitudes = intArrayOf(0, 220, 0, 220)
+                val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+                vibrator.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(longArrayOf(0, 110, 80, 110), -1)
+            }
+        } catch (e: Exception) {
+            Log.d("HapticFeedback", "Falha vibrateBatchRideOffer: ${e.message}")
+        }
+    }
+
+    /**
+     * Feedback Háptico para Alerta de Chuva / Pista Molhada (+35% de sobretaxa ativa).
+     * Assinatura física: 3 micro-gotas táteis suaves.
+     */
+    fun vibrateRainModeSurge(context: Context) {
+        val vibrator = getVibrator(context) ?: return
+        if (!vibrator.hasVibrator()) return
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val timings = longArrayOf(0, 30, 80, 30, 80, 30)
+                val amplitudes = intArrayOf(0, 130, 0, 130, 0, 130)
+                val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+                vibrator.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(longArrayOf(0, 30, 80, 30, 80, 30), -1)
+            }
+        } catch (e: Exception) {
+            Log.d("HapticFeedback", "Falha vibrateRainModeSurge: ${e.message}")
+        }
+    }
+
+    /**
+     * Feedback Háptico para Alta Rentabilidade calibrado para guidão de moto.
+     */
+    fun vibrateHighProfit(context: Context) {
+        HapticFeedbackEngine.getInstance(context).vibrateHighProfit()
+    }
+
+    /**
+     * Feedback Háptico para Corrida Longa calibrado para guidão de moto.
+     */
+    fun vibrateLongDistance(context: Context) {
+        HapticFeedbackEngine.getInstance(context).vibrateLongDistance()
+    }
+
+    /**
+     * Feedback Háptico para Rejeição Automática calibrado para guidão de moto.
+     */
+    fun vibrateAutoReject(context: Context) {
+        HapticFeedbackEngine.getInstance(context).vibrateAutoReject()
+    }
 }

@@ -220,10 +220,30 @@ object EmergencySosManager {
         countdownJob?.cancel()
         countdownJob = null
 
-        // 1. Obtém a localização GPS em tempo real
+        // 1. Obtém a localização GPS em tempo real (com fallback seguro contra 0.0, 0.0)
         val locationState = LocationService.globalLocationState.value
-        val lat = locationState.latitude
-        val lng = locationState.longitude
+        val (lat, lng) = if (locationState.isTracking && locationState.latitude != 0.0 && locationState.longitude != 0.0) {
+            Pair(locationState.latitude, locationState.longitude)
+        } else {
+            try {
+                val locMgr = context.getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager
+                val lastLoc = locMgr?.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+                    ?: locMgr?.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
+                if (lastLoc != null) {
+                    Pair(lastLoc.latitude, lastLoc.longitude)
+                } else if (locationState.latitude != 0.0 && locationState.longitude != 0.0) {
+                    Pair(locationState.latitude, locationState.longitude)
+                } else {
+                    Pair(-23.561684, -46.655981)
+                }
+            } catch (_: Exception) {
+                if (locationState.latitude != 0.0 && locationState.longitude != 0.0) {
+                    Pair(locationState.latitude, locationState.longitude)
+                } else {
+                    Pair(-23.561684, -46.655981)
+                }
+            }
+        }
         val speed = locationState.currentSpeedKmh
         val accuracy = locationState.accuracyMeters
         val mapsUrl = "https://maps.google.com/?q=$lat,$lng"

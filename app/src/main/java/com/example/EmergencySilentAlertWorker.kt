@@ -1,8 +1,13 @@
 package com.example
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.telephony.SmsManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -26,7 +31,8 @@ import java.util.Locale
  * 2. Discrição Silenciosa: Não emite alarmes audíveis para não colocar o entregador em maior risco.
  * 3. Envio de Telemetria: Empacota coordenadas GPS, link do Google Maps, velocidade e dados da corrida.
  * 4. Confirmação Háptica Tátil: Emite um micro-pulso tátil suave via [HapticFeedbackHelper] para confirmar ao piloto.
- * 5. Registro Local e Notificação de Sistema com baixa intrusão.
+ * 5. Disparo Direto de SMS: Envia SMS silencioso aos contatos de emergência quando permissão concedida.
+ * 6. Registro Local e Notificação de Sistema com baixa intrusão.
  */
 class EmergencySilentAlertWorker(
     appContext: Context,
@@ -113,11 +119,35 @@ class EmergencySilentAlertWorker(
             connection.disconnect()
         } catch (e: Exception) {
             Log.w(TAG, "Falha de rede ao contatar VPS central (normal se offline ou em área de sombra): ${e.message}")
-            // Mesmo se o servidor estiver temporariamente indisponível, consideramos sucesso local
-            // pois o alerta aos contatos e o registro no dispositivo já foram efetuados.
         }
 
-        // 3. Atualiza o registro permanente de auditoria no [EmergencySosManager]
+        // 3. Disparo Silencioso Direto de SMS para contatos cadastrados caso haja permissão
+        var smsDispatchedCount = 0
+        if (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                val contacts = EmergencySosManager.emergencyContacts.value
+                val smsManager: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    applicationContext.getSystemService(SmsManager::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    SmsManager.getDefault()
+                }
+
+                contacts.forEach { contact ->
+                    val cleanPhone = contact.phone.replace(Regex("[^0-9+]"), "")
+                    if (cleanPhone.isNotBlank()) {
+                        val parts = smsManager.divideMessage(message)
+                        smsManager.sendMultipartTextMessage(cleanPhone, null, parts, null, null)
+                        smsDispatchedCount++
+                        Log.i(TAG, "SMS de emergência enviado silenciosamente para ${contact.name} ($cleanPhone)")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Falha ao enviar SMS silencioso direto aos contatos: ${e.message}")
+            }
+        }
+
+        // 4. Atualiza o registro permanente de auditoria no [EmergencySosManager]
         val timeFormatted = SimpleDateFormat("HH:mm:ss dd/MM", Locale.getDefault()).format(Date(timestamp))
         EmergencySosManager.recordWorkerExecutionSuccess(
             workId = id.toString(),
@@ -126,11 +156,11 @@ class EmergencySilentAlertWorker(
             lng = lng,
             speedKmh = speed,
             mapsUrl = mapsUrl,
-            contactsCount = contactsCount,
-            networkDelivered = networkDelivered
+            contactsCount = if (smsDispatchedCount > 0) smsDispatchedCount else contactsCount,
+            networkDelivered = networkDelivered || smsDispatchedCount > 0
         )
 
-        // 4. Dispara broadcast local para notificar componentes ativos
+        // 5. Dispara broadcast local para notificar componentes ativos
         try {
             val broadcastIntent = Intent(ACTION_SOS_DISPATCHED).apply {
                 putExtra("worker_id", id.toString())
@@ -139,6 +169,7 @@ class EmergencySilentAlertWorker(
                 putExtra("maps_url", mapsUrl)
                 putExtra("timestamp", timestamp)
                 putExtra("network_status", networkDelivered)
+                putExtra("sms_dispatched", smsDispatchedCount)
             }
             applicationContext.sendBroadcast(broadcastIntent)
         } catch (e: Exception) {
@@ -151,9 +182,15 @@ class EmergencySilentAlertWorker(
             "longitude" to lng,
             "maps_url" to mapsUrl,
             "network_success" to networkDelivered,
-            "status" to "ALERTA_SILENCIOSO_EXECUTADO"
+            "sms_dispatched" to smsDispatchedCount,
+            "status" to if (networkDelivered || smsDispatchedCount > 0) "ALERTA_SILENCIOSO_EXECUTADO" else "AGUARDANDO_RECONEXAO"
         )
 
-        Result.success(output)
+        if (!networkDelivered && smsDispatchedCount == 0 && runAttemptCount < 3) {
+            Log.w(TAG, "Tentativa $runAttemptCount sem entrega imediata. Enfileirando retry automático via WorkManager...")
+            Result.retry()
+        } else {
+            Result.success(output)
+        }
     }
 }

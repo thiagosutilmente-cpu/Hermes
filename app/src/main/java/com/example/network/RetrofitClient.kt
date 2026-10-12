@@ -26,8 +26,13 @@ object RetrofitClient {
         level = HttpLoggingInterceptor.Level.BODY
     }
 
+    private val latencyInterceptor = LatencyInterceptor(thresholdMs = 500L)
+    private val retryInterceptor = RetryConnectionInterceptor()
+
     private val okHttpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .addInterceptor(retryInterceptor)
+            .addInterceptor(latencyInterceptor)
             .addInterceptor(loggingInterceptor)
             .connectTimeout(6, TimeUnit.SECONDS)
             .readTimeout(6, TimeUnit.SECONDS)

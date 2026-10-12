@@ -24,6 +24,10 @@ enum class ShakeActionPreference(val label: String, val description: String) {
     DUAL_ACTION(
         "Silenciar se Falando / Repetir se Calado",
         "Corta o áudio se estiver falando; caso contrário, re-processa e relê a oferta"
+    ),
+    DISPATCH_SILENT_SOS(
+        "Disparar SOS de Emergência Silencioso",
+        "Transmite socorro imediato com GPS e aciona WorkManager ao chacoalhar vigorosamente no guidão"
     )
 }
 
@@ -107,6 +111,11 @@ object ShakeEmergencyManager {
                     reprocessLastOffer(context)
                     _lastActionExecuted.value = "🔄 Re-processamento da Última Oferta"
                 }
+            }
+
+            ShakeActionPreference.DISPATCH_SILENT_SOS -> {
+                EmergencySosManager.triggerSosImmediately(context, "Acionado via Chacoalhada no Guidão")
+                _lastActionExecuted.value = "🚨 Alerta SOS Silencioso Disparado via Shake"
             }
         }
     }

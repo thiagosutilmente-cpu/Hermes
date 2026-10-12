@@ -292,6 +292,14 @@ class OfferTextToSpeechEngine private constructor(private val context: Context) 
                     }
                     onSpeechFinished?.invoke()
                 }
+
+                override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                    releaseAudioFocus()
+                    mainScope.launch {
+                        _engineState.value = _engineState.value.copy(isSpeaking = false)
+                    }
+                    onSpeechFinished?.invoke()
+                }
             })
 
             isInitialized = true

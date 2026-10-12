@@ -1,5 +1,6 @@
 package com.example
 
+import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -49,7 +50,7 @@ import java.util.Locale
  * JarvisNeuralCockpitCard
  *
  * Card interativo para execução, teste e auditoria em tempo real do
- * motor JARVIS NEURAL COCKPIT (On-Device & Blindado).
+ * motor JARVIS NEURAL COCKPIT 2.0 (SINDICATO INVISÍVEL).
  */
 @Composable
 fun JarvisNeuralCockpitCard(
@@ -58,8 +59,12 @@ fun JarvisNeuralCockpitCard(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
 
+    var selectedVoiceStyle by remember {
+        mutableStateOf(JarvisNeuralCockpitEngine.getActiveVoiceStyle())
+    }
+
     var inputText by remember {
-        mutableStateOf("iFood: Nova entrega disponível! R$ 19,50 - Distância total: 4.5 km - Coleta: Burger King Centro")
+        mutableStateOf("iFood: Nova entrega disponível! R$ 5,50 - Distância total: 8.2 km - Coleta: Mcdonalds")
     }
     var jsonOutput by remember { mutableStateOf<String?>(null) }
     var currentResponse by remember { mutableStateOf<JarvisNeuralCockpitEngine.JarvisResponse?>(null) }
@@ -95,33 +100,34 @@ fun JarvisNeuralCockpitCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "🧠 JARVIS NEURAL COCKPIT",
+                        text = "🧠 JARVIS NEURAL COCKPIT 2.0",
                         color = Color.White,
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 0.5.sp
+                        fontWeight = FontWeight.Black
                     )
                 }
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFF6C5CE7).copy(alpha = 0.2f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        text = if (executionLatencyMs >= 0) "LATÊNCIA: ${executionLatencyMs}ms" else "ON-DEVICE • 100% BLINDADO",
-                        color = Color(0xFFA29BFE),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                if (executionLatencyMs >= 0) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF00B894).copy(alpha = 0.2f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "${executionLatencyMs}ms (Ultra-rápido)",
+                            color = Color(0xFF55EFC4),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "Motor tático determinístico. Processa notificações brutas e eventos gerando JSON estrito e síntese de voz (TTS) para o capacete.",
+                text = "Motor de gamificação tática (CODENAME: SINDICATO INVISÍVEL). Alertas no capacete e cards para WhatsApp.",
                 color = TextGray,
                 fontSize = 11.sp,
                 lineHeight = 15.sp
@@ -129,25 +135,71 @@ fun JarvisNeuralCockpitCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // 2. Presets de Teste Rápido
+            // Seletor de Modo de Voz (TTS)
             Text(
-                text = "PRESETS DE TESTE RÁPIDO:",
-                color = TextLight,
+                text = "ESTILO DE ALERTA DE VOZ (CAPACETE):",
+                color = Color(0xFFA29BFE),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                PresetChip(label = "Aceite (iFood)", modifier = Modifier.weight(1f)) {
-                    inputText = "iFood: Nova entrega disponível! R$ 19,50 - Distância total: 4.5 km - Coleta: Burger King Centro"
+                JarvisNeuralCockpitEngine.VoiceAlertStyle.entries.forEach { style ->
+                    val isSelected = (selectedVoiceStyle == style)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) Color(0xFF6C5CE7) else Color(0xFF222238))
+                            .border(1.dp, if (isSelected) Color(0xFFA29BFE) else Color(0xFF38385A), RoundedCornerShape(8.dp))
+                            .clickable {
+                                selectedVoiceStyle = style
+                                JarvisNeuralCockpitEngine.setVoiceStyle(style, context)
+                                HapticFeedbackHelper.vibrateClick(context)
+                            }
+                            .padding(vertical = 6.dp, horizontal = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = when (style) {
+                                JarvisNeuralCockpitEngine.VoiceAlertStyle.TACTICAL_ANGRY -> "🔥 Revoltado"
+                                JarvisNeuralCockpitEngine.VoiceAlertStyle.WAR_GENERAL -> "⚔️ Estrategista"
+                                JarvisNeuralCockpitEngine.VoiceAlertStyle.STANDARD -> "🎯 Padrão"
+                            },
+                            color = if (isSelected) Color.White else TextGray,
+                            fontSize = 10.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
                 }
-                PresetChip(label = "Recusa (99)", modifier = Modifier.weight(1f)) {
-                    inputText = "99Food: Corrida recebida R$ 5,20 - Distância: 7.8 km"
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 2. Presets de Treinamento Rápido
+            Text(
+                text = "PRESETS DE TESTE RÁPIDO:",
+                color = TextGray,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                PresetChip(label = "Lixo (iFood)", modifier = Modifier.weight(1f)) {
+                    inputText = "iFood: Nova entrega disponível! R$ 5,50 - Distância total: 8.2 km - Coleta: Mcdonalds"
+                }
+                PresetChip(label = "Top (99Food)", modifier = Modifier.weight(1f)) {
+                    inputText = "99Food: Corrida recebida R$ 22,00 - Distância: 5.0 km"
                 }
                 PresetChip(label = "Dupla Rota", modifier = Modifier.weight(1f)) {
                     inputText = "Uber Direct: Rota Dupla Agrupada! R$ 38,00 - Distância total: 8.0 km"
@@ -166,7 +218,7 @@ fun JarvisNeuralCockpitCard(
                 PresetChip(label = "VIP Anual (5/5)", modifier = Modifier.weight(1f)) {
                     inputText = "[EVENTO_SISTEMA: REFERRAL_UPDATE | User: Thiago | Confirmados: 5 | AmigoPago: Carlos Souza]"
                 }
-                PresetChip(label = "Inválido (Erro)", modifier = Modifier.weight(1f)) {
+                PresetChip(label = "Sem R$ (Erro)", modifier = Modifier.weight(1f)) {
                     inputText = "Uber Direct: Nova entrega sem valor visível..."
                 }
             }
@@ -203,11 +255,18 @@ fun JarvisNeuralCockpitCard(
                 Button(
                     onClick = {
                         val start = System.currentTimeMillis()
-                        val res = JarvisNeuralCockpitEngine.processAndVoice(context, inputText)
+                        val res = JarvisNeuralCockpitEngine.processAndVoice(
+                            context = context,
+                            rawText = inputText,
+                            styleOverride = selectedVoiceStyle
+                        )
                         val elapsed = System.currentTimeMillis() - start
                         executionLatencyMs = elapsed
                         currentResponse = res
-                        jsonOutput = JarvisNeuralCockpitEngine.processInputToJson(inputText)
+                        jsonOutput = JarvisNeuralCockpitEngine.processInputToJson(
+                            rawText = inputText,
+                            styleOverride = selectedVoiceStyle
+                        )
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C5CE7)),
                     shape = RoundedCornerShape(12.dp),
@@ -227,7 +286,7 @@ fun JarvisNeuralCockpitCard(
                 if (currentResponse?.rideData?.voiceAlert != null) {
                     Button(
                         onClick = {
-                            currentResponse?.rideData?.voiceAlert?.let { speech ->
+                            currentResponse?.rideData?.voiceAlert?.text?.let { speech ->
                                 OfferTextToSpeechEngine.getInstance(context).speak(
                                     speech,
                                     android.speech.tts.TextToSpeech.QUEUE_FLUSH
@@ -273,7 +332,7 @@ fun JarvisNeuralCockpitCard(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "DECISÃO: ${rd.decision.action}",
+                                    text = "DECISÃO: ${rd.decision.action} (${rd.platform})",
                                     color = actionColor,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Black
@@ -323,11 +382,88 @@ fun JarvisNeuralCockpitCard(
                             Spacer(modifier = Modifier.height(4.dp))
 
                             Text(
-                                text = "Áudio TTS: \"${rd.voiceAlert}\"",
+                                text = "Áudio [${rd.voiceAlert.styleUsed}]: \"${rd.voiceAlert.text}\"",
                                 color = Color(0xFFFFB800),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
+
+                            // 6. CARD VIRAL DE COMBATE PARA WHATSAPP (QUANDO DECISÃO FOR REJECT)
+                            if (rd.viralGroupCard != null) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFF1B2E1E))
+                                        .border(1.dp, Color(0xFF25D366).copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                                        .padding(10.dp)
+                                ) {
+                                    Column {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = rd.viralGroupCard.headline,
+                                                color = Color(0xFF25D366),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Black
+                                            )
+                                            Text(
+                                                text = "CARD DO SINDICATO",
+                                                color = Color(0xFFA29BFE),
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
+                                        Text(
+                                            text = "\"${rd.viralGroupCard.shareTextWhatsapp}\"",
+                                            color = TextLight,
+                                            fontSize = 10.sp,
+                                            lineHeight = 14.sp
+                                        )
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        Button(
+                                            onClick = {
+                                                try {
+                                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                        type = "text/plain"
+                                                        putExtra(Intent.EXTRA_TEXT, rd.viralGroupCard.shareTextWhatsapp)
+                                                        `package` = "com.whatsapp"
+                                                    }
+                                                    context.startActivity(shareIntent)
+                                                } catch (_: Exception) {
+                                                    val generalIntent = Intent(Intent.ACTION_SEND).apply {
+                                                        type = "text/plain"
+                                                        putExtra(Intent.EXTRA_TEXT, rd.viralGroupCard.shareTextWhatsapp)
+                                                    }
+                                                    context.startActivity(Intent.createChooser(generalIntent, "Compartilhar Alerta"))
+                                                }
+                                                HapticFeedbackHelper.vibrateSuccess(context)
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                                            shape = RoundedCornerShape(8.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(36.dp)
+                                        ) {
+                                            Text(
+                                                text = "💬 Compartilhar no WhatsApp do Grupo",
+                                                color = Color.Black,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 } else if (resp.status == "SUCCESS" && resp.referralData != null) {
@@ -388,7 +524,7 @@ fun JarvisNeuralCockpitCard(
                             .padding(10.dp)
                     ) {
                         Text(
-                            text = "⚠️ SYSTEM_ERROR: ${resp.errorMessage}",
+                            text = "⚠️ SYSTEM_ERROR [INVALID_DATA]: ${resp.errorMessage}",
                             color = RedDecline,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold

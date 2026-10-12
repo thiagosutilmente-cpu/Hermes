@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano de implementação para o seletor de raio de alcance de restaurantes via GPS no FilterSettingsScreen e filtro inteligente de ofertas do Radar Delivery, com chips rápidos (3km, 5km, 10km, 15km, 20km), slider contínuo e bloqueio automático de ofertas distantes.",
-  "updatedAt":  "2026-10-10T10:20:46.211159922Z",
+  "summary":  "Plano de implementação detalhado para a criação da classe 'FuelManager' com cálculo de consumo em ciclo urbano e alternância de Modo Chuva com arrasto aerodinâmico, e da engine 'HapticFeedbackEngine' calibrada para suporte rígido no guidão da moto com assinaturas táteis exclusivas para Alta Rentabilidade, Corrida Longa e Rejeição Automática.",
+  "updatedAt":  "2026-10-11T15:57:58.926458950Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

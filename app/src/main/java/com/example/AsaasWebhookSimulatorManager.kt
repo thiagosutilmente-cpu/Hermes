@@ -107,11 +107,11 @@ object AsaasWebhookSimulatorManager {
             customerId = "cus_0000492819",
             customerName = "Marcos Silveira (Motoboy SP)",
             customerPhone = "+55 11 98765-4321",
-            paymentValue = 29.90,
-            planType = "Mensal (R$ 29,90)",
+            paymentValue = 25.00,
+            planType = "Semanal PIX (R$ 25,00) • Split 40%",
             timestampFormatted = sdf.format(Date(now - 1000L * 60 * 18)),
             activationKey = "JARVIS-PRO-9842-MS",
-            whatsappStatus = "Enviado (APK + Chave)",
+            whatsappStatus = "Licença 7 Dias Ativada (Split R$ 10,00 Líder)",
             statusColor = "#00FF88"
         )
 
@@ -120,11 +120,11 @@ object AsaasWebhookSimulatorManager {
             customerId = "cus_0000518392",
             customerName = "Rodrigo Ferreira (Ifood Campinas)",
             customerPhone = "+55 19 99123-8877",
-            paymentValue = 9.90,
-            planType = "Semanal (R$ 9,90)",
+            paymentValue = 25.00,
+            planType = "Semanal PIX (R$ 25,00) • Split 40%",
             timestampFormatted = sdf.format(Date(now - 1000L * 60 * 120)),
             activationKey = "JARVIS-PRO-1149-RF",
-            whatsappStatus = "Enviado (APK + Chave)",
+            whatsappStatus = "Licença 7 Dias Ativada (Split R$ 10,00 Líder)",
             statusColor = "#00FF88"
         )
 
@@ -133,11 +133,11 @@ object AsaasWebhookSimulatorManager {
             customerId = "cus_0000381029",
             customerName = "Gabriel Duarte (Uber Moto)",
             customerPhone = "+55 21 97654-1122",
-            paymentValue = 29.90,
-            planType = "Mensal (R$ 29,90)",
+            paymentValue = 25.00,
+            planType = "Semanal PIX (R$ 25,00)",
             timestampFormatted = sdf.format(Date(now - 1000L * 60 * 60 * 5)),
             activationKey = "JARVIS-EXPIRED-3810",
-            whatsappStatus = "Alerta Anti-Inadimplência Enviado",
+            whatsappStatus = "Acesso Bloqueado • Inadimplência",
             statusColor = "#FF5252"
         )
 
@@ -190,6 +190,15 @@ object AsaasWebhookSimulatorManager {
         }
 
         saveEventsToPrefs(context)
+
+        // Aciona a regra de negócio do PASSO 1 no app
+        AsaasFinancialEngine.processWebhookEvent(
+            context = context,
+            eventType = eventType,
+            customerId = customerId,
+            value = paymentValue
+        )
+
         return event
     }
 
