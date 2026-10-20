@@ -1,5 +1,6 @@
 package com.example
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -61,6 +62,8 @@ fun DeliveryProfileScreen(
     onNavigateBack: () -> Unit = {},
     onOpenOnboardingTour: () -> Unit = {}
 ) {
+    BackHandler { onNavigateBack() }
+
     val context = LocalContext.current
     val logsList = OfferDecisionLogManager.logs
 

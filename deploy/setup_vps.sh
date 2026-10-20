@@ -1,48 +1,71 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# JARVIS NEURAL COCKPIT - SCRIPT AUTOMÁTICO DE DEPLOY (EXECUTE NA SUA VPS HOSTINGER)
+# SCRIPT DE ATIVAÇÃO 1-CLIQUE - JARVIS NEURAL COCKPIT (VPS LINUX)
 # ==============================================================================
+# Como usar:
+# 1. Conecte na sua VPS via SSH: ssh root@187.77.248.73
+# 2. Execute: bash setup_vps.sh
+# ==============================================================================
+
 set -e
 
-echo "🚀 Iniciando instalação e deploy automático do JARVIS NEURAL COCKPIT..."
+echo "🚀 Iniciando configuração do Jarvis Neural Cockpit na VPS..."
 
-# 1. Atualizar e instalar dependências essenciais
-apt update && apt install -y python3 python3-pip python3-venv sqlite3 curl ufw
+# 1. Atualizar e instalar Python e dependências do sistema
+apt-get update -y
+apt-get install -y python3 python3-pip python3-venv curl
 
-# 2. Criar diretório da aplicação
-mkdir -p /root/jarvis_backend
-cd /root/jarvis_backend
+# 2. Criar diretório do app caso não exista
+APP_DIR="/root/jarvis_backend"
+mkdir -p "$APP_DIR"
+cd "$APP_DIR"
 
-# 3. Criar ambiente virtual
-python3 -m venv venv
+# 3. Criar ambiente virtual Python
+if [ ! -d "venv" ]; then
+    echo "📦 Criando ambiente virtual Python..."
+    python3 -m venv venv
+fi
+
 source venv/bin/activate
+
+# 4. Instalar dependências Python
+echo "⚡ Instalando FastAPI, Uvicorn e Google Generative AI..."
 pip install --upgrade pip
-pip install fastapi "uvicorn[standard]" pydantic "google-generativeai>=0.8.0" requests python-dotenv
+pip install fastapi uvicorn requests pydantic google-generativeai
 
-# 4. Baixar o arquivo main.py caso hospedado ou criar estrutura padrão
-echo "⚙️ Configurando serviço systemd..."
-
+# 5. Criar serviço no systemd para reiniciar automaticamente em caso de falha ou reboot
+echo "⚙️ Configurando serviço systemd (jarvis.service)..."
 cat << 'EOF' > /etc/systemd/system/jarvis.service
 [Unit]
 Description=Jarvis Neural Cockpit Backend FastAPI
 After=network.target
 
 [Service]
+Type=simple
 User=root
 WorkingDirectory=/root/jarvis_backend
-Environment="PATH=/root/jarvis_backend/venv/bin"
-Environment="GEMINI_API_KEY="
-Environment="ASAAS_ENV=sandbox"
-ExecStart=/root/jarvis_backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+EnvironmentFile=-/root/jarvis_backend/.env
+ExecStart=/root/jarvis_backend/venv/bin/uvicorn vps_backend_complete:app --host 0.0.0.0 --port 8000 --workers 2
 Restart=always
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-ufw allow 8000/tcp || true
+# 6. Recarregar e iniciar o serviço
 systemctl daemon-reload
 systemctl enable jarvis
+systemctl restart jarvis
 
-echo "✅ Ambiente da VPS Hostinger preparado com sucesso!"
-echo "👉 Basta copiar o arquivo main.py para /root/jarvis_backend/main.py e rodar: systemctl restart jarvis"
+sleep 2
+
+# 7. Testar se o servidor está respondendo
+STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health || echo "000")
+
+if [ "$STATUS_CODE" -eq 200 ]; then
+    echo "✅ SUCESSO! O Jarvis Backend está ONLINE na porta 8000!"
+    echo "🔗 Teste público: http://187.77.248.73:8000/health"
+else
+    echo "⚠️ O serviço foi iniciado mas retornou status $STATUS_CODE. Verifique com: journalctl -u jarvis -n 20"
+fi

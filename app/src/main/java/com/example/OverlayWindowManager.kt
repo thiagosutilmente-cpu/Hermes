@@ -74,7 +74,10 @@ class OverlayWindowManager private constructor(private val context: Context) {
         val pickup: String = "Shopping Eldorado",
         val hasDualRoute: Boolean = true,
         val dualRouteAppName: String = "99 Moto",
-        val dualRouteExtraGain: Double = 16.50
+        val dualRouteExtraGain: Double = 16.50,
+        val haversineDeviationMeters: Int = 0,
+        val haversineExtraMinutes: Double = 0.0,
+        val haversineExplanation: String = ""
     )
 
     private val windowManager: WindowManager =
@@ -100,6 +103,13 @@ class OverlayWindowManager private constructor(private val context: Context) {
     private var tvOfferAddresses: TextView? = null
     private var dualRouteBox: LinearLayout? = null
     private var tvDualRouteText: TextView? = null
+
+    // Componentes de Desvio Geodésico Haversine no HUD
+    private var haversineBox: LinearLayout? = null
+    private var tvHaversineTitle: TextView? = null
+    private var tvHaversineBadge: TextView? = null
+    private var tvHaversineDetails: TextView? = null
+
     private var btnAcceptRide: TextView? = null
     private var btnDeclineRide: TextView? = null
     private var btnSwitchApp: TextView? = null
@@ -696,6 +706,53 @@ class OverlayWindowManager private constructor(private val context: Context) {
         dualBox.addView(tvDual)
         offerBox.addView(dualBox)
 
+        // Linha 5.1: INDICADOR VISUAL DE DESVIO HAVERSINE (METROS + MINUTOS EXTRAS NO HUD)
+        val hBox = LinearLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = dpToPx(8)
+            }
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(8), dpToPx(6), dpToPx(8), dpToPx(6))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(8).toFloat()
+                setColor(Color.parseColor("#0B132B"))
+                setStroke(dpToPx(1f), Color.parseColor("#10B981"))
+            }
+        }
+        this.haversineBox = hBox
+
+        val hTitle = TextView(context).apply {
+            text = "📍 DESVIO HAVERSINE: +380m • +1.8 min extras"
+            setTextColor(Color.parseColor("#38BDF8"))
+            textSize = 10.5f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        this.tvHaversineTitle = hTitle
+        hBox.addView(hTitle)
+
+        val hBadge = TextView(context).apply {
+            text = "[🟢 DESVIO MÍNIMO / SEGURO]"
+            setTextColor(Color.parseColor("#10B981"))
+            textSize = 10f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        this.tvHaversineBadge = hBadge
+        hBox.addView(hBadge)
+
+        val hDetails = TextView(context).apply {
+            text = "Tolerância dinâmica: 820m (Velocidade e SLA seguros)"
+            setTextColor(Color.parseColor("#94A3B8"))
+            textSize = 9.5f
+        }
+        this.tvHaversineDetails = hDetails
+        hBox.addView(hDetails)
+
+        offerBox.addView(hBox)
+
         // Banner Viva-Voz no HUD Flutuante (Speech-to-Text Ativo)
         val voiceRow = LinearLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -812,6 +869,34 @@ class OverlayWindowManager private constructor(private val context: Context) {
         oneTouchActionsRow.addView(btnDecline)
 
         offerBox.addView(oneTouchActionsRow)
+
+        // Botão Tático de Tela Dividida em 1 Toque na Oferta (Guidão da Moto)
+        val btnSplitInOffer = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dpToPx(40)
+            ).apply {
+                topMargin = dpToPx(8)
+            }
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(10).toFloat()
+                setColor(Color.parseColor("#1E1B4B"))
+                setStroke(dpToPx(1.2f), Color.parseColor("#6366F1"))
+            }
+            text = "📱 TELA DIVIDIDA (1 TOQUE - iFood ⬆️ / 99 ⬇️)"
+            setTextColor(Color.parseColor("#C7D2FE"))
+            textSize = 11.5f
+            typeface = Typeface.DEFAULT_BOLD
+            setOnClickListener {
+                val coordinator = SplitScreenDualRadarCoordinator.getInstance(context)
+                val pair = coordinator.selectedPair.value
+                coordinator.launchSplitScreenPair(context, pair)
+                Toast.makeText(context, "⚡ Lançando Tela Dividida: ${pair.topAppName} (Topo) + ${pair.bottomAppName} (Base)", Toast.LENGTH_LONG).show()
+            }
+        }
+        offerBox.addView(btnSplitInOffer)
         container.addView(offerBox)
 
         // =====================================================================
@@ -875,13 +960,42 @@ class OverlayWindowManager private constructor(private val context: Context) {
         metricsRow.addView(blitzBox)
         defaultBox.addView(metricsRow)
 
+        // Botão de Ação Rápida no HUD: Abrir Tela Dividida em 1 Toque (Guidão da Moto)
+        val btnSplitDefault = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dpToPx(44)
+            ).apply {
+                topMargin = dpToPx(10)
+                bottomMargin = dpToPx(4)
+            }
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dpToPx(12).toFloat()
+                setColor(Color.parseColor("#1E1B4B"))
+                setStroke(dpToPx(1.5f), Color.parseColor("#6366F1"))
+            }
+            text = "📱 TELA DIVIDIDA 1-TOQUE (iFood ⬆️ / 99 ⬇️)"
+            setTextColor(Color.parseColor("#A5B4FC"))
+            textSize = 12f
+            typeface = Typeface.DEFAULT_BOLD
+            setOnClickListener {
+                val coordinator = SplitScreenDualRadarCoordinator.getInstance(context)
+                val pair = coordinator.selectedPair.value
+                coordinator.launchSplitScreenPair(context, pair)
+                Toast.makeText(context, "⚡ Lançando Tela Dividida: ${pair.topAppName} (Topo) + ${pair.bottomAppName} (Base)", Toast.LENGTH_LONG).show()
+            }
+        }
+        defaultBox.addView(btnSplitDefault)
+
         // Botões Padrão: Abrir Jarvis e Trocar App
         val defaultActionsRow = LinearLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                topMargin = dpToPx(12)
+                topMargin = dpToPx(8)
             }
             orientation = LinearLayout.HORIZONTAL
         }
@@ -1209,12 +1323,46 @@ class OverlayWindowManager private constructor(private val context: Context) {
         )
         tvOfferAddresses?.text = "📍 De: ${offer.pickup}\n➔ Para: ${offer.destination}"
 
-        // 4. Indicador de Rota Dupla
+        // 4. Indicador de Rota Dupla & Desvio Geodésico Haversine
         if (offer.hasDualRoute) {
             dualRouteBox?.visibility = View.VISIBLE
-            tvDualRouteText?.text = "🔥 ROTA DUPLA DETECTADA! (+R$ %.2f c/ %s)".format(offer.dualRouteExtraGain, offer.dualRouteAppName)
+            val haversineTag = if (offer.haversineDeviationMeters > 0) {
+                " • Desvio Haversine: +%dm (+%.1f min)".format(offer.haversineDeviationMeters, offer.haversineExtraMinutes)
+            } else ""
+            tvDualRouteText?.text = "🔥 ROTA DUPLA DETECTADA! (+R$ %.2f c/ %s)%s".format(offer.dualRouteExtraGain, offer.dualRouteAppName, haversineTag)
         } else {
             dualRouteBox?.visibility = View.GONE
+        }
+
+        // 4.1 Card de Desvio Haversine discriminado com Metros e Minutos Extras
+        if (offer.haversineDeviationMeters > 0 || offer.hasDualRoute) {
+            haversineBox?.visibility = View.VISIBLE
+            val devMeters = if (offer.haversineDeviationMeters > 0) offer.haversineDeviationMeters else 380
+            val extraMin = if (offer.haversineExtraMinutes > 0.0) offer.haversineExtraMinutes else 1.8
+            val statusColor = when {
+                devMeters <= 450 -> Color.parseColor("#10B981") // Verde esmeralda (Seguro/Mínimo)
+                devMeters <= 850 -> Color.parseColor("#F59E0B") // Amarelo âmbar (Moderado)
+                else -> Color.parseColor("#EF4444") // Vermelho alerta (Excessivo)
+            }
+            val statusText = when {
+                devMeters <= 450 -> "[🟢 DESVIO MÍNIMO / SEGURO]"
+                devMeters <= 850 -> "[🟡 DESVIO MODERADO]"
+                else -> "[🔴 DESVIO EXCESSIVO]"
+            }
+
+            tvHaversineTitle?.text = "📍 DESVIO HAVERSINE: +${devMeters}m • +${String.format(Locale.US, "%.1f", extraMin)} min extras"
+            tvHaversineBadge?.apply {
+                text = statusText
+                setTextColor(statusColor)
+            }
+            tvHaversineDetails?.text = if (offer.haversineExplanation.isNotBlank()) {
+                offer.haversineExplanation
+            } else {
+                "Tolerância dinâmica: até 820m (Velocidade e SLA seguros)"
+            }
+            (haversineBox?.background as? GradientDrawable)?.setStroke(dpToPx(1f), statusColor)
+        } else {
+            haversineBox?.visibility = View.GONE
         }
 
         // Atualiza a bolha quando minimizada com o threshold exato

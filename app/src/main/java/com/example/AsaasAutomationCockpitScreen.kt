@@ -1,5 +1,6 @@
 package com.example
 
+import androidx.activity.compose.BackHandler
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -92,6 +93,8 @@ fun AsaasAutomationCockpitScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    BackHandler { onNavigateBack() }
+
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {

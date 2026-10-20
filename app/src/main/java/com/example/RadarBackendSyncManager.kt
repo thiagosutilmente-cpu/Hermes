@@ -39,7 +39,7 @@ object RadarBackendSyncManager {
     private const val KEY_AUTO_SYNC_ENABLED = "pref_auto_sync_enabled"
 
     // Endpoint padrão da VPS na Hostinger
-    const val DEFAULT_SERVER_URL = "http://187.77.248.73:8080"
+    const val DEFAULT_SERVER_URL = "http://187.77.248.73:8000"
 
     // Fila em memória de eventos pendentes de envio
     private val pendingQueue = ConcurrentLinkedQueue<SyncPayload>()
@@ -435,8 +435,9 @@ object RadarBackendSyncManager {
                     totalFailed = _syncState.value.totalFailed + 1,
                     lastSyncSummary = "Erro ao enviar: ${result.message}"
                 )
-                // Se falhou por queda de sinal de operadora, mantém na fila
-                if (!result.success && result.isNetworkError) {
+                // Se falhou por queda de sinal de operadora ou erro transitório de servidor (5xx/429), mantém na fila
+                val shouldRetry = !result.success && (result.isNetworkError || result.statusCode in 500..599 || result.statusCode == 429)
+                if (shouldRetry) {
                     pendingQueue.add(item)
                     break
                 }

@@ -16,7 +16,7 @@ import java.net.URL
  */
 object WhatsAppMarketingBotManager {
 
-    private const val VPS_BASE_URL = "http://187.77.248.73:8080"
+    private const val VPS_BASE_URL = "http://187.77.248.73:8000"
 
     data class BotMessageSchedule(
         val day: Int,

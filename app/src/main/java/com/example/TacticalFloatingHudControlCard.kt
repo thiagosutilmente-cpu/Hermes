@@ -539,6 +539,79 @@ fun TacticalFloatingHudControlCard(
                     Text(text = "R$ 2,80/km 🔴 RUIM", fontSize = 11.sp, fontWeight = FontWeight.Black)
                 }
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Ações Táticas Avançadas: Desvio Haversine e Tela Dividida 1-Toque
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Botão 3: Simular Desvio Haversine Seguro (+380m • +1.8 min)
+                Button(
+                    onClick = {
+                        if (!OverlayWindowManager.canDrawOverlays(context)) {
+                            OverlayWindowManager.requestOverlayPermission(context)
+                            return@Button
+                        }
+                        isOverlayActive = true
+                        overlayManager.showTacticalOffer(
+                            OverlayWindowManager.FloatingTacticalOffer(
+                                appName = "iFood",
+                                packageName = "com.ifood.driver",
+                                value = 34.00,
+                                distanceKm = 4.2,
+                                pricePerKm = 8.10,
+                                isGoodDeal = true,
+                                dealLabel = "R$ 8,10/km 🟢 COMBO",
+                                destination = "Av. Paulista, 1578",
+                                pickup = "Rua Bela Cintra, 800",
+                                hasDualRoute = true,
+                                dualRouteAppName = "99 Food",
+                                dualRouteExtraGain = 18.50,
+                                haversineDeviationMeters = 380,
+                                haversineExtraMinutes = 1.8,
+                                haversineExplanation = "Coletas a +150m e entregas a +230m no mesmo corredor viário (+1.8 min extras)."
+                            )
+                        )
+                        Toast.makeText(context, "📍 Desvio Haversine (+380m) enviado ao HUD flutuante!", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .testTag("btn_simulate_haversine_hud"),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF0F2B38),
+                        contentColor = CyberCyan
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CyberCyan)
+                ) {
+                    Text(text = "DESVIO HAVERSINE 📍", fontSize = 10.sp, fontWeight = FontWeight.Black)
+                }
+
+                // Botão 4: Lançar Tela Dividida em 1 Toque (iFood Topo / 99 Base)
+                Button(
+                    onClick = {
+                        val coordinator = SplitScreenDualRadarCoordinator.getInstance(context)
+                        val pair = coordinator.selectedPair.value
+                        coordinator.launchSplitScreenPair(context, pair)
+                        Toast.makeText(context, "⚡ Lançando Tela Dividida: ${pair.topAppName} + ${pair.bottomAppName}", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .testTag("btn_launch_split_screen_hud"),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1E1B4B),
+                        contentColor = Color(0xFFA5B4FC)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF6366F1))
+                ) {
+                    Text(text = "TELA DIVIDIDA 📱", fontSize = 10.sp, fontWeight = FontWeight.Black)
+                }
+            }
         }
     }
 }

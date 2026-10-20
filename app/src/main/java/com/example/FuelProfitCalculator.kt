@@ -94,13 +94,20 @@ fun FuelProfitCard(
     val effectiveKmPerLiter = fuelConfig.kmPerLiter.coerceAtLeast(10.0)
     val litersConsumed = if (effectiveKmPerLiter > 0) totalKmDriven / effectiveKmPerLiter else 0.0
     val fuelCost = litersConsumed * fuelConfig.fuelPricePerLiter
-    val netProfit = (grossEarnings - fuelCost).coerceAtLeast(0.0)
+    val netProfit = grossEarnings - fuelCost
+    val isDeficit = netProfit < 0.0
     val netGainPerKm = if (totalKmDriven > 0) netProfit / totalKmDriven else 0.0
-    val profitMarginPercent = if (grossEarnings > 0) ((netProfit / grossEarnings) * 100.0).coerceIn(0.0, 100.0) else 100.0
+    val profitMarginPercent = if (grossEarnings > 0) {
+        ((netProfit / grossEarnings) * 100.0).coerceIn(-100.0, 100.0)
+    } else if (fuelCost > 0) -100.0 else 100.0
 
     val formattedGross = String.format(Locale.GERMANY, "R$ %.2f", grossEarnings)
     val formattedCost = String.format(Locale.GERMANY, "- R$ %.2f", fuelCost)
-    val formattedNet = String.format(Locale.GERMANY, "R$ %.2f", netProfit)
+    val formattedNet = if (netProfit >= 0.0) {
+        String.format(Locale.GERMANY, "R$ %.2f", netProfit)
+    } else {
+        String.format(Locale.GERMANY, "- R$ %.2f", -netProfit)
+    }
     val formattedNetPerKm = String.format(Locale.GERMANY, "R$ %.2f/km líq.", netGainPerKm)
     val formattedKm = String.format(Locale.GERMANY, "%.1f km", totalKmDriven)
 
@@ -111,7 +118,9 @@ fun FuelProfitCard(
             .fillMaxWidth()
             .border(
                 1.2.dp,
-                if (fuelConfig.isRainModeActive) Color(0xFF00D2FF).copy(alpha = 0.6f) else NeonGreen.copy(alpha = 0.35f),
+                if (isDeficit) Color(0xFFFF3366).copy(alpha = 0.8f)
+                else if (fuelConfig.isRainModeActive) Color(0xFF00D2FF).copy(alpha = 0.6f)
+                else NeonGreen.copy(alpha = 0.35f),
                 RoundedCornerShape(20.dp)
             )
             .testTag("fuel_profit_card")
@@ -130,12 +139,20 @@ fun FuelProfitCard(
                         modifier = Modifier
                             .size(10.dp)
                             .clip(CircleShape)
-                            .background(if (fuelConfig.isRainModeActive) Color(0xFF00D2FF) else NeonGreen)
+                            .background(
+                                if (isDeficit) Color(0xFFFF3366)
+                                else if (fuelConfig.isRainModeActive) Color(0xFF00D2FF)
+                                else NeonGreen
+                            )
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (fuelConfig.isRainModeActive) "LUCRO REAL • MODO CHUVA ATIVO 🌧️" else "LUCRO LÍQUIDO REAL NO BOLSO",
-                        color = if (fuelConfig.isRainModeActive) Color(0xFF00D2FF) else TextLight,
+                        text = if (isDeficit) "DÉFICIT DETECTADO • GASOLINA SUPERA GANHOS"
+                               else if (fuelConfig.isRainModeActive) "LUCRO REAL • MODO CHUVA ATIVO 🌧️"
+                               else "LUCRO LÍQUIDO REAL NO BOLSO",
+                        color = if (isDeficit) Color(0xFFFF3366)
+                                else if (fuelConfig.isRainModeActive) Color(0xFF00D2FF)
+                                else TextLight,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.8.sp
@@ -145,7 +162,9 @@ fun FuelProfitCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = if (isExpanded) "Ocultar" else "Calibrar Moto",
-                        color = if (fuelConfig.isRainModeActive) Color(0xFF00D2FF) else NeonGreen,
+                        color = if (isDeficit) Color(0xFFFF3366)
+                                else if (fuelConfig.isRainModeActive) Color(0xFF00D2FF)
+                                else NeonGreen,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -153,7 +172,9 @@ fun FuelProfitCard(
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = "Expandir configurações de combustível",
-                        tint = if (fuelConfig.isRainModeActive) Color(0xFF00D2FF) else NeonGreen,
+                        tint = if (isDeficit) Color(0xFFFF3366)
+                               else if (fuelConfig.isRainModeActive) Color(0xFF00D2FF)
+                               else NeonGreen,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -170,13 +191,14 @@ fun FuelProfitCard(
                 Column {
                     Text(
                         text = formattedNet,
-                        color = NeonGreen,
+                        color = if (isDeficit) Color(0xFFFF3366) else NeonGreen,
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Black
                     )
                     Text(
-                        text = "Margem líquida de ${String.format(Locale.GERMANY, "%.1f", profitMarginPercent)}% hoje",
-                        color = TextMuted,
+                        text = if (isDeficit) "Alerta de prejuízo nas corridas atuais"
+                               else "Margem líquida de ${String.format(Locale.GERMANY, "%.1f", profitMarginPercent)}% hoje",
+                        color = if (isDeficit) Color(0xFFFF7788) else TextMuted,
                         fontSize = 11.sp
                     )
                 }

@@ -140,7 +140,7 @@ fun HostingerLatencyCockpitCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "Interceptor OkHttp ativo em 187.77.248.73:8080. Se ultrapassar 500ms, o JARVIS prioriza o motor local para decisão instantânea.",
+                text = "Interceptor OkHttp ativo em 187.77.248.73:8000. Se ultrapassar 500ms, o JARVIS prioriza o motor local para decisão instantânea.",
                 color = TextGray,
                 fontSize = 10.5.sp,
                 lineHeight = 14.sp

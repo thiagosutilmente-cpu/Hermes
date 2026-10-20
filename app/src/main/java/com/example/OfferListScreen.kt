@@ -1,5 +1,6 @@
 package com.example
 
+import androidx.activity.compose.BackHandler
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -104,6 +105,10 @@ fun OfferListScreen(
     onNavigateBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    if (onNavigateBack != null) {
+        BackHandler { onNavigateBack() }
+    }
+
     val context = LocalContext.current
     val locationManager = remember { LocationManager.getInstance(context) }
     val gpsLocation by locationManager.currentLocation.collectAsState()

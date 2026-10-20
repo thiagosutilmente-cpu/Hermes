@@ -11,13 +11,13 @@ import java.util.concurrent.TimeUnit
 /**
  * RetrofitClient
  *
- * Cliente Singleton do Retrofit configurado para a VPS na Hostinger (187.77.248.73:8080).
+ * Cliente Singleton do Retrofit configurado para a VPS na Hostinger (187.77.248.73:8000).
  * Suporta atualização dinâmica de URL caso o IP ou domínio seja alterado nas configurações.
  */
 object RetrofitClient {
 
     private const val TAG = "RetrofitClient"
-    const val DEFAULT_BASE_URL = "http://187.77.248.73:8080/"
+    const val DEFAULT_BASE_URL = "http://187.77.248.73:8000/"
 
     private var currentBaseUrl = DEFAULT_BASE_URL
     private var cachedService: HostingerVpsApiService? = null

@@ -1,5 +1,6 @@
 package com.example
 
+import androidx.activity.compose.BackHandler
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -197,6 +198,14 @@ fun FintechPlansSelectionScreen(
         AsaasCheckoutManager.initialize(context)
         FirebaseAnalyticsManager.logScreenView("FintechPlansSelectionScreen", "FintechPlansSelection")
         FirebaseAnalyticsManager.logPaywallImpression("fintech_plans_screen", subState.tier.name)
+    }
+
+    BackHandler {
+        if (isCheckoutModalVisible) {
+            isCheckoutModalVisible = false
+        } else {
+            onDismiss()
+        }
     }
 
     Scaffold(

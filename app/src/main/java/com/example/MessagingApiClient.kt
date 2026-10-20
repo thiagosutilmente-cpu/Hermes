@@ -16,7 +16,7 @@ import java.net.URL
  */
 object MessagingApiClient {
 
-    private const val VPS_MESSAGING_ENDPOINT = "http://187.77.248.73:8080/api/send-message"
+    private const val VPS_MESSAGING_ENDPOINT = "http://187.77.248.73:8000/api/send-message"
 
     data class SendResult(
         val success: Boolean,

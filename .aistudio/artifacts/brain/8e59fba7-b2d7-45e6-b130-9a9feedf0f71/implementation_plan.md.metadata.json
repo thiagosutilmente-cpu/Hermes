@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano de implementação detalhado para a criação da classe 'FuelManager' com cálculo de consumo em ciclo urbano e alternância de Modo Chuva com arrasto aerodinâmico, e da engine 'HapticFeedbackEngine' calibrada para suporte rígido no guidão da moto com assinaturas táteis exclusivas para Alta Rentabilidade, Corrida Longa e Rejeição Automática.",
-  "updatedAt":  "2026-10-11T15:57:58.926458950Z",
+  "summary":  "Plano de implementação para simulação de corridas reais com mesclagem profunda de pedidos e acionamento de tela dividida (split-screen 50/50) com preview interativo no guidão.",
+  "updatedAt":  "2026-10-20T15:42:51.536303514Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

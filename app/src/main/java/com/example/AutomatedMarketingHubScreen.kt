@@ -1,5 +1,6 @@
 package com.example
 
+import androidx.activity.compose.BackHandler
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -123,6 +124,8 @@ fun AutomatedMarketingHubScreen(
         )
         return
     }
+
+    BackHandler { onNavigateBack() }
 
     Scaffold(
         topBar = {

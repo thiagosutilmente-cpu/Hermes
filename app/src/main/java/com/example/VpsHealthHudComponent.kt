@@ -107,7 +107,7 @@ enum class VpsHealthTier(
  * HUD de Saúde em tempo real para o Cockpit do motoboy.
  * Exibe:
  * 1. Latência atual em milissegundos com tipografia monospaçada de alta legibilidade.
- * 2. Status da conexão com a VPS Hostinger (187.77.248.73:8080).
+ * 2. Status da conexão com a VPS Hostinger (187.77.248.73:8000).
  * 3. Indicador visual colorido com pulso de LED:
  *    - Verde (< 200ms)
  *    - Amarelo (200ms a 500ms)

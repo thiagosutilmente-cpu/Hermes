@@ -25,8 +25,8 @@ object NetworkModule {
 
     private const val TAG = "NetworkModule"
 
-    // URL Padrão da VPS Hostinger onde roda o FastAPI (porta 8080 ou 8000)
-    const val DEFAULT_BASE_URL = "http://187.77.248.73:8080/"
+    // URL Padrão da VPS Hostinger onde roda o FastAPI (porta 8000)
+    const val DEFAULT_BASE_URL = "http://187.77.248.73:8000/"
 
     private var currentBaseUrl: String = DEFAULT_BASE_URL
 

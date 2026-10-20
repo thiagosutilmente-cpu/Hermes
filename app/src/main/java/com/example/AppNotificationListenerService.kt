@@ -44,17 +44,92 @@ class AppNotificationListenerService : NotificationListenerService() {
         private val _interceptedOffersCount = MutableStateFlow(0)
         val interceptedOffersCount: StateFlow<Int> = _interceptedOffersCount.asStateFlow()
 
-        // Padrões Regex para extração de valores em R$ e distâncias em KM
+        // Total de notificações repetidas descartadas pelo filtro inteligente
+        private val _blockedDuplicatesCount = MutableStateFlow(0)
+        val blockedDuplicatesCount: StateFlow<Int> = _blockedDuplicatesCount.asStateFlow()
+
+        // Estado de conexão do Listener de Notificações do Android
+        private val _isServiceConnected = MutableStateFlow(false)
+        val isServiceConnected: StateFlow<Boolean> = _isServiceConnected.asStateFlow()
+
+        // Padrões Regex para extração de valores em R$, distâncias em KM e Metros
         private val VALUE_REGEX = Pattern.compile("(?:R\\$|BRL)\\s*([0-9]+[\\.,]?[0-9]*)", Pattern.CASE_INSENSITIVE)
         private val DISTANCE_REGEX = Pattern.compile("([0-9]+[\\.,]?[0-9]*)\\s*(?:km|quil[oô]metros)", Pattern.CASE_INSENSITIVE)
+        private val METERS_REGEX = Pattern.compile("([0-9]+)\\s*(?:m|metros)(?!\\w)", Pattern.CASE_INSENSITIVE)
         private val TIME_REGEX = Pattern.compile("([0-9]+)\\s*(?:min|minutos)", Pattern.CASE_INSENSITIVE)
+
+        // Janela de resfriamento contra duplicatas (12 segundos)
+        const val DUPLICATE_COOLDOWN_MS = 12_000L
+        private val recentFingerprints = mutableMapOf<String, Long>()
+
+        @Synchronized
+        fun isDuplicateOffer(fingerprint: String): Boolean {
+            val now = System.currentTimeMillis()
+            // Limpa entradas mais velhas que 30 segundos
+            recentFingerprints.entries.removeAll { now - it.value > 30_000L }
+
+            val lastSeen = recentFingerprints[fingerprint]
+            if (lastSeen != null && (now - lastSeen) < DUPLICATE_COOLDOWN_MS) {
+                return true
+            }
+            recentFingerprints[fingerprint] = now
+            return false
+        }
+
+        /**
+         * Permite testar o comportamento do interceptador e o descarte inteligente de duplicatas no cockpit.
+         */
+        @Synchronized
+        fun simulateTestNotification(context: Context, isDuplicate: Boolean): Boolean {
+            val pkg = "com.ifood.entregador"
+            val fingerprint = "${pkg}_2450_35_Outback Shoppin"
+
+            if (isDuplicate) {
+                recentFingerprints[fingerprint] = System.currentTimeMillis()
+                _blockedDuplicatesCount.value += 1
+                return false
+            } else {
+                recentFingerprints.remove(fingerprint)
+                val decision = NeuralDecision(RadarDecision.ACCEPT, "Ganho de R$ 7,00/km excelente", 0.95)
+                val offer = RadarOffer(
+                    id = "test_${System.currentTimeMillis() % 100000}",
+                    appName = "iFood",
+                    restaurant = "Outback Shopping Paulista",
+                    value = 24.50,
+                    distanceKm = 3.5,
+                    estimatedTimeMin = 14,
+                    neuralDecision = decision,
+                    itemsCount = 1,
+                    gainPerKm = 7.00,
+                    fuelCost = 3.5 * 0.17,
+                    netProfit = 24.50 - (3.5 * 0.17)
+                )
+                _lastInterceptedOffer.value = offer
+                _interceptedOffersCount.value += 1
+                recentFingerprints[fingerprint] = System.currentTimeMillis()
+
+                try {
+                    TextToSpeechManager.getInstance(context).speakVoiceAlert(
+                        "Nova oferta interceptada do iFood: Outback Paulista, R$ 24,50 por 3,5 km."
+                    )
+                } catch (_: Exception) {}
+                return true
+            }
+        }
     }
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     override fun onListenerConnected() {
         super.onListenerConnected()
+        _isServiceConnected.value = true
         Log.d(TAG, "NotificationListenerService conectado ao Jarvis Neural Engine.")
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        _isServiceConnected.value = false
+        Log.d(TAG, "NotificationListenerService desconectado.")
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -145,12 +220,19 @@ class AppNotificationListenerService : NotificationListenerService() {
             value = raw.toDoubleOrNull() ?: 0.0
         }
 
-        // 2. Extração da Distância Total (km)
+        // 2. Extração da Distância Total (km ou metros)
         var distanceKm = 1.0
         val distMatcher = DISTANCE_REGEX.matcher(fullText)
         if (distMatcher.find()) {
             val rawDist = distMatcher.group(1)?.replace(",", ".") ?: "1.0"
             distanceKm = rawDist.toDoubleOrNull() ?: 1.0
+        } else {
+            // Suporte para coletas e entregas curtas expressas em metros (ex: 800m ou 500 metros)
+            val metersMatcher = METERS_REGEX.matcher(fullText)
+            if (metersMatcher.find()) {
+                val meters = metersMatcher.group(1)?.toDoubleOrNull() ?: 1000.0
+                distanceKm = (meters / 1000.0).coerceAtLeast(0.1)
+            }
         }
 
         // 3. Tempo Estimado (min)
@@ -165,6 +247,20 @@ class AppNotificationListenerService : NotificationListenerService() {
             return
         }
 
+        val restaurantName = if (title.isNotBlank() && !title.contains("Nova Entrega", ignoreCase = true)) {
+            title
+        } else {
+            text.take(30).ifBlank { "Coleta Delivery" }
+        }
+
+        // 3.B. Filtro Anti-Duplicata Inteligente com Janela de Resfriamento (12s)
+        val fingerprint = "${pkg}_${(value * 100).toInt()}_${(distanceKm * 10).toInt()}_${restaurantName.take(15).trim()}"
+        if (isDuplicateOffer(fingerprint)) {
+            _blockedDuplicatesCount.value += 1
+            Log.d(TAG, "🛡️ [FILTRO ANTI-DUPLICATA] Notificação repetida descartada silenciosamente: $appName - R$ $value (${_blockedDuplicatesCount.value} duplicatas evitadas)")
+            return
+        }
+
         // Processamento tático via JARVIS NEURAL COCKPIT
         val jarvisResponse = JarvisNeuralCockpitEngine.processInput(fullText)
         if (jarvisResponse.status == "SUCCESS" && jarvisResponse.rideData != null) {
@@ -175,12 +271,6 @@ class AppNotificationListenerService : NotificationListenerService() {
                 rd.decision.reason,
                 (rd.decision.score / 100.0).coerceIn(0.1, 0.99)
             )
-
-            val restaurantName = if (title.isNotBlank() && !title.contains("Nova Entrega", ignoreCase = true)) {
-                title
-            } else {
-                text.take(30).ifBlank { "Coleta Delivery" }
-            }
 
             val offer = RadarOffer(
                 id = "notif_${System.currentTimeMillis() % 100000}",
@@ -195,6 +285,20 @@ class AppNotificationListenerService : NotificationListenerService() {
                 fuelCost = rd.financials.totalDistanceKm * 0.17,
                 netProfit = rd.financials.payoutBrl - (rd.financials.totalDistanceKm * 0.17)
             )
+
+            // Alimenta o motor de Mesclagem Profunda para cruzamento imediato com outras ofertas abertas
+            try {
+                val poolOffer = ScreenPoolOffer(
+                    appName = rd.platform,
+                    packageName = pkg,
+                    restaurantName = restaurantName,
+                    pickupAddress = restaurantName,
+                    dropoffAddress = "Destino Push",
+                    value = rd.financials.payoutBrl,
+                    distanceKm = rd.financials.totalDistanceKm
+                )
+                DeepOrderPoolMergingEngine.getInstance(applicationContext).ingestPoolOffers(rd.platform, listOf(poolOffer))
+            } catch (_: Exception) {}
 
             _lastInterceptedOffer.value = offer
             _interceptedOffersCount.value += 1

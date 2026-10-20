@@ -61,6 +61,15 @@ fun CrowdsourcedBlitzRadarCard(
     val hazardsList by blitzManager.activeHazards.collectAsState()
     val nearestHazard by blitzManager.closestHazard.collectAsState()
 
+    val locationState by LocationService.globalLocationState.collectAsState()
+    val currentLat = if (locationState.latitude != 0.0) locationState.latitude else -23.5616
+    val currentLng = if (locationState.longitude != 0.0) locationState.longitude else -46.6559
+    val currentLocLabel = if (locationState.isTracking && locationState.latitude != 0.0) {
+        "Posição GPS Atual (${String.format(java.util.Locale.US, "%.4f, %.4f", currentLat, currentLng)})"
+    } else {
+        "Ponto de Fiscalização em Rota"
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -147,9 +156,9 @@ fun CrowdsourcedBlitzRadarCard(
                 ) {
                     blitzManager.reportHazard(
                         HazardType.POLICE_BLITZ,
-                        -23.5616,
-                        -46.6559,
-                        "Av. Paulista cruzamento com Pamplona",
+                        currentLat,
+                        currentLng,
+                        currentLocLabel,
                         "Comando de trânsito fiscalizando"
                     )
                 }
@@ -162,10 +171,10 @@ fun CrowdsourcedBlitzRadarCard(
                 ) {
                     blitzManager.reportHazard(
                         HazardType.SPEED_RADAR,
-                        -23.5700,
-                        -46.6500,
-                        "Av. 23 de Maio",
-                        "Radar móvel na descida"
+                        currentLat,
+                        currentLng,
+                        currentLocLabel,
+                        "Radar móvel de velocidade detectado"
                     )
                 }
 
@@ -177,10 +186,10 @@ fun CrowdsourcedBlitzRadarCard(
                 ) {
                     blitzManager.reportHazard(
                         HazardType.HEAVY_RAIN,
-                        -23.5500,
-                        -46.6600,
-                        "Rua da Consolação",
-                        "Alagamento na faixa da direita"
+                        currentLat,
+                        currentLng,
+                        currentLocLabel,
+                        "Alagamento ou pista escorregadia"
                     )
                 }
 
@@ -192,10 +201,10 @@ fun CrowdsourcedBlitzRadarCard(
                 ) {
                     blitzManager.reportHazard(
                         HazardType.DANGER_ZONE,
-                        -23.5400,
-                        -46.6300,
-                        "Centro Histórico",
-                        "Ponto de risco relatado"
+                        currentLat,
+                        currentLng,
+                        currentLocLabel,
+                        "Ponto de risco relatado pela tropa"
                     )
                 }
             }

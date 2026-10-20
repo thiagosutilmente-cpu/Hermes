@@ -27,7 +27,7 @@ import java.util.Locale
  * RadarFirebaseMessagingService
  *
  * Serviço FCM (Firebase Cloud Messaging) responsável por:
- * 1. Receber pushes e mensagens de dados emitidas diretamente pelo servidor Hostinger VPS (187.77.248.73:8080).
+ * 1. Receber pushes e mensagens de dados emitidas diretamente pelo servidor Hostinger VPS (187.77.248.73:8000).
  * 2. Processar payloads de ofertas em alta velocidade (`priority = high`).
  * 3. Disparar o [TextToSpeechManager] para converter a recomendação ou o 'voice_alert' recebido do push em fala imediata.
  * 4. Exibir notificação heads-up prioritária com botões de ação e som de alerta.

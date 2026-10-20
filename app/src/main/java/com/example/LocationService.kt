@@ -199,6 +199,52 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
         }
 
         /**
+         * Atualiza a telemetria do motorista recebida pelo RadarKeepAliveForegroundService.
+         */
+        fun updateLocationFromKeepAlive(location: Location, speedKmh: Double, context: Context? = null) {
+            val isLock = speedKmh > dynamicSafetySpeedThresholdKmh
+            LocalNotificationManager.isSpeedMuteActive = isLock
+            val newState = _globalLocationState.value.copy(
+                currentSpeedKmh = speedKmh,
+                isSafetyLockActive = isLock,
+                isNotificationsMuted = isLock,
+                isMoving = speedKmh > 2.0,
+                latitude = location.latitude,
+                longitude = location.longitude,
+                accuracyMeters = location.accuracy,
+                altitudeMeters = location.altitude,
+                bearingDegrees = location.bearing,
+                isTracking = true,
+                speedSource = if (location.hasSpeed()) "GPS Fused (KeepAlive)" else "Calculado Delta/Tempo",
+                lastUpdateTimeMillis = System.currentTimeMillis()
+            )
+            _globalLocationState.value = newState
+
+            // Sincroniza com o LocationForegroundService
+            LocationForegroundService.updateTelemetry(
+                LocationForegroundService.TelemetryData(
+                    latitude = newState.latitude,
+                    longitude = newState.longitude,
+                    speedKmh = speedKmh,
+                    accuracyMeters = newState.accuracyMeters,
+                    isSafetyLockActive = isLock,
+                    isRunning = true,
+                    timestamp = System.currentTimeMillis()
+                )
+            )
+
+            // Atualiza o radar comunitário de blitz se houver contexto
+            context?.let { ctx ->
+                try {
+                    CrowdsourcedBlitzRadarManager.getInstance(ctx)
+                        .updateLocationAndCheckProximity(location.latitude, location.longitude)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Falha ao repassar GPS para CrowdsourcedBlitzRadarManager: ${e.message}")
+                }
+            }
+        }
+
+        /**
          * Calcula a distância geodésica em linha reta (em metros) entre dois pontos de coordenadas (WGS84).
          */
         fun calculateDistanceMeters(
@@ -441,6 +487,14 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
 
         _globalLocationState.value = newState
         lastValidLocation = location
+
+        // Atualiza a proximidade de blitz policiais e perigos no radar comunitário em segundo plano
+        try {
+            CrowdsourcedBlitzRadarManager.getInstance(applicationContext)
+                .updateLocationAndCheckProximity(location.latitude, location.longitude)
+        } catch (e: Exception) {
+            Log.w(TAG, "Falha ao atualizar proximidade no CrowdsourcedBlitzRadarManager: ${e.message}")
+        }
 
         // Sincroniza estado de telemetria global (Android Auto e WebView Cockpit)
         LocationForegroundService.updateTelemetry(

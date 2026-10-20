@@ -1,5 +1,6 @@
 package com.example
 
+import androidx.activity.compose.BackHandler
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -43,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -79,9 +81,14 @@ import java.util.Locale
 fun FilterSettingsScreen(
     currentCriteria: OfferFilterCriteria = OfferFilterCriteria(),
     onSaveCriteria: (OfferFilterCriteria) -> Unit = {},
-    onNavigateBack: () -> Unit = {}
+    onNavigateBack: () -> Unit = {},
+    onOpenAdminCockpit: () -> Unit = {}
 ) {
+    BackHandler { onNavigateBack() }
+
     val context = LocalContext.current
+    var showAdminPinDialog by remember { mutableStateOf(false) }
+    val isAdminUnlocked by AdminSecurityManager.isAdminUnlocked.collectAsState()
 
     // Estados locais para edição dos sliders e controles
     var minValue by remember { mutableDoubleStateOf(currentCriteria.minValue) }
@@ -1374,7 +1381,66 @@ fun FilterSettingsScreen(
                     }
                 }
             }
+
+            // 10. RODAPÉ DE VERSÃO E GATILHO MODO DESENVOLVEDOR (5 TOQUES)
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Radar Coordinator v2.4.0 (Build 142) • Jarvis Cockpit",
+                        color = TextMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable {
+                                if (isAdminUnlocked) {
+                                    onOpenAdminCockpit()
+                                } else {
+                                    val triggered = AdminSecurityManager.registerDeveloperTap()
+                                    if (triggered) {
+                                        showAdminPinDialog = true
+                                    } else {
+                                        val remaining = AdminSecurityManager.getRemainingTaps()
+                                        if (remaining in 1..4) {
+                                            Toast.makeText(context, "Faltam $remaining toques para modo administrador", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .testTag("footer_app_version")
+                    )
+
+                    if (isAdminUnlocked) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "🛠️ Modo Desenvolvedor Ativo • Toque para abrir Cockpit",
+                            color = NeonGreen,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clickable { onOpenAdminCockpit() }
+                                .padding(4.dp)
+                        )
+                    }
+                }
+            }
         }
+    }
+
+    if (showAdminPinDialog) {
+        AdminPinAuthDialog(
+            onDismiss = { showAdminPinDialog = false },
+            onSuccess = {
+                showAdminPinDialog = false
+                onOpenAdminCockpit()
+            }
+        )
     }
 }
 

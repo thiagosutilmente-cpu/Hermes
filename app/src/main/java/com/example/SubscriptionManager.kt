@@ -134,20 +134,8 @@ object SubscriptionManager {
 
         FirebaseAnalyticsManager.logTrialStarted(days = 7, source = "subscription_manager")
 
-        // Agenda automaticamente o funil de conversão via WorkManager
-        if (context != null) {
-            try {
-                val phone = prefs.getString("user_contact_phone", "5511999999999") ?: "5511999999999"
-                MarketingFunnelScheduler.scheduleFull7DayFunnel(
-                    context = context,
-                    phone = phone,
-                    userName = "Piloto",
-                    isAccelerated = false
-                )
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        // O funil de marketing e réguas de 7 dias são processados 100% externamente pela VPS / N8N / Claude,
+        // mantendo o aplicativo do motorista leve e sem tarefas de segundo plano invasivas.
     }
 
     /**

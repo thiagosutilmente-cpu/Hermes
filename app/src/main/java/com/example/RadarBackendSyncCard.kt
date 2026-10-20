@@ -512,7 +512,7 @@ fun RadarBackendSyncCard(
                         onValueChange = { tempUrlText = it },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("URL do Servidor") },
-                        placeholder = { Text("http://187.77.248.73:8080") },
+                        placeholder = { Text("http://187.77.248.73:8000") },
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color(0xFF38BDF8),
@@ -527,7 +527,7 @@ fun RadarBackendSyncCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         TextButton(
-                            onClick = { tempUrlText = "http://187.77.248.73:8080" },
+                            onClick = { tempUrlText = "http://187.77.248.73:8000" },
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("VPS Jarvis Padrão", fontSize = 10.sp, color = Color(0xFF38BDF8))

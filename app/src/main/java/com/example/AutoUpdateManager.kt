@@ -42,7 +42,7 @@ import java.net.URL
  */
 object AutoUpdateManager {
 
-    private const val DEFAULT_VERSION_URL = "http://187.77.248.73:8080/api/version"
+    private const val DEFAULT_VERSION_URL = "http://187.77.248.73:8000/api/version"
 
     data class UpdateInfo(
         val versionCode: Int,
@@ -72,7 +72,7 @@ object AutoUpdateManager {
                 val json = JSONObject(responseText)
                 val remoteVersionCode = json.optInt("versionCode", 0)
                 val remoteVersionName = json.optString("versionName", "1.0.0")
-                val apkUrl = json.optString("apkUrl", "http://187.77.248.73:8080/download")
+                val apkUrl = json.optString("apkUrl", "http://187.77.248.73:8000/download")
                 val changelog = json.optString("changelog", "Melhorias de desempenho e estabilidade.")
                 val forceUpdate = json.optBoolean("forceUpdate", false)
 

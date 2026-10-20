@@ -11,13 +11,13 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Cliente de Conexão com o Servidor VPS do Jarvis Neural Cockpit (187.77.248.73:8080)
+ * Cliente de Conexão com o Servidor VPS do Jarvis Neural Cockpit (187.77.248.73:8000)
  * Permite geração em tempo real do Pix de R$ 4,90 via Asaas e validação dos 7 dias grátis.
  */
 object JarvisVpsApiClient {
 
     // Endereço público da VPS
-    private const val DEFAULT_SERVER_URL = "http://187.77.248.73:8080"
+    private const val DEFAULT_SERVER_URL = "http://187.77.248.73:8000"
 
     data class PixResponse(
         val success: Boolean,

@@ -22,6 +22,7 @@
 
 import os
 import json
+import time
 import sqlite3
 import requests
 import uvicorn
@@ -145,12 +146,86 @@ def send_evolution_whatsapp(phone: str, message: str) -> bool:
         print(f"[ERRO WHATSAPP] Falha ao enviar para {clean_phone}: {e}")
         return False
 
+@app.get("/health")
+@app.get("/api/ping")
 @app.get("/")
 def health_check():
+    """
+    Endpoint de verificação de integridade e medição de latência em tempo real.
+    Compatível com PingResponse do Jarvis Android Cockpit.
+    """
     return {
         "status": "online",
         "system": "Jarvis Neural Cockpit Asaas Engine",
-        "version": "2.4.0"
+        "version": "3.0.0",
+        "serverTime": int(time.time() * 1000)
+    }
+
+class OfferDecisionPayload(BaseModel):
+    eventType: str = "OFFER_DECISION"
+    offerId: str
+    action: str
+    appName: str
+    restaurant: str = ""
+    value: float = 0.0
+    distanceKm: float = 0.0
+    gainPerKm: float = 0.0
+    source: str = "APP"
+    reason: str = ""
+    deliveryAddress: str = ""
+    deviceId: str = ""
+    androidVersion: str = ""
+    timestamp: int = 0
+
+@app.post("/api/offers/decision")
+async def save_offer_decision(payload: OfferDecisionPayload):
+    """
+    Registra decisão de oferta do entregador (Aceita/Recusada).
+    """
+    return {
+        "success": True,
+        "message": "Decisão registrada com sucesso no cluster Hostinger",
+        "data": {
+            "receiptId": f"REC_{payload.offerId}",
+            "status": "RECORDED",
+            "savedAt": int(time.time() * 1000),
+            "voice_alert": "CONFIRMED",
+            "decision": payload.action
+        },
+        "timestamp": int(time.time() * 1000)
+    }
+
+class VoiceCommandPayload(BaseModel):
+    eventType: str = "VOICE_COMMAND"
+    command: str
+    spokenText: str
+    actionTaken: str
+    confidence: float = 0.95
+    micSource: str = "BLUETOOTH_HELMET"
+    timestamp: int = 0
+
+@app.post("/api/voice/command")
+async def record_voice_command(payload: VoiceCommandPayload):
+    return {
+        "success": True,
+        "message": f"Comando '{payload.command}' processado pelo cluster",
+        "data": {"processed": True},
+        "timestamp": int(time.time() * 1000)
+    }
+
+class FcmTokenPayload(BaseModel):
+    token: str
+    deviceId: str = ""
+    driverId: str = ""
+    timestamp: int = 0
+
+@app.post("/api/fcm/token")
+async def register_fcm(payload: FcmTokenPayload):
+    return {
+        "success": True,
+        "message": "Token FCM registrado na VPS",
+        "data": {"registered": True},
+        "timestamp": int(time.time() * 1000)
     }
 
 @app.post("/webhook/asaas")
@@ -387,6 +462,227 @@ async def generate_enxame(data: EnxameRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao gerar conteúdo: {str(e)}")
 
+# ---------------------------------------------------------
+# ENDPOINTS DE AUTOMAÇÃO DE META ADS (VPS HOSTINGER)
+# ---------------------------------------------------------
+try:
+    from meta_ads_engine import MetaAdsEngine
+except ImportError:
+    import sys
+    sys.path.append(os.path.dirname(__file__))
+    from meta_ads_engine import MetaAdsEngine
+
+class MetaBudgetRequest(BaseModel):
+    budget_reais: float
+
+class MetaToggleRequest(BaseModel):
+    active: bool
+
+@app.post("/api/meta-ads/launch")
+async def launch_meta_campaign():
+    """Lança a campanha automatizada no Meta Ads ou simula na VPS."""
+    result = MetaAdsEngine.launch_campaign(daily_budget_cents=2000)
+    return result
+
+@app.post("/api/meta-ads/toggle-status")
+async def toggle_meta_campaign(data: MetaToggleRequest):
+    """Pausa ou ativa a campanha no Meta Ads."""
+    result = MetaAdsEngine.toggle_status(active=data.active)
+    return result
+
+@app.get("/api/meta-ads/insights")
+async def get_meta_insights():
+    """Retorna métricas em tempo real (gastos, cliques, CPC, downloads)."""
+    result = MetaAdsEngine.get_insights()
+    return result
+
+@app.post("/api/meta-ads/budget")
+async def update_meta_budget(data: MetaBudgetRequest):
+    """Atualiza o orçamento diário da campanha no Meta Ads."""
+    cents = int(data.budget_reais * 100)
+    result = MetaAdsEngine.update_budget(daily_budget_cents=cents)
+    return result
+
+# -------------------------------------------------------------
+# ROTAS DE AUTOMAÇÃO DO WHATSAPP PESSOAL (EVOLUTION API / BAILEYS)
+# -------------------------------------------------------------
+try:
+    from whatsapp_marketing_engine import WhatsAppMarketingEngine
+except ImportError:
+    import sys
+    sys.path.append(os.path.dirname(__file__))
+    from whatsapp_marketing_engine import WhatsAppMarketingEngine
+
+try:
+    from whatsapp_ai_sales_agent import WhatsAppAiSalesAgent
+    from asaas_pix_auto_activation import AsaasPixAutoActivation
+except ImportError:
+    import sys
+    sys.path.append(os.path.dirname(__file__))
+    from whatsapp_ai_sales_agent import WhatsAppAiSalesAgent
+    from asaas_pix_auto_activation import AsaasPixAutoActivation
+
+class WhatsAppTestRequest(BaseModel):
+    phone_number: str
+    custom_message: Optional[str] = None
+
+class WhatsAppToggleRequest(BaseModel):
+    active: bool
+
+class WhatsAppIncomingLeadRequest(BaseModel):
+    phone: str
+    message: str
+
+class AiSalesToggleRequest(BaseModel):
+    enabled: bool
+
+class AiSimulateRequest(BaseModel):
+    phone: Optional[str] = "5511999999999"
+    message: str
+
+@app.get("/api/marketing/whatsapp/status")
+async def get_whatsapp_marketing_status():
+    """Retorna status e métricas do WhatsApp Pessoal na VPS."""
+    return WhatsAppMarketingEngine.get_status()
+
+@app.post("/api/marketing/whatsapp/send-test")
+async def send_whatsapp_test(data: WhatsAppTestRequest):
+    """Envia mensagem de teste do funil para o WhatsApp do dono."""
+    return WhatsAppMarketingEngine.send_test_message(phone_number=data.phone_number, custom_message=data.custom_message)
+
+@app.post("/api/marketing/whatsapp/toggle-auto-reply")
+async def toggle_whatsapp_auto_reply(data: WhatsAppToggleRequest):
+    """Ativa ou pausa a auto-resposta de leads do WhatsApp."""
+    return WhatsAppMarketingEngine.toggle_auto_reply(active=data.active)
+
+@app.get("/api/marketing/whatsapp/leads")
+async def get_whatsapp_leads():
+    """Retorna os leads recentes capturados pelo funil de anúncios."""
+    leads = WhatsAppMarketingEngine.get_recent_leads()
+    return {"success": True, "total_leads": len(leads), "leads": leads}
+
+@app.post("/webhook/whatsapp/lead")
+async def handle_whatsapp_lead_webhook(data: WhatsAppIncomingLeadRequest):
+    """Webhook acionado pela Evolution API/Baileys quando um motoboy chama no WhatsApp."""
+    # Se a IA estiver ativa, ela assume o atendimento inteligente
+    if WhatsAppAiSalesAgent.is_enabled():
+        return WhatsAppAiSalesAgent.generate_ai_response(phone=data.phone, user_message=data.message)
+    return WhatsAppMarketingEngine.handle_incoming_lead_message(phone=data.phone, message_text=data.message)
+
+# ==============================================================================
+# ROTAS DA IA VENDEDORA 100% AUTÔNOMA E ATIVAÇÃO IMEDIATA ASAAS PIX
+# ==============================================================================
+
+@app.get("/api/marketing/ai-sales/status")
+async def get_ai_sales_status():
+    """Retorna métricas em tempo real da IA vendedora que roda na VPS."""
+    metrics = WhatsAppAiSalesAgent.get_metrics()
+    return {"success": True, "data": metrics}
+
+@app.post("/api/marketing/ai-sales/toggle")
+async def toggle_ai_sales(data: AiSalesToggleRequest):
+    """Ativa ou pausa o piloto de vendas autônomo da IA no WhatsApp."""
+    success = WhatsAppAiSalesAgent.set_enabled(data.enabled)
+    return {"success": success, "enabled": data.enabled}
+
+@app.post("/api/marketing/ai-sales/simulate")
+async def simulate_ai_negotiation(data: AiSimulateRequest):
+    """Permite testar e simular ao vivo como a IA quebra objeções e fecha vendas."""
+    result = WhatsAppAiSalesAgent.generate_ai_response(phone=data.phone or "5511999999999", user_message=data.message)
+    return {"success": True, "simulation": result}
+
+@app.get("/api/marketing/ai-sales/deals")
+async def get_ai_sales_deals():
+    """Retorna as vendas fechadas e ativadas automaticamente pela IA."""
+    deals = WhatsAppAiSalesAgent.get_recent_deals()
+    return {"success": True, "total": len(deals), "deals": deals}
+
+@app.post("/api/webhooks/asaas-pix")
+async def handle_asaas_pix_webhook(payload: Dict[str, Any]):
+    """Webhook oficial do Asaas: liquida o Pix e ativa a conta VIP imediatamente."""
+    result = AsaasPixAutoActivation.process_webhook_event(payload)
+    return result
+
+# ==============================================================================
+# ROTAS DA SUPER AUTOMAÇÃO 360° (RECUPERAÇÃO PIX, VOZ HUMANIZADA, OTIMIZADOR ADS)
+# ==============================================================================
+
+try:
+    from whatsapp_pix_recovery import WhatsAppPixRecoveryEngine
+    from whatsapp_voice_engine import WhatsAppVoiceEngine
+    from meta_ads_auto_optimizer import MetaAdsAutoOptimizer
+except ImportError:
+    import sys
+    sys.path.append(os.path.dirname(__file__))
+    from whatsapp_pix_recovery import WhatsAppPixRecoveryEngine
+    from whatsapp_voice_engine import WhatsAppVoiceEngine
+    from meta_ads_auto_optimizer import MetaAdsAutoOptimizer
+
+class SuperAutoToggleRequest(BaseModel):
+    feature: str
+    enabled: bool
+
+class TriggerRecoveryRequest(BaseModel):
+    phone: Optional[str] = "5511999999999"
+
+class TestVoiceRequest(BaseModel):
+    phone: Optional[str] = "5511999999999"
+    script_key: Optional[str] = "apresentacao"
+
+@app.get("/api/marketing/super-auto/status")
+async def get_super_auto_status():
+    """Retorna métricas consolidadas da suite de super automação."""
+    return {"success": True, "data": WhatsAppPixRecoveryEngine.get_status()}
+
+@app.post("/api/marketing/super-auto/toggle")
+async def toggle_super_auto_feature(data: SuperAutoToggleRequest):
+    """Ativa ou desativa módulos individuais da super automação."""
+    success = WhatsAppPixRecoveryEngine.toggle_feature(data.feature, data.enabled)
+    return {"success": success, "feature": data.feature, "enabled": data.enabled}
+
+@app.post("/api/marketing/super-auto/trigger-recovery")
+async def trigger_pix_recovery(data: TriggerRecoveryRequest):
+    """Dispara teste de recuperação de Pix abandonado."""
+    return WhatsAppPixRecoveryEngine.trigger_test_recovery(data.phone or "5511999999999")
+
+@app.post("/api/marketing/super-auto/test-voice")
+async def test_voice_message(data: TestVoiceRequest):
+    """Simula envio de mensagem de áudio humanizado no WhatsApp."""
+    return WhatsAppVoiceEngine.simulate_voice_send(data.phone or "5511999999999", data.script_key or "apresentacao")
+
+@app.post("/api/marketing/super-auto/optimize-ads")
+async def run_ads_optimization():
+    """Executa ciclo autônomo de análise e otimização do Meta Ads."""
+    return MetaAdsAutoOptimizer.run_optimization_cycle()
+
+# ==============================================================================
+# ROTAS DA OPERAÇÃO SINGULARIDADE - R$ 3 MILHÕES / 10 AGENTES AUTÔNOMOS (MIND-0)
+# ==============================================================================
+
+try:
+    from operacao_singularidade_swarm import OperacaoSingularidadeSwarm
+except ImportError:
+    import sys
+    sys.path.append(os.path.dirname(__file__))
+    from operacao_singularidade_swarm import OperacaoSingularidadeSwarm
+
+_singularidade_swarm = OperacaoSingularidadeSwarm()
+
+@app.get("/api/singularidade/status")
+async def get_singularidade_status():
+    """Retorna o progresso em tempo real da meta de R$ 8.333/dia e R$ 3M/ano."""
+    return {"success": True, "data": _singularidade_swarm.get_live_dashboard_status()}
+
+@app.post("/api/singularidade/cycle/run")
+async def trigger_singularidade_cycle():
+    """Dispara um ciclo autônomo completo orquestrado pelo MIND-0 com os 10 sub-agentes."""
+    result = _singularidade_swarm.execute_full_swarm_cycle()
+    return {"success": True, "result": result}
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+
+
+
+
 

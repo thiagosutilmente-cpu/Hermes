@@ -1151,6 +1151,12 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/vnd.android.package-archive")
             self.send_header("Content-Disposition", 'attachment; filename="RadarCoordinator.apk"')
             self.end_headers()
+        elif path in ("/dossie.pdf", "/download/pdf", "/api/download-pdf"):
+            self.send_response(200)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Disposition", 'inline; filename="dossie_auditoria_jarvis_completo.pdf"')
+            self.end_headers()
         else:
             self.send_response(200)
             self.send_cors_headers("text/html; charset=utf-8")
@@ -1222,6 +1228,46 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
                 self.send_cors_headers("application/json")
                 self.end_headers()
                 self.wfile.write(b'{"error": "APK not found"}')
+        elif path in ("/dossie.pdf", "/download/pdf", "/api/download-pdf"):
+            pdf_path = os.path.abspath("dossie_auditoria_jarvis_completo.pdf")
+            if os.path.exists(pdf_path):
+                file_size = os.path.getsize(pdf_path)
+                self.send_response(200)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Type", "application/pdf")
+                self.send_header("Content-Disposition", 'inline; filename="dossie_auditoria_jarvis_completo.pdf"')
+                self.send_header("Content-Length", str(file_size))
+                self.end_headers()
+                try:
+                    with open(pdf_path, "rb") as f:
+                        while True:
+                            chunk = f.read(65536)
+                            if not chunk:
+                                break
+                            self.wfile.write(chunk)
+                except (BrokenPipeError, ConnectionResetError, socket.error):
+                    pass
+            else:
+                self.send_response(404)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "PDF nao encontrado"}')
+        elif path in ("/dossie.md", "/dossie", "/dossie-completo"):
+            md_path = os.path.abspath("dossie_auditoria_jarvis_completo.md")
+            if os.path.exists(md_path):
+                with open(md_path, "rb") as f:
+                    body = f.read()
+                self.send_response(200)
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_response(404)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "Markdown nao encontrado"}')
         elif path == "/api/stacks":
             status = qs.get("status", ["pending"])[0]
             body = json.dumps(get_stacks_data(status)).encode("utf-8")
@@ -2485,20 +2531,26 @@ HTML_CONTENT = """<!DOCTYPE html>
       <a href="#settings" class="nav-pill">⚙️ Ajustes</a>
       <a href="#admin" class="nav-pill">🔒 Admin</a>
       <a href="/download/apk" class="nav-pill" style="background: rgba(0, 255, 136, 0.15); color: #00ff88; border-color: #00ff88;" download>📲 Baixar APK (.apk)</a>
+      <a href="/dossie.pdf" class="nav-pill" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1.5px solid #38bdf8; font-weight: bold;" target="_blank" download>📄 Dossiê PDF (Claude)</a>
     </div>
 
-    <!-- Banner de Download do APK Nativo Android -->
-    <div style="background: linear-gradient(90deg, rgba(0, 255, 136, 0.12) 0%, rgba(17, 17, 24, 0.95) 100%); border: 1px solid rgba(0, 255, 136, 0.35); border-radius: 14px; padding: 12px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+    <!-- Banner de Download do APK & Dossiê Técnico PDF para Claude -->
+    <div style="background: linear-gradient(90deg, rgba(56, 189, 248, 0.15) 0%, rgba(17, 17, 24, 0.95) 100%); border: 1.5px solid rgba(56, 189, 248, 0.4); border-radius: 14px; padding: 12px 16px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
       <div style="display: flex; align-items: center; gap: 10px;">
-        <div style="font-size: 26px;">📱</div>
+        <div style="font-size: 26px;">📑</div>
         <div>
-          <div style="font-size: 13px; font-weight: 800; color: #00ff88;">APK Nativo Android Pronto para Instalação</div>
-          <div style="font-size: 11px; color: var(--text-muted);">Radar Coordinator com Reconhecimento de Voz nativo (SpeechRecognizer) e Google Maps.</div>
+          <div style="font-size: 13px; font-weight: 800; color: #38bdf8;">Dossiê Técnico Completo para Auditoria do Claude (PDF)</div>
+          <div style="font-size: 11px; color: var(--text-muted);">Contém 100% dos códigos-fonte (FastAPI VPS, Asaas, Haversine, Split-Screen e Acessibilidade).</div>
         </div>
       </div>
-      <a href="/download/apk" class="btn btn-green" style="flex: 0 0 auto; padding: 9px 18px; font-size: 12px; text-decoration: none; border-radius: 10px;" download>
-        ⬇️ Baixar APK Direto
-      </a>
+      <div style="display: flex; gap: 8px;">
+        <a href="/dossie.pdf" class="btn" style="background: #38bdf8; color: #0a0e17; font-weight: 800; padding: 9px 18px; font-size: 12px; text-decoration: none; border-radius: 10px;" target="_blank" download>
+          📄 Baixar PDF Completo
+        </a>
+        <a href="/download/apk" class="btn btn-green" style="padding: 9px 18px; font-size: 12px; text-decoration: none; border-radius: 10px;" download>
+          📲 Baixar APK
+        </a>
+      </div>
     </div>
 
     <!-- Status: GPS 4.2m, Firebase Sync, 4 Apps (bolinhas pulsantes) -->

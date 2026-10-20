@@ -53,7 +53,7 @@ class EmergencySilentAlertWorker(
         const val KEY_DELIVERY_INFO = "extra_delivery_info"
 
         const val ACTION_SOS_DISPATCHED = "com.example.radar.ACTION_SOS_DISPATCHED"
-        const val VPS_EMERGENCY_ENDPOINT = "http://187.77.248.73:8080/api/emergency/sos"
+        const val VPS_EMERGENCY_ENDPOINT = "http://187.77.248.73:8000/api/emergency/sos"
     }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
@@ -94,7 +94,12 @@ class EmergencySilentAlertWorker(
                 }
             """.trimIndent()
 
-            val url = URL(VPS_EMERGENCY_ENDPOINT)
+            val prefs = applicationContext.getSharedPreferences("radar_backend_sync_prefs", Context.MODE_PRIVATE)
+            val baseUrl = prefs.getString("pref_server_url", RadarBackendSyncManager.DEFAULT_SERVER_URL)?.trimEnd('/')
+                ?: RadarBackendSyncManager.DEFAULT_SERVER_URL
+            val emergencyEndpoint = "$baseUrl/api/emergency/sos"
+
+            val url = URL(emergencyEndpoint)
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 7000

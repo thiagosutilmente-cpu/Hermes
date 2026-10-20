@@ -153,6 +153,13 @@ class MainActivity : ComponentActivity() {
             android.util.Log.e("MainActivity", "Falha ao iniciar LocationForegroundService: ${e.message}")
         }
 
+        // Inicializa o Foreground Service persistente anti-morte (GPS Fused contínuo + WebSocket com auto-reconexão)
+        try {
+            RadarKeepAliveForegroundService.start(this)
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "Falha ao iniciar RadarKeepAliveForegroundService: ${e.message}")
+        }
+
         // Inicializa o cliente de sincronização de telemetria e decisões com o servidor
         RadarBackendSyncManager.initialize(this)
 
@@ -331,7 +338,6 @@ fun RadarDeliveryDashboard(
         SubscriptionManager.initialize(context)
         EmergencySosManager.initialize(context)
         RealTimeProfitEngine.initialize(context)
-        SmartMarketingMilestoneManager.initialize(context)
         PlayBillingManager.initialize(context)
         FirebaseAnalyticsManager.initialize(context)
         FirebaseAnalyticsManager.logScreenView("RadarDeliveryDashboard", "MainActivity")
@@ -344,6 +350,9 @@ fun RadarDeliveryDashboard(
     var showMarketingDashboard by remember { mutableStateOf(false) }
     var showAsaasCockpit by remember { mutableStateOf(false) }
     var showEmergencySosDialog by remember { mutableStateOf(false) }
+    val isAdminUnlocked by AdminSecurityManager.isAdminUnlocked.collectAsState()
+    var showAdminCockpitScreen by remember { mutableStateOf(false) }
+    var showAdminPinDialog by remember { mutableStateOf(false) }
 
     // Rota Dupla / Entregas Mescladas (Recurso Exclusivo do Plano Pro)
     val activeDualOpp by JarvisAccessibilityService.activeDualOpportunity.collectAsState()
@@ -1456,6 +1465,17 @@ fun RadarDeliveryDashboard(
         return
     }
 
+    if (showAdminCockpitScreen) {
+        AdminDeveloperCockpitScreen(
+            onNavigateBack = { showAdminCockpitScreen = false },
+            onOpenAsaasCockpit = { showAsaasCockpit = true },
+            onOpenMarketingHub = { showMarketingHubScreen = true },
+            onOpenMarketingDashboard = { showMarketingDashboard = true },
+            onOpenWebViewCockpit = { showWebViewCockpit = true }
+        )
+        return
+    }
+
     if (showFilterSettingsScreen) {
         FilterSettingsScreen(
             currentCriteria = filterCriteria,
@@ -1464,7 +1484,11 @@ fun RadarDeliveryDashboard(
                 speedMonitor?.updateSpeedThreshold(newCriteria.safetySpeedThresholdKm)
                 LocationService.updateSafetySpeedThreshold(newCriteria.safetySpeedThresholdKm)
             },
-            onNavigateBack = { showFilterSettingsScreen = false }
+            onNavigateBack = { showFilterSettingsScreen = false },
+            onOpenAdminCockpit = {
+                showFilterSettingsScreen = false
+                showAdminCockpitScreen = true
+            }
         )
         return
     }
@@ -1714,36 +1738,14 @@ fun RadarDeliveryDashboard(
                         )
                     }
 
-                    // Botão Abertura do Cockpit Web SPA (HTML5/WebSockets/Bridge)
-                    IconButton(
-                        onClick = { showWebViewCockpit = true },
-                        modifier = Modifier.testTag("action_open_webview_cockpit")
-                    ) {
-                        Text("🌐", fontSize = 16.sp)
-                    }
-
-                    // Botão Central de Marketing Viral & Roteiros TikTok/WhatsApp
-                    IconButton(
-                        onClick = { showMarketingHubScreen = true },
-                        modifier = Modifier.testTag("action_open_marketing_hub")
-                    ) {
-                        Text("🚀", fontSize = 16.sp)
-                    }
-
-                    // Botão Direto para Gráficos Recharts & Marketing Dashboard
-                    IconButton(
-                        onClick = { showMarketingDashboard = true },
-                        modifier = Modifier.testTag("action_open_marketing_dashboard")
-                    ) {
-                        Text("📊", fontSize = 16.sp)
-                    }
-
-                    // Botão Cockpit de Automação Asaas Webhook & WhatsApp
-                    IconButton(
-                        onClick = { showAsaasCockpit = true },
-                        modifier = Modifier.testTag("action_open_asaas_cockpit")
-                    ) {
-                        Text("💳", fontSize = 16.sp)
+                    // Botão Cockpit do Administrador (Visível exclusivamente quando autenticado com PIN)
+                    if (isAdminUnlocked) {
+                        IconButton(
+                            onClick = { showAdminCockpitScreen = true },
+                            modifier = Modifier.testTag("action_open_admin_cockpit")
+                        ) {
+                            Text("🛠️", fontSize = 16.sp)
+                        }
                     }
 
                     // Botão da Bolha Flutuante do Jarvis (OverlayWindowManager)
@@ -1844,6 +1846,17 @@ fun RadarDeliveryDashboard(
                 contentPadding = PaddingValues(top = 14.dp, bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // 0. Super Painel Unificado do Motoboy (Piloto de Pista 360°)
+                item(key = "motoboy_cockpit_hero_unified") {
+                    MotoboyCockpitHeroCard(
+                        isNightMode = isNightMode,
+                        onToggleNightMode = onToggleNightMode,
+                        voiceManager = voiceManager,
+                        onOpenFilterSettings = { showFilterSettingsScreen = true },
+                        onOpenEmergencyDialog = { showEmergencySosDialog = true }
+                    )
+                }
+
                 // Card de Gestão & Detecção Automática de Tema Escuro Anti-Fadiga Ocular
                 item {
                     AutoNightThemeControlCard(
@@ -1942,9 +1955,17 @@ fun RadarDeliveryDashboard(
 
                 // Card de Indicação Viral no WhatsApp (Ganhe Dias Grátis)
                 item {
-                    ReferralViralShareCard(
-                        onOpenMarketingHub = { showMarketingHubScreen = true }
-                    )
+                    ReferralViralShareCard()
+                }
+
+                // Card de Gestão de Marketing Automatizado pelo Celular (Exclusivo Administrador)
+                if (isAdminUnlocked) {
+                    item {
+                        AdminMobileMarketingBanner(
+                            onOpenMarketingHub = { showMarketingHubScreen = true },
+                            onOpenAsaasCockpit = { showAsaasCockpit = true }
+                        )
+                    }
                 }
 
                 // MONITORAMENTO EM TEMPO REAL DA LICENÇA (FASTAPI + SUBSCRIPTION REPOSITORY)
@@ -2084,29 +2105,51 @@ fun RadarDeliveryDashboard(
                     )
                 }
 
-                // 5.1. CARD DE SINCRONIZAÇÃO EM TEMPO REAL COM O SERVIDOR (VPS / CLOUD API)
-                item {
-                    RadarBackendSyncCard()
-                }
-
-                // 5.1.A. DIAGNÓSTICO E STATUS FCM (FIREBASE CLOUD MESSAGING)
-                item {
-                    FcmStatusDiagnosticsCard()
-                }
-
                 // 5.1.B. JARVIS NEURAL COCKPIT (MOTOR TÁTICO & MISSÃO EMBAIXADOR BLINDADO)
                 item {
                     JarvisNeuralCockpitCard()
                 }
 
-                // 5.1.C. HUD DE SAÚDE DA VPS HOSTINGER & LATÊNCIA OKHTTP
+                // 5.1.C. SERVIÇO PERSISTENTE ANTI-MORTE & WEBSOCKET EM TEMPO REAL
                 item {
-                    VpsHealthHudComponent()
+                    RadarKeepAliveCard()
                 }
 
-                // 5.1.D. TELEMETRIA E INTERCEPTOR DE LATÊNCIA OKHTTP VPS HOSTINGER (>500ms)
+                // 5.1.D. MESCLADOR PROFUNDO DE CORRIDAS DISPONÍVEIS (CROSS-APP POOL)
                 item {
-                    HostingerLatencyCockpitCard()
+                    DeepOrderPoolCockpitCard()
+                }
+
+                // 5.1.E. OPERAÇÃO EM TELA DIVIDIDA VERTICAL (MULTI-WINDOW)
+                item {
+                    DualSplitWindowSimulatorCard()
+                }
+                item {
+                    SplitScreenManagerCard()
+                }
+
+                // 5.1.F. CHECAPE GERAL DE CÓDIGO E AUTO-RECUPERAÇÃO SILENCIOSA
+                item {
+                    SystemHealthCheckupCard()
+                }
+
+                // Cards de Diagnóstico Técnico da VPS (Exclusivos do Modo Administrador)
+                if (isAdminUnlocked) {
+                    item {
+                        RadarBackendSyncCard()
+                    }
+                    item {
+                        FcmStatusDiagnosticsCard()
+                    }
+                    item {
+                        VpsHealthHudComponent()
+                    }
+                    item {
+                        HostingerAsaasDiagnosticPanel()
+                    }
+                    item {
+                        HostingerLatencyCockpitCard()
+                    }
                 }
 
                 // 6. DASHBOARD DE VELOCIDADE EM TEMPO REAL E TRAVA DE SEGURANÇA
@@ -2904,6 +2947,53 @@ fun RadarDeliveryDashboard(
                         }
                     )
                 }
+
+                // Rodapé de Versão e Gatilho Modo Desenvolvedor (5 toques)
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp, bottom = 48.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Radar Coordinator v2.4.0 (Build 142) • Jarvis Cockpit",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable {
+                                    if (isAdminUnlocked) {
+                                        showAdminCockpitScreen = true
+                                    } else {
+                                        val triggered = AdminSecurityManager.registerDeveloperTap()
+                                        if (triggered) {
+                                            showAdminPinDialog = true
+                                        } else {
+                                            val remaining = AdminSecurityManager.getRemainingTaps()
+                                            if (remaining in 1..4) {
+                                                Toast.makeText(context, "Faltam $remaining toques para modo administrador", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .testTag("main_footer_version")
+                        )
+                        if (isAdminUnlocked) {
+                            Text(
+                                text = "🛠️ Modo Administrador Desbloqueado (Toque para abrir)",
+                                color = NeonGreen,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clickable { showAdminCockpitScreen = true }
+                                    .padding(4.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -2923,6 +3013,16 @@ fun RadarDeliveryDashboard(
             },
             onAcceptCurrentOffer = onAcceptCurrentBestOffer,
             onDeclineCurrentOffer = onDeclineCurrentBestOffer
+        )
+    }
+
+    if (showAdminPinDialog) {
+        AdminPinAuthDialog(
+            onDismiss = { showAdminPinDialog = false },
+            onSuccess = {
+                showAdminPinDialog = false
+                showAdminCockpitScreen = true
+            }
         )
     }
 

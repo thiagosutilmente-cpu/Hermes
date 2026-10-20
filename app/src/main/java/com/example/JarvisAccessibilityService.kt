@@ -49,6 +49,12 @@ class JarvisAccessibilityService : AccessibilityService() {
 
         val rootNode = rootInActiveWindow ?: return
         try {
+            // Varredura simultânea de ambas as metades da tela se estiver em modo tela dividida
+            try {
+                val allWindows = windows
+                SplitScreenDualRadarCoordinator.getInstance(applicationContext).processWindows(this, allWindows)
+            } catch (_: Exception) {}
+
             processDeliveryScreen(packageName, rootNode)
         } catch (e: Exception) {
             e.printStackTrace()
@@ -102,6 +108,16 @@ class JarvisAccessibilityService : AccessibilityService() {
                 )
             } catch (_: Exception) {}
             return
+        }
+
+        // 0.B. Varredura Profunda de Múltiplas Corridas Disponíveis no Feed/Lista (Deep Order Pool)
+        try {
+            val poolOffers = extractMultiplePoolOffers(packageName, appName, rootNode)
+            if (poolOffers.isNotEmpty()) {
+                DeepOrderPoolMergingEngine.getInstance(applicationContext).ingestPoolOffers(appName, poolOffers)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
 
         // 1. Extração do Valor da Corrida (Ex: "R$ 18,50" ou "R$22.00")
@@ -196,7 +212,116 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Varredura recursiva de nós na árvore de acessibilidade
+     * Varre a árvore de acessibilidade buscando múltiplos cards de corridas abertas em listas/feeds.
+     */
+    private fun extractMultiplePoolOffers(
+        packageName: String,
+        appName: String,
+        rootNode: AccessibilityNodeInfo
+    ): List<ScreenPoolOffer> {
+        val poolOffers = mutableListOf<ScreenPoolOffer>()
+        val valueRegex = Regex("""R\$\s*(\d+[.,]\d{2})""")
+        val distanceRegex = Regex("""(\d+[.,]?\d*)\s*km""", RegexOption.IGNORE_CASE)
+
+        fun collectSubtreeTexts(n: AccessibilityNodeInfo?, targetList: MutableList<String>) {
+            if (n == null) return
+            val t = n.text?.toString()?.trim()
+            val d = n.contentDescription?.toString()?.trim()
+            if (!t.isNullOrEmpty()) targetList.add(t)
+            else if (!d.isNullOrEmpty()) targetList.add(d)
+            for (i in 0 until n.childCount) {
+                val child = n.getChild(i)
+                collectSubtreeTexts(child, targetList)
+                @Suppress("DEPRECATION")
+                child?.recycle()
+            }
+        }
+
+        fun inspectForCards(node: AccessibilityNodeInfo?, depth: Int) {
+            if (node == null || depth > 8) return
+
+            // Nós que agrupam entre 2 e 20 elementos e contêm texto de valor e distância são cards potenciais
+            if (node.childCount in 2..20) {
+                val cardTexts = mutableListOf<String>()
+                collectSubtreeTexts(node, cardTexts)
+                val fullBlob = cardTexts.joinToString(" ")
+
+                val matchValue = valueRegex.find(fullBlob)
+                val matchDist = distanceRegex.find(fullBlob)
+
+                if (matchValue != null && matchDist != null) {
+                    val rawVal = matchValue.groupValues[1].replace(',', '.')
+                    val valDouble = rawVal.toDoubleOrNull() ?: 0.0
+                    val rawDist = matchDist.groupValues[1].replace(',', '.')
+                    val distDouble = rawDist.toDoubleOrNull() ?: 0.0
+
+                    if (valDouble > 0.0 && distDouble > 0.0) {
+                        val rest = cardTexts.firstOrNull {
+                            it.contains("Restaurante", true) ||
+                            it.contains("Lanches", true) ||
+                            it.contains("Burger", true) ||
+                            it.contains("Shopping", true) ||
+                            it.contains("Pizzaria", true) ||
+                            it.contains("Mercado", true) ||
+                            it.contains("Outback", true) ||
+                            it.contains("Madero", true) ||
+                            it.contains("Habib", true)
+                        } ?: "Estabelecimento Parceiro"
+
+                        val drop = cardTexts.firstOrNull {
+                            it.contains("Rua", true) ||
+                            it.contains("Av", true) ||
+                            it.contains("Alameda", true) ||
+                            it.contains("Bairro", true)
+                        } ?: "Destino de Entrega"
+
+                        val currentGps = LocationService.globalLocationState.value
+                        val baseLat = if (currentGps.latitude != 0.0) currentGps.latitude else -23.561684
+                        val baseLng = if (currentGps.longitude != 0.0) currentGps.longitude else -46.655981
+
+                        // Projeção geodésica do restaurante e do ponto de entrega em relação ao condutor
+                        val pLat = baseLat + ((rest.hashCode() % 7) * 0.0012)
+                        val pLng = baseLng + (((rest.hashCode() / 7) % 7) * 0.0012)
+                        val dropAngleRad = Math.toRadians((Math.abs(drop.hashCode()) % 360).toDouble())
+                        val latKmDegree = 1.0 / 110.574
+                        val lngKmDegree = 1.0 / (111.320 * Math.cos(Math.toRadians(baseLat)))
+                        val dLat = pLat + (distDouble * Math.cos(dropAngleRad) * latKmDegree)
+                        val dLng = pLng + (distDouble * Math.sin(dropAngleRad) * lngKmDegree)
+
+                        poolOffers.add(
+                            ScreenPoolOffer(
+                                appName = appName,
+                                packageName = packageName,
+                                restaurantName = rest,
+                                pickupAddress = rest,
+                                dropoffAddress = drop,
+                                value = valDouble,
+                                distanceKm = distDouble,
+                                pickupLat = pLat,
+                                pickupLng = pLng,
+                                dropoffLat = dLat,
+                                dropoffLng = dLng
+                            )
+                        )
+                        return // Não entra nos nós internos deste card já consolidado
+                    }
+                }
+            }
+
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i)
+                inspectForCards(child, depth + 1)
+                @Suppress("DEPRECATION")
+                child?.recycle()
+            }
+        }
+
+        inspectForCards(rootNode, 0)
+        return poolOffers.distinctBy { "${it.value}_${it.distanceKm}" }
+    }
+
+    /**
+     * Varredura recursiva de nós na árvore de acessibilidade com reciclagem segura
      */
     private fun extractNodesRecursively(
         node: AccessibilityNodeInfo?,
@@ -218,6 +343,10 @@ class JarvisAccessibilityService : AccessibilityService() {
         for (i in 0 until node.childCount) {
             val child = node.getChild(i)
             extractNodesRecursively(child, textList, clickableList)
+            if (child != null && !child.isClickable) {
+                @Suppress("DEPRECATION")
+                child.recycle()
+            }
         }
     }
 

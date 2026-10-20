@@ -1,5 +1,6 @@
 package com.example
 
+import androidx.activity.compose.BackHandler
 import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -209,6 +210,10 @@ fun MarketingDashboard(
             onNavigateBack = { showAsaasScreen = false }
         )
         return
+    }
+
+    if (onNavigateBack != null) {
+        BackHandler { onNavigateBack() }
     }
 
     // Inicializa o gerenciador de logs persistente

@@ -1,5 +1,6 @@
 package com.example
 
+import androidx.activity.compose.BackHandler
 import android.content.Context
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -122,6 +123,14 @@ fun GuidedOnboardingTour(
         ),
         label = "pulseScale"
     )
+
+    BackHandler {
+        if (currentStep > 0) {
+            currentStep--
+        } else {
+            onFinishTour()
+        }
+    }
 
     Surface(
         modifier = Modifier

@@ -172,6 +172,7 @@ class CrowdsourcedBlitzRadarManager private constructor(private val context: Con
      * Se estiver a menos de 800m de uma blitz ativa, dispara aviso sonoro/TTS.
      */
     fun updateLocationAndCheckProximity(driverLat: Double, driverLng: Double) {
+        if (driverLat == 0.0 && driverLng == 0.0) return
         val hazards = _activeHazards.value
         if (hazards.isEmpty()) return
 
@@ -183,6 +184,11 @@ class CrowdsourcedBlitzRadarManager private constructor(private val context: Con
         _activeHazards.value = withDistances
         val nearest = withDistances.firstOrNull()
         _closestHazard.value = nearest
+
+        // Libera para re-alertar perigos dos quais o piloto já se afastou mais de 1500 metros
+        withDistances.filter { it.distanceMeters > 1500 }.forEach {
+            alertedHazardIds.remove(it.id)
+        }
 
         // Alerta de proximidade (raio de 800 metros)
         if (nearest != null && nearest.distanceMeters in 50..800) {
