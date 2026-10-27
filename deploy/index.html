@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Radar Coordinator — Copiloto Tático & Calculadora de R$/km para Motoboys</title>
+  <meta name="description" content="Baixe o Radar Coordinator APK: o copiloto definitivo para motoboys e entregadores de app. Cálculo instantâneo de R$/km, alerta por voz e radar tático.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d14;
+      --card-bg: rgba(18, 26, 43, 0.85);
+      --card-border: rgba(0, 255, 136, 0.25);
+      --primary: #00ff88;
+      --primary-glow: rgba(0, 255, 136, 0.4);
+      --cyan: #00d2ff;
+      --cyan-glow: rgba(0, 210, 255, 0.35);
+      --gold: #ffb703;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --danger: #ef4444;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(0, 210, 255, 0.15) 0%, transparent 60%),
+        radial-gradient(circle at 100% 40%, rgba(0, 255, 136, 0.08) 0%, transparent 40%),
+        linear-gradient(180deg, #090d14 0%, #05080d 100%);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+    .container {
+      width: 100%;
+      max-width: 540px;
+      padding: 24px 18px 60px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+    
+    /* BADGE DE STATUS */
+    .status-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      align-self: center;
+      background: rgba(0, 255, 136, 0.08);
+      border: 1px solid rgba(0, 255, 136, 0.3);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--primary);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--primary);
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.4); opacity: 0.4; }
+    }
+
+    /* CABEÇALHO */
+    .header {
+      text-align: center;
+    }
+    .app-icon {
+      width: 84px;
+      height: 84px;
+      margin: 0 auto 14px;
+      background: linear-gradient(135deg, #0d1e33, #06111f);
+      border: 2px solid var(--primary);
+      border-radius: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 25px var(--primary-glow);
+      font-size: 42px;
+    }
+    .title {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      line-height: 1.15;
+      background: linear-gradient(180deg, #ffffff 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .subtitle strong {
+      color: var(--cyan);
+    }
+
+    /* CARD DE DESTAQUE DE LUCRO */
+    .profit-card {
+      background: linear-gradient(145deg, rgba(14, 23, 42, 0.95), rgba(7, 12, 22, 0.95));
+      border: 1.5px solid var(--card-border);
+      border-radius: 18px;
+      padding: 18px 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .profit-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+    .sim-offer {
+      background: rgba(0, 0, 0, 0.4);
+      border-left: 4px solid var(--primary);
+      padding: 12px 14px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .sim-info h4 {
+      font-size: 15px;
+      font-weight: 800;
+      color: #fff;
+    }
+    .sim-info p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .sim-metric {
+      text-align: right;
+    }
+    .sim-gain {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 20px;
+      font-weight: 900;
+      color: var(--primary);
+    }
+    .sim-tag {
+      font-size: 10px;
+      font-weight: 800;
+      color: #000;
+      background: var(--primary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      text-transform: uppercase;
+    }
+
+    /* BOTÃO DE DOWNLOAD PRINCIPAL */
+    .download-section {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+    .btn-download {
+      width: 100%;
+      background: linear-gradient(135deg, #00ff88, #00d2ff);
+      color: #05080d;
+      text-decoration: none;
+      padding: 18px 20px;
+      border-radius: 16px;
+      font-size: 17px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      box-shadow: 0 10px 25px rgba(0, 255, 136, 0.35);
+      transition: all 0.2s ease;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-download:active {
+      transform: scale(0.98);
+      box-shadow: 0 4px 15px rgba(0, 255, 136, 0.5);
+    }
+    .download-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+    .download-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* RECURSOS / BENEFÍCIOS */
+    .features-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .feature-card {
+      background: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 16px 14px;
+    }
+    .feature-card .icon {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    .feature-card h3 {
+      font-size: 13px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    .feature-card p {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* PASSO A PASSO DA INSTALAÇÃO */
+    .steps-card {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(0, 210, 255, 0.2);
+      border-radius: 16px;
+      padding: 18px 16px;
+    }
+    .steps-card h3 {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--cyan);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .step-item {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      color: #cbd5e1;
+    }
+    .step-item:last-child {
+      margin-bottom: 0;
+    }
+    .step-number {
+      width: 22px;
+      height: 22px;
+      background: var(--cyan);
+      color: #05080d;
+      font-weight: 900;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+    .step-desc strong {
+      color: #fff;
+    }
+    .tip-box {
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(255, 183, 3, 0.1);
+      border-left: 3px solid var(--gold);
+      border-radius: 6px;
+      font-size: 11px;
+      color: #fde047;
+    }
+
+    /* FOOTER */
+    .footer {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+    }
+    .footer-links a {
+      color: var(--cyan);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .footer-links a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <!-- STATUS EM TEMPO REAL -->
+    <div class="status-bar">
+      <div class="pulse-dot"></div>
+      <span>Servidor Online • Jarvis Neural 3.0</span>
+    </div>
+
+    <!-- CABEÇALHO / HERO -->
+    <header class="header">
+      <div class="app-icon">📡</div>
+      <h1 class="title">RADAR COORDINATOR</h1>
+      <p class="subtitle">O Copiloto Tático que <strong>calcula o lucro por km</strong> antes de você aceitar a corrida.</p>
+    </header>
+
+    <!-- CARD DE DEMONSTRAÇÃO DO LUCRO -->
+    <div class="profit-card">
+      <div class="profit-header">
+        <span>⚡ CÁLCULO DE LUCRO INSTANTÂNEO</span>
+        <span style="color: var(--primary);">MODO TÁTICO ATIVO</span>
+      </div>
+      <div class="sim-offer">
+        <div class="sim-info">
+          <h4>iFood Entrega</h4>
+          <p>R$ 24,50 • 4,2 km • 14 min</p>
+        </div>
+        <div class="sim-metric">
+          <div class="sim-gain">R$ 5,83/km</div>
+          <span class="sim-tag">SUPER LUCRO</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ÁREA DE DOWNLOAD -->
+    <div class="download-section">
+      <a href="/download/apk" class="btn-download" id="btn-download-apk" download>
+        <span>⬇️</span>
+        <span>BAIXAR APK PARA ANDROID</span>
+      </a>
+      <div class="download-meta">
+        <span>📦 Versão 3.0 Oficial</span>
+        <span>⚡ 25 MB</span>
+        <span>📱 Android 8.0+</span>
+      </div>
+    </div>
+
+    <!-- ARMAS DO ENTREGADOR -->
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="icon">🎧</div>
+        <h3>Alerta por Voz no Fone</h3>
+        <p>Ouça valor, km e taxa de ganho no capacete sem tirar as mãos do guidão.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="icon">💰</div>
+        <h3>Filtro Anti-Prejuízo</h3>
+        <p>Recusa na hora corridas com ganho menor que R$ 2,00/km.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="icon">🛡️</div>
+        <h3>Radar de Blitz & Pistas</h3>
+        <p>Alertas sonoros preventivos de pontos monitorados e velocidade segura.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="icon">🔄</div>
+        <h3>Mesclador Multi-Apps</h3>
+        <p>Agrupa iFood, 99Food e Uber na mesma direção com rotas otimizadas.</p>
+      </div>
+    </div>
+
+    <!-- COMO INSTALAR -->
+    <div class="steps-card">
+      <h3>📲 Como Instalar no Celular (2 Passos):</h3>
+      <div class="step-item">
+        <div class="step-number">1</div>
+        <div class="step-desc">
+          Toque no botão <strong>"BAIXAR APK PARA ANDROID"</strong> acima.
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-number">2</div>
+        <div class="step-desc">
+          Abra o arquivo baixado e toque em <strong>Instalar</strong>.
+        </div>
+      </div>
+      <div class="tip-box">
+        💡 <strong>Aviso do Google:</strong> Se o Android mostrar <em>"Arquivo pode ser nocivo"</em>, toque em <strong>"Fazer download mesmo assim"</strong>. É a mensagem de segurança padrão do Android para qualquer app baixado diretamente da nuvem.
+      </div>
+    </div>
+
+    <!-- RODAPÉ LEGAL -->
+    <footer class="footer">
+      <div class="footer-links">
+        <a href="/privacy.html">Política de Privacidade</a>
+        <a href="/docs">API Swagger</a>
+        <a href="https://wa.me/5511999999999?text=Ol%C3%A1%2C%20gostaria%20de%20ativar%20meu%20Radar%20Coordinator">Suporte no WhatsApp</a>
+      </div>
+      <p>© 2026 Radar Coordinator. Todos os direitos reservados.</p>
+      <p style="font-size: 10px; color: #64748b;">Hospedado no Cluster Hostinger • Protegido por criptografia TLS/SSL</p>
+    </footer>
+
+  </div>
+
+</body>
+</html>

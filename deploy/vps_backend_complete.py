@@ -28,6 +28,7 @@ import requests
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
+from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel
 
 try:
@@ -179,6 +180,18 @@ def get_privacy_policy():
                 return HTMLResponse(content=f.read(), status_code=200)
     return HTMLResponse(content="<h1>Radar Coordinator — Política de Privacidade</h1><p>Em conformidade com LGPD e Google Play.</p>", status_code=200)
 
+@app.get("/api/version")
+def get_app_version():
+    """Retorna versão do app para auto-atualização OTA do Radar Coordinator."""
+    return {
+        "versionCode": 30,
+        "versionName": "3.0.0",
+        "apkUrl": "http://187.77.248.73/download/apk",
+        "changelog": "Jarvis Neural Cockpit 3.0: Calculadora de R$/km em tempo real, copiloto de voz e radar tático.",
+        "forceUpdate": False
+    }
+
+@app.get("/download")
 @app.get("/download/apk")
 def download_latest_apk():
     """Download direto do APK compilado do Radar Coordinator para os entregadores."""

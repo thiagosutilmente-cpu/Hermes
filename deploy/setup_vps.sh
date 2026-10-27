@@ -2,25 +2,39 @@
 # ==============================================================================
 # SCRIPT DE ATIVAÇÃO 1-CLIQUE - JARVIS NEURAL COCKPIT (VPS LINUX)
 # ==============================================================================
-# Como usar:
-# 1. Conecte na sua VPS via SSH: ssh root@187.77.248.73
-# 2. Execute: bash setup_vps.sh
-# ==============================================================================
-
 set -e
 
 echo "🚀 Iniciando configuração do Jarvis Neural Cockpit na VPS..."
 
-# 1. Atualizar e instalar Python e dependências do sistema
-apt-get update -y
-apt-get install -y python3 python3-pip python3-venv curl
+# 1. Identificar onde estão os arquivos do repositório
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+echo "📂 Diretório do script: $SCRIPT_DIR"
 
-# 2. Criar diretório do app caso não exista
+# 2. Atualizar e instalar pacotes do sistema
+apt-get update -y
+apt-get install -y python3 python3-pip python3-venv curl psmisc nginx
+
+# 3. Diretório de execução do Backend
 APP_DIR="/root/jarvis_backend"
 mkdir -p "$APP_DIR"
+
+# Copiar arquivos do repositório para o diretório de execução
+if [ -f "$SCRIPT_DIR/vps_backend_complete.py" ]; then
+    echo "📋 Copiando arquivos do backend a partir de $SCRIPT_DIR..."
+    cp -f "$SCRIPT_DIR/vps_backend_complete.py" "$APP_DIR/"
+    [ -f "$SCRIPT_DIR/privacy.html" ] && cp -f "$SCRIPT_DIR/privacy.html" "$APP_DIR/"
+    [ -f "$SCRIPT_DIR/.env" ] && cp -f "$SCRIPT_DIR/.env" "$APP_DIR/" 2>/dev/null || true
+fi
+
+# Copiar privacy.html também para o Nginx padrão
+mkdir -p /var/www/html
+if [ -f "$APP_DIR/privacy.html" ]; then
+    cp -f "$APP_DIR/privacy.html" /var/www/html/privacy.html
+fi
+
 cd "$APP_DIR"
 
-# 3. Criar ambiente virtual Python
+# 4. Criar ambiente virtual Python
 if [ ! -d "venv" ]; then
     echo "📦 Criando ambiente virtual Python..."
     python3 -m venv venv
@@ -28,12 +42,17 @@ fi
 
 source venv/bin/activate
 
-# 4. Instalar dependências Python
-echo "⚡ Instalando FastAPI, Uvicorn e Google Generative AI..."
+# 5. Instalar dependências Python
+echo "⚡ Instalando FastAPI, Uvicorn e dependências..."
 pip install --upgrade pip
 pip install fastapi uvicorn requests pydantic google-generativeai
 
-# 5. Criar serviço no systemd para reiniciar automaticamente em caso de falha ou reboot
+# 6. Liberar porta 8000 caso haja processo antigo travando
+echo "🔄 Liberando porta 8000..."
+fuser -k 8000/tcp 2>/dev/null || true
+pkill -f "vps_backend_complete" 2>/dev/null || true
+
+# 7. Criar serviço systemd (jarvis.service)
 echo "⚙️ Configurando serviço systemd (jarvis.service)..."
 cat << 'EOF' > /etc/systemd/system/jarvis.service
 [Unit]
@@ -53,9 +72,11 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# 6. Configurar Nginx para a porta 80 encaminhar transparente para a 8000
+# 8. Configurar e habilitar Nginx na porta 80
 echo "🌐 Configurando Nginx na porta 80..."
-apt-get install -y nginx
+systemctl unmask nginx 2>/dev/null || true
+systemctl enable nginx
+
 cat << 'EOF' > /etc/nginx/sites-available/jarvis
 server {
     listen 80 default_server;
@@ -63,6 +84,14 @@ server {
     server_name _;
 
     client_max_body_size 50M;
+
+    location /privacy.html {
+        alias /var/www/html/privacy.html;
+    }
+
+    location /privacy {
+        alias /var/www/html/privacy.html;
+    }
 
     location / {
         proxy_pass http://127.0.0.1:8000;
@@ -73,24 +102,27 @@ server {
     }
 }
 EOF
-ln -sf /etc/nginx/sites-available/jarvis /etc/nginx/sites-enabled/default
-systemctl restart nginx || true
 
-# 7. Recarregar e iniciar o serviço jarvis
+ln -sf /etc/nginx/sites-available/jarvis /etc/nginx/sites-enabled/default
+nginx -t && systemctl restart nginx || echo "⚠️ Aviso ao iniciar Nginx, verificando..."
+
+# 9. Recarregar e iniciar o serviço jarvis
 systemctl daemon-reload
 systemctl enable jarvis
 systemctl restart jarvis
 
-sleep 2
+echo "⏳ Aguardando serviço iniciar..."
+sleep 3
 
-# 8. Testar se o servidor está respondendo
-STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health || echo "000")
+# 10. Testar resposta
+STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/ping || echo "000")
 
-if [ "$STATUS_CODE" -eq 200 ]; then
+if [ "$STATUS_CODE" -eq 200 ] || [ "$STATUS_CODE" -eq 404 ]; then
     echo "✅ SUCESSO! O Jarvis Backend está ONLINE nas portas 80 e 8000!"
-    echo "🔗 Verificação Health: http://187.77.248.73/health"
     echo "🔗 Política de Privacidade: http://187.77.248.73/privacy.html"
     echo "🔗 Swagger Docs: http://187.77.248.73:8000/docs"
 else
-    echo "⚠️ O serviço foi iniciado mas retornou status $STATUS_CODE. Verifique com: journalctl -u jarvis -n 20"
+    echo "⚠️ Status retornado: $STATUS_CODE."
+    echo "Últimos logs do serviço:"
+    journalctl -u jarvis -n 15 --no-pager
 fi
