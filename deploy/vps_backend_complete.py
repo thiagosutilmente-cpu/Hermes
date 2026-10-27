@@ -27,6 +27,7 @@ import sqlite3
 import requests
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 
 try:
@@ -160,6 +161,38 @@ def health_check():
         "version": "3.0.0",
         "serverTime": int(time.time() * 1000)
     }
+
+@app.get("/privacy", response_class=HTMLResponse)
+@app.get("/privacy.html", response_class=HTMLResponse)
+def get_privacy_policy():
+    """Serve a Política de Privacidade exigida pelo Google Play Console e LGPD."""
+    paths_to_check = [
+        os.path.join(os.path.dirname(__file__), "privacy.html"),
+        os.path.join(os.path.dirname(__file__), "..", "privacy.html"),
+        "privacy.html",
+        "/root/jarvis/privacy.html",
+        "/root/jarvis_backend/privacy.html"
+    ]
+    for p in paths_to_check:
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read(), status_code=200)
+    return HTMLResponse(content="<h1>Radar Coordinator — Política de Privacidade</h1><p>Em conformidade com LGPD e Google Play.</p>", status_code=200)
+
+@app.get("/download/apk")
+def download_latest_apk():
+    """Download direto do APK compilado do Radar Coordinator para os entregadores."""
+    apk_paths = [
+        os.path.join(os.path.dirname(__file__), "..", "RadarCoordinator.apk"),
+        os.path.join(os.path.dirname(__file__), "RadarCoordinator.apk"),
+        "RadarCoordinator.apk",
+        "/root/jarvis/RadarCoordinator.apk",
+        "/root/jarvis_backend/RadarCoordinator.apk"
+    ]
+    for apk in apk_paths:
+        if os.path.exists(apk):
+            return FileResponse(apk, filename="RadarCoordinator.apk", media_type="application/vnd.android.package-archive")
+    raise HTTPException(status_code=404, detail="APK não encontrado no servidor.")
 
 class OfferDecisionPayload(BaseModel):
     eventType: str = "OFFER_DECISION"

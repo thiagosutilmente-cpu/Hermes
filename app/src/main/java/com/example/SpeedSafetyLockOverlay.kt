@@ -191,6 +191,35 @@ fun SpeedSafetyLockOverlay(
                         lineHeight = 16.sp,
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Botão de SOS de Emergência acessível mesmo com a tela bloqueada por velocidade
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF8B0000))
+                            .border(1.5.dp, Color(0xFFFF2A4B), RoundedCornerShape(12.dp))
+                            .clickable {
+                                HapticFeedbackHelper.vibrateSilentSosConfirmation(context)
+                                EmergencySosManager.triggerSosImmediately(
+                                    context,
+                                    "Disparo Rápido via Tela de Bloqueio por Velocidade (${currentSpeedKmh.toInt()} km/h)"
+                                )
+                            }
+                            .padding(vertical = 10.dp, horizontal = 14.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "🚨 DISPARAR SOS SILENCIOSO DE EMERGÊNCIA",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))

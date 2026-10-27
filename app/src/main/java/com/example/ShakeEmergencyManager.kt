@@ -1,6 +1,8 @@
 package com.example
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -128,13 +130,17 @@ object ShakeEmergencyManager {
         ttsManager.stop()
         offerTts.stop()
         HapticFeedbackHelper.vibrateDecline(context)
-        Toast.makeText(context, "🔇 Alerta de áudio silenciado com sucesso!", Toast.LENGTH_SHORT).show()
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(context, "🔇 Alerta de áudio silenciado com sucesso!", Toast.LENGTH_SHORT).show()
+        }
         Log.i(TAG, "Todos os canais de áudio silenciados via gesto de Shake.")
     }
 
     private fun reprocessLastOffer(context: Context) {
         HapticFeedbackHelper.vibrateAccept(context)
-        Toast.makeText(context, "🔄 Re-processando última oferta no radar...", Toast.LENGTH_SHORT).show()
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(context, "🔄 Re-processando última oferta no radar...", Toast.LENGTH_SHORT).show()
+        }
 
         // 1. Invoca callback de re-avaliação se registrado
         onReprocessRequested?.invoke()

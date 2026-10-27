@@ -1,36 +1,63 @@
-# 📱 Plano de Implementação: Simulação de Corridas Reais com Mesclagem & Tela Dividida
+# Plano de Implementação: Resolução de Conflitos e Cancelamentos em Mesclagem Multi-Apps
 
-## 🎯 Objetivo
-Permitir que o condutor/motoboy simule e vivencie em tempo real no app o fluxo completo de **mesclagem profunda de corridas (iFood + 99Food + Rappi)** e a **divisão prática de tela (Split-Screen 50/50)** para uso no guidão da moto, com visualização gráfica de rotas compatíveis, desvio Haversine e acionamento em 1 toque.
+## 1. Problema Operacional e Solução Arquitetural
+
+Em operações com múltiplos aplicativos abertos simultaneamente, ocorrem dois cenários críticos de conflito:
+
+```
+CENÁRIO 1: RACE CONDITION (Outro motoboy aceitou primeiro)
++--------------------------------------------------------------------------+
+|  1. App detecta sinergia iFood + 99 Food.                                |
+|  2. Motoboy aceita o iFood (R$ 24,50).                                    |
+|  3. Ao tentar aceitar o 99 Food, a oferta já expirou ou foi aceita.      |
+|                                                                          |
+|  >> PROTOCOLO DE MITIGAÇÃO:                                              |
+|     - Desmonte atômico e silencioso da mesclagem (sem pânico).           |
+|     - Preserva a corrida do iFood ativa e confirmada.                    |
+|     - Recalcula a rota individual (remove os 800m de desvio da 99).      |
+|     - Alerta de voz no fone: "Oferta 99 expirada. Mantendo apenas iFood  |
+|       com rota recalculada de 3,5 km."                                   |
++--------------------------------------------------------------------------+
+
+CENÁRIO 2: CANCELAMENTO EM TRÂNSITO (Cliente/Restaurante cancelou)
++--------------------------------------------------------------------------+
+|  1. Motoboy está a caminho da coleta ou entrega das duas corridas.       |
+|  2. O cliente do pedido B cancela a entrega.                             |
+|                                                                          |
+|  >> PROTOCOLO DE MITIGAÇÃO (COM CONFIRMAÇÃO MANUAL):                     |
+|     - O sistema NÃO altera o GPS bruscamente sem aviso.                 |
+|     - Dispara aviso sonoro de atenção imediato.                          |
+|     - Abre MODAL DE CONFIRMAÇÃO TÁTIL GIGANTE na tela:                   |
+|       "🚨 Cancelamento 99 Food detectado. Taxa de deslocamento: R$ 7,50"|
+|       [ CONFIRMAR E RECALCULAR GPS ] vs [ MANTER ROTA ATUAL ]           |
+|     - Ao confirmar, redireciona o GPS apenas para o destino remanescente.|
++--------------------------------------------------------------------------+
+```
 
 ---
 
-## 🛠️ Etapas de Execução
+## 2. Componentes da Solução
 
-### Etapa 1: Simulador Visual Interativo de Tela Dividida (Split Screen Live Canvas)
-- Implementar componente visual interativo **`DualSplitWindowSimulatorCard`**:
-  - **Metade Superior (50%):** Mockup da janela do App Primário (Ex: iFood - Coleta Madero / Entrega Consolação - R$ 19,50).
-  - **Metade Inferior (50%):** Mockup da janela do App Secundário (Ex: 99Food - Coleta Outback / Entrega Consolação - R$ 21,00).
-  - **Divisor Central & Floating Tactical HUD:** Mini-HUD central flutuante sobreposto exibindo o combo consolidado:
-    - Ganho Bruto Total: **R$ 40,50**
-    - Desvio Geodésico Haversine: **+280m • +1.4 min extras (🟢 Mínimo)**
-    - Lucro Líquido: **R$ 38,20** (descontado combustível)
+### Componente 1: Motor de Resolução de Conflitos (`MultiAppConflictResolutionEngine.kt`)
+- `handleOfferLostRaceCondition(lostOfferId, remainingOffer)`: Desfaz o agrupamento de pedidos, restaura as métricas individuais e aciona a síntese de voz informativa.
+- `handleInTransitCancellation(cancelledOffer, activeOffer)`: Registra a perda, calcula a compensação financeira estimada (taxa de deslocamento) e suspende a alteração de rota até a confirmação manual do motoboy.
 
-### Etapa 2: Integração do Acionamento Real de Split Screen
-- Atualizar a ação de aceite no `DeepOrderPoolCockpitCard` e no novo simulador para disparar:
-  - `SplitScreenDualRadarCoordinator.getInstance(context).launchSplitScreenPair(...)`
-  - Utilizar a Accessibility API (`performGlobalAction(GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN)`) para repartir a tela real do dispositivo Android entre os dois apps parceiros instalados.
-  - Alerta por voz via TTS: *"Iniciando combo de iFood mais 99Food em tela dividida. Primeira coleta a 300 metros."*
+### Componente 2: Diálogo Interativo de Cancelamento (`InTransitCancellationDialog.kt`)
+- Janela flutuante/modal de alta visibilidade e alto contraste.
+- Exibe o app que cancelou, o valor estimado a reivindicar de taxa de deslocamento e o botão gigante para recalcular o destino no GPS.
 
-### Etapa 3: Cenários Práticos de Teste em 1 Toque
-- Adicionar seletores de cenários de trânsito real no Cockpit:
-  1. **💎 Combo Diamante (Paulista -> Consolação):** Corredor direto, desvio de 280m, ganho de R$ 40,50.
-  2. **🟡 Combo Transversal (Jardins -> Itaim):** Ruas paralelas, desvio de 650m, ganho de R$ 34,00.
-  3. **🛑 Descarte de Conflito Geodésico:** Tentativa de corrida em contra-fluxo barrada com aviso sonoro para evitar que a comida esfrie.
+### Componente 3: Painel de Simulação e Controle de Conflitos (`ConflictResolutionCard.kt`)
+- Painel integrado no cockpit para que o entregador teste e entenda na prática como o app se comporta em cada situação.
+- Botões de simulação:
+  - "Simular Perda da 2ª Oferta (Outro Motoboy Aceitou)"
+  - "Simular Cancelamento de Pedido em Trânsito"
 
 ---
 
-## 🔍 Critérios de Sucesso e Verificação
-1. **Compilação 100% OK:** O projeto deve compilar sem erros através do `compile_applet`.
-2. **Interatividade no Emulador:** O motoboy pode clicar em qualquer combo para visualizar a tela dividida simulada e clicar no botão para acionar a divisão nativa.
-3. **Métricas Claras:** R$ por hora, desvio em metros e minutos extras calculados pelo `HaversineGeoDeviationCalculator`.
+## 3. Roteiro de Implementação
+
+1. **`MultiAppConflictResolutionEngine.kt`**: Implementação das regras de desmonte de stack e compensação financeira.
+2. **`InTransitCancellationDialog.kt`**: Modal interativo com botões táteis de confirmação antes de redirecionar o GPS.
+3. **`ConflictResolutionCard.kt`**: Card de cockpit com telemetria de incidentes e simuladores práticos.
+4. **Integração no `MainActivity.kt`**: Conexão aos eventos de cancelamento do `AppNotificationListenerService`.
+5. **Compilação e Verificação**: Execução do `compile_applet`.

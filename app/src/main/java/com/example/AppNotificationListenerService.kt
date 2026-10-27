@@ -1,7 +1,10 @@
 package com.example
 
 import android.app.Notification
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -54,9 +57,24 @@ class AppNotificationListenerService : NotificationListenerService() {
 
         // Padrões Regex para extração de valores em R$, distâncias em KM e Metros
         private val VALUE_REGEX = Pattern.compile("(?:R\\$|BRL)\\s*([0-9]+[\\.,]?[0-9]*)", Pattern.CASE_INSENSITIVE)
+        private val FALLBACK_VALUE_REGEX = Pattern.compile("([0-9]+[\\.,][0-9]{2})\\s*(?:reais|R\\$)", Pattern.CASE_INSENSITIVE)
         private val DISTANCE_REGEX = Pattern.compile("([0-9]+[\\.,]?[0-9]*)\\s*(?:km|quil[oô]metros)", Pattern.CASE_INSENSITIVE)
         private val METERS_REGEX = Pattern.compile("([0-9]+)\\s*(?:m|metros)(?!\\w)", Pattern.CASE_INSENSITIVE)
         private val TIME_REGEX = Pattern.compile("([0-9]+)\\s*(?:min|minutos)", Pattern.CASE_INSENSITIVE)
+
+        /**
+         * Solicita reconexão automática ao sistema Android caso o serviço tenha sido desconectado.
+         */
+        fun requestServiceRebind(context: Context) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try {
+                    requestRebind(ComponentName(context, AppNotificationListenerService::class.java))
+                    Log.i(TAG, "Rebind de NotificationListenerService solicitado com sucesso.")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Falha ao solicitar rebind de notificação: ${e.message}")
+                }
+            }
+        }
 
         // Janela de resfriamento contra duplicatas (12 segundos)
         const val DUPLICATE_COOLDOWN_MS = 12_000L
@@ -168,8 +186,10 @@ class AppNotificationListenerService : NotificationListenerService() {
             return
         }
 
+        val directIntent: PendingIntent? = sbn.notification.actions?.firstOrNull()?.actionIntent ?: sbn.notification.contentIntent
+
         scope.launch {
-            parseDeliveryOffer(packageName, title, text, fullPayload)
+            parseDeliveryOffer(packageName, title, text, fullPayload, directIntent)
         }
     }
 
@@ -203,7 +223,7 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
     }
 
-    private fun parseDeliveryOffer(pkg: String, title: String, text: String, fullText: String) {
+    private fun parseDeliveryOffer(pkg: String, title: String, text: String, fullText: String, directIntent: PendingIntent? = null) {
         val appName = when {
             pkg.contains("ifood", ignoreCase = true) -> "iFood"
             pkg.contains("uber", ignoreCase = true) -> "Uber Direct"
@@ -218,6 +238,12 @@ class AppNotificationListenerService : NotificationListenerService() {
         if (valueMatcher.find()) {
             val raw = valueMatcher.group(1)?.replace(",", ".") ?: "0.0"
             value = raw.toDoubleOrNull() ?: 0.0
+        } else {
+            val fallbackMatcher = FALLBACK_VALUE_REGEX.matcher(fullText)
+            if (fallbackMatcher.find()) {
+                val raw = fallbackMatcher.group(1)?.replace(",", ".") ?: "0.0"
+                value = raw.toDoubleOrNull() ?: 0.0
+            }
         }
 
         // 2. Extração da Distância Total (km ou metros)
@@ -302,6 +328,24 @@ class AppNotificationListenerService : NotificationListenerService() {
 
             _lastInterceptedOffer.value = offer
             _interceptedOffersCount.value += 1
+
+            // Publica instantaneamente no barramento sintético GhostAPI (disponível via REST na porta 8899)
+            try {
+                GhostApiVirtualBus.publishOffer(
+                    GhostApiVirtualBus.UnifiedDeliveryOffer(
+                        id = offer.id,
+                        platform = rd.platform,
+                        restaurant = restaurantName,
+                        pickupAddress = restaurantName,
+                        deliveryAddress = "Destino Push",
+                        payoutBrl = rd.financials.payoutBrl,
+                        distanceKm = rd.financials.totalDistanceKm,
+                        ratePerKm = rd.financials.ratePerKm,
+                        estimatedMinutes = rd.financials.estimatedTimeMinutes,
+                        rawActionIntent = directIntent
+                    )
+                )
+            } catch (_: Exception) {}
 
             // Validação rigorosa dos filtros definidos pelo entregador (raio de alcance e piso de ganho)
             val savedCriteria = FilterPreferencesManager.getSavedCriteria(applicationContext)

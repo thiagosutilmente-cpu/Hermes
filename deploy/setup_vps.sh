@@ -53,19 +53,44 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# 6. Recarregar e iniciar o serviço
+# 6. Configurar Nginx para a porta 80 encaminhar transparente para a 8000
+echo "🌐 Configurando Nginx na porta 80..."
+apt-get install -y nginx
+cat << 'EOF' > /etc/nginx/sites-available/jarvis
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    client_max_body_size 50M;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+ln -sf /etc/nginx/sites-available/jarvis /etc/nginx/sites-enabled/default
+systemctl restart nginx || true
+
+# 7. Recarregar e iniciar o serviço jarvis
 systemctl daemon-reload
 systemctl enable jarvis
 systemctl restart jarvis
 
 sleep 2
 
-# 7. Testar se o servidor está respondendo
+# 8. Testar se o servidor está respondendo
 STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health || echo "000")
 
 if [ "$STATUS_CODE" -eq 200 ]; then
-    echo "✅ SUCESSO! O Jarvis Backend está ONLINE na porta 8000!"
-    echo "🔗 Teste público: http://187.77.248.73:8000/health"
+    echo "✅ SUCESSO! O Jarvis Backend está ONLINE nas portas 80 e 8000!"
+    echo "🔗 Verificação Health: http://187.77.248.73/health"
+    echo "🔗 Política de Privacidade: http://187.77.248.73/privacy.html"
+    echo "🔗 Swagger Docs: http://187.77.248.73:8000/docs"
 else
     echo "⚠️ O serviço foi iniciado mas retornou status $STATUS_CODE. Verifique com: journalctl -u jarvis -n 20"
 fi

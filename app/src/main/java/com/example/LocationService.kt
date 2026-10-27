@@ -559,9 +559,10 @@ class LocationService : Service(), TextToSpeech.OnInitListener {
         }
 
         try {
-            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
-                .setMinUpdateIntervalMillis(500L)
-                .setMinUpdateDistanceMeters(0.5f)
+            // Calibração tática anti-superaquecimento: 2.5s / 2m preserva bateria da moto sob o sol e evita thermal throttling
+            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2500L)
+                .setMinUpdateIntervalMillis(1500L)
+                .setMinUpdateDistanceMeters(2.0f)
                 .setWaitForAccurateLocation(false)
                 .build()
 

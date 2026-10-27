@@ -24,6 +24,10 @@ import threading
 import urllib.parse
 import urllib.request
 import socket
+import base64
+import hashlib
+import struct
+import time
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
 
 # Suporte opcional a Flask se instalado; fallback automático para servidor padrão Python (Zero dependências externas)
@@ -40,12 +44,18 @@ except ImportError:
 DATABASE_FILE = "radar_cockpit.db"
 
 def get_db():
-    conn = sqlite3.connect(DATABASE_FILE)
+    conn = sqlite3.connect(DATABASE_FILE, timeout=15.0)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=5000;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+    except Exception:
+        pass
     return conn
 
 def init_database():
-    """Inicializa as 4 tabelas obrigatórias e popula dados mockados no startup."""
+    """Inicializa as 4 tabelas obrigatórias com WAL mode e popula dados mockados no startup."""
     conn = get_db()
     cur = conn.cursor()
 
@@ -111,6 +121,24 @@ def init_database():
             distance_km REAL NOT NULL,
             error_code TEXT NOT NULL,
             reason TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+    # Tabela 6: emergency_sos_logs (id, worker_id, event, timestamp, latitude, longitude, speed_kmh, maps_url, contacts_notified, delivery_context, status, created_at)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS emergency_sos_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            worker_id TEXT,
+            event TEXT DEFAULT 'SOS_SILENT_ALERT',
+            timestamp INTEGER,
+            latitude REAL,
+            longitude REAL,
+            speed_kmh REAL,
+            maps_url TEXT,
+            contacts_notified INTEGER DEFAULT 0,
+            delivery_context TEXT,
+            status TEXT DEFAULT 'ACTIVE',
             created_at TEXT NOT NULL
         )
     """)
@@ -1103,6 +1131,13 @@ if FLASK_AVAILABLE:
         params = data.get("params", {})
         print(f"[FIREBASE ANALYTICS WEB] Event: {event_name} | {params}")
         return flask_jsonify({"success": True, "event": event_name, "status": "recorded"}), 200
+    @app.route("/api/admin/auth", methods=["POST"])
+    def f_admin_auth():
+        data = flask_request.get_json(silent=True) or {}
+        pin = str(data.get("pin", "")).strip()
+        if pin == "748597":
+            return flask_jsonify({"success": True, "token": "radar_adm_tok_748597_valid", "message": "Acesso autorizado"}), 200
+        return flask_jsonify({"success": False, "message": "PIN incorreto. Acesso restrito ao proprietário."}), 401
     @app.route("/manifest.json", methods=["GET"])
     def f_mnf(): return FlaskResponse(get_manifest_json(), mimetype="application/json")
     @app.route("/sw.js", methods=["GET"])
@@ -1121,6 +1156,14 @@ if FLASK_AVAILABLE:
         if apk_paths:
             return flask_send_file(apk_paths[0], as_attachment=True, download_name="RadarCoordinator.apk", mimetype="application/vnd.android.package-archive")
         return flask_jsonify({"error": "APK não encontrado"}), 404
+    @app.route("/privacy", methods=["GET"])
+    @app.route("/privacy.html", methods=["GET"])
+    def f_privacy():
+        try:
+            with open("privacy.html", "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception:
+            return "Política de Privacidade — Radar Coordinator. Contato: thiagosutilmente@gmail.com"
     @app.route("/", methods=["GET"])
     def f_idx(): return HTML_CONTENT
 
@@ -1162,6 +1205,80 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.send_cors_headers("text/html; charset=utf-8")
             self.end_headers()
 
+    def handle_websocket_telemetry(self):
+        """Suporte nativo ao handshake e frames RFC 6455 para o WebSocketKeepAliveEngine do Android."""
+        key = self.headers.get("Sec-WebSocket-Key")
+        if not key:
+            self.send_error(400, "Missing Sec-WebSocket-Key")
+            return
+        GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+        accept_token = base64.b64encode(hashlib.sha1((key + GUID).encode()).digest()).decode()
+        self.send_response(101, "Switching Protocols")
+        self.send_header("Upgrade", "websocket")
+        self.send_header("Connection", "Upgrade")
+        self.send_header("Sec-WebSocket-Accept", accept_token)
+        self.end_headers()
+
+        sock = self.connection
+        sock.settimeout(45.0)
+        try:
+            while True:
+                hdr = sock.recv(2)
+                if not hdr or len(hdr) < 2:
+                    break
+                b1, b2 = hdr[0], hdr[1]
+                opcode = b1 & 0x0F
+                if opcode == 0x8:  # Close frame
+                    break
+                masked = (b2 & 0x80) != 0
+                length = b2 & 0x7F
+                if length == 126:
+                    ext = sock.recv(2)
+                    if not ext or len(ext) < 2:
+                        break
+                    length = struct.unpack("!H", ext)[0]
+                elif length == 127:
+                    ext = sock.recv(8)
+                    if not ext or len(ext) < 8:
+                        break
+                    length = struct.unpack("!Q", ext)[0]
+
+                masks = sock.recv(4) if masked else b""
+                payload = b""
+                remaining = length
+                while remaining > 0:
+                    chunk = sock.recv(min(remaining, 4096))
+                    if not chunk:
+                        break
+                    payload += chunk
+                    remaining -= len(chunk)
+
+                if masked and masks:
+                    payload = bytes(b ^ masks[i % 4] for i, b in enumerate(payload))
+
+                if opcode == 0x9:  # Ping
+                    pong_frame = bytearray([0x8A, len(payload)]) + payload
+                    sock.sendall(pong_frame)
+                elif opcode == 0x1:  # Text frame (JSON)
+                    try:
+                        ack_payload = json.dumps({
+                            "type": "PONG_ACK",
+                            "status": "CONNECTED",
+                            "server_time": int(time.time() * 1000)
+                        }).encode("utf-8")
+                        ack_len = len(ack_payload)
+                        ack_hdr = bytearray([0x81])
+                        if ack_len < 126:
+                            ack_hdr.append(ack_len)
+                        else:
+                            ack_hdr.append(126)
+                            ack_hdr.extend(struct.pack("!H", ack_len))
+                        sock.sendall(ack_hdr + ack_payload)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
@@ -1169,6 +1286,20 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
 
         if path == "/" or path == "/index.html":
             body = HTML_CONTENT.encode("utf-8")
+            self.send_response(200)
+            self.send_cors_headers("text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            try:
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError, socket.error):
+                pass
+        elif path in ("/privacy", "/privacy.html"):
+            try:
+                with open("privacy.html", "rb") as pf:
+                    body = pf.read()
+            except Exception:
+                body = b"Politica de Privacidade - Radar Coordinator"
             self.send_response(200)
             self.send_cors_headers("text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -1334,6 +1465,48 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+        elif path == "/api/marketing/status":
+            try:
+                import marketing.jarvis_autonomous_marketer as jam
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute("SELECT id, title, channel, hook_text, copy_text, daily_budget, status, created_at FROM marketing_campaigns ORDER BY id DESC LIMIT 10")
+                ads = [{"id": r[0], "title": r[1], "channel": r[2], "hook": r[3], "copy": r[4], "budget": r[5], "status": r[6], "created_at": r[7]} for r in cur.fetchall()]
+                today = datetime.date.today().strftime("%Y-%m-%d")
+                cur.execute("SELECT meta_spend, leads_contacted, pix_created, pix_paid, revenue_brl FROM marketing_daily_stats WHERE date = ?", (today,))
+                st = cur.fetchone()
+                conn.close()
+                res = {
+                    "status": "active_24_7",
+                    "budget_ceiling_brl": jam.MAX_DAILY_BUDGET_BRL,
+                    "today": {
+                        "meta_spend": st[0] if st else 0.0,
+                        "leads": st[1] if st else 0,
+                        "pix_created": st[2] if st else 0,
+                        "pix_paid": st[3] if st else 0,
+                        "revenue": st[4] if st else 0.0
+                    },
+                    "active_campaigns": ads
+                }
+            except Exception as e:
+                res = {"status": "active_24_7", "error": str(e), "budget_ceiling_brl": 15.00, "today": {"meta_spend": 0.0, "leads": 0, "pix_created": 0, "pix_paid": 0, "revenue": 0.0}, "active_campaigns": []}
+            body = json.dumps(res).encode("utf-8")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+        elif path == "/api/emergency/sos":
+            conn = get_db()
+            rows = conn.execute("SELECT * FROM emergency_sos_logs ORDER BY id DESC LIMIT 25").fetchall()
+            conn.close()
+            alerts = [dict(r) for r in rows]
+            body = json.dumps({"success": True, "count": len(alerts), "alerts": alerts}).encode("utf-8")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/ws/telemetry" or (self.headers.get("Upgrade", "").lower() == "websocket"):
+            self.handle_websocket_telemetry()
         else:
             self.send_response(404)
             self.send_cors_headers()
@@ -1438,6 +1611,90 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             res, code = ai_parse_notification_data(req_data)
             body = json.dumps(res).encode("utf-8")
             self.send_response(code)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/webhook/asaas":
+            import marketing.jarvis_autonomous_marketer as jam
+            success = jam.handle_asaas_webhook_payment(req_data)
+            body = json.dumps({"success": success, "event": "processed"}).encode("utf-8")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/webhook/whatsapp":
+            import marketing.jarvis_autonomous_marketer as jam
+            data = req_data.get("data", {})
+            sender = (
+                data.get("key", {}).get("remoteJid", "").replace("@s.whatsapp.net", "")
+                or req_data.get("phone", "")
+            )
+            message_text = (
+                data.get("message", {}).get("conversation")
+                or data.get("message", {}).get("extendedTextMessage", {}).get("text")
+                or req_data.get("message", "")
+            )
+            name = data.get("pushName") or req_data.get("name", "Guerreiro")
+            bot_reply = jam.process_incoming_whatsapp_message(sender, message_text, name)
+            body = json.dumps({"success": True, "reply": bot_reply}).encode("utf-8")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/marketing/trigger-daily":
+            import marketing.jarvis_autonomous_marketer as jam
+            jam.generate_daily_marketing_batch()
+            jam.audit_meta_ads_performance()
+            briefing = jam.send_daily_morning_briefing()
+            body = json.dumps({"success": True, "briefing": briefing}).encode("utf-8")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+        elif path == "/api/emergency/sos":
+            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            worker_id = str(req_data.get("workerId", ""))
+            event = str(req_data.get("event", "SOS_SILENT_ALERT"))
+            timestamp = int(req_data.get("timestamp", int(time.time() * 1000)))
+            lat = float(req_data.get("latitude", -23.561684))
+            lng = float(req_data.get("longitude", -46.655981))
+            speed = float(req_data.get("speedKmh", 0.0))
+            maps_url = str(req_data.get("mapsUrl", f"https://maps.google.com/?q={lat},{lng}"))
+            contacts = int(req_data.get("contactsNotified", 0))
+            delivery_ctx = str(req_data.get("deliveryContext", "Rota ativa"))
+
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO emergency_sos_logs (worker_id, event, timestamp, latitude, longitude, speed_kmh, maps_url, contacts_notified, delivery_context, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
+            """, (worker_id, event, timestamp, lat, lng, speed, maps_url, contacts, delivery_ctx, now_str))
+            conn.commit()
+            sos_id = cur.lastrowid
+            conn.close()
+
+            body = json.dumps({
+                "success": True,
+                "message": "Beacon de emergência SOS registrado na central com prioridade máxima",
+                "sos_id": sos_id,
+                "worker_id": worker_id,
+                "status": "DISPATCHED_TO_CENTRAL"
+            }).encode("utf-8")
+            self.send_response(200)
+            self.send_cors_headers("application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/admin/auth":
+            pin = str(req_data.get("pin", "")).strip()
+            if pin == "748597":
+                body = json.dumps({"success": True, "token": "radar_adm_tok_748597_valid", "message": "Acesso autorizado"}).encode("utf-8")
+                self.send_response(200)
+            else:
+                body = json.dumps({"success": False, "message": "PIN incorreto. Acesso restrito ao proprietário."}).encode("utf-8")
+                self.send_response(401)
             self.send_cors_headers("application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -2529,7 +2786,6 @@ HTML_CONTENT = """<!DOCTYPE html>
       <a href="#analytics" class="nav-pill">📊 Analytics</a>
       <a href="#subscription" class="nav-pill">⭐ Plano Pro</a>
       <a href="#settings" class="nav-pill">⚙️ Ajustes</a>
-      <a href="#admin" class="nav-pill">🔒 Admin</a>
       <a href="/download/apk" class="nav-pill" style="background: rgba(0, 255, 136, 0.15); color: #00ff88; border-color: #00ff88;" download>📲 Baixar APK (.apk)</a>
       <a href="/dossie.pdf" class="nav-pill" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1.5px solid #38bdf8; font-weight: bold;" target="_blank" download>📄 Dossiê PDF (Claude)</a>
     </div>
@@ -3331,7 +3587,6 @@ HTML_CONTENT = """<!DOCTYPE html>
       <a href="#dashboard" class="nav-pill">Cockpit</a>
       <a href="#stacks" class="nav-pill">Stacks</a>
       <a href="#settings" class="nav-pill active">Ajustes & Filtros</a>
-      <a href="#admin" class="nav-pill">Admin</a>
     </div>
 
     <h2 style="font-size: 18px; font-weight: 800; color: #ffffff; margin-bottom: 16px;">Configuração de Filtros do Cockpit</h2>
@@ -3482,14 +3737,45 @@ HTML_CONTENT = """<!DOCTYPE html>
     </div>
   </section>
 
-  <!-- #ADMIN (Tela admin secreta, métricas: 1.247 usuários, 342 ativos hoje, 8.5% conversão, R$ 18.700 MRR) -->
+  <!-- #ADMIN (Cockpit Protegido do Proprietário / Dono) -->
   <section id="admin" class="view-section">
-    <div class="nav-pills">
-      <a href="#dashboard" class="nav-pill">Cockpit</a>
-      <a href="#admin" class="nav-pill active">Admin Secreto</a>
+    <!-- BLOQUEIO DE AUTENTICAÇÃO DO PROPRIETÁRIO -->
+    <div id="admin-auth-lock" class="glass" style="max-width: 420px; margin: 40px auto; padding: 28px 24px; text-align: center; border: 1.5px solid rgba(0, 255, 136, 0.3); border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+      <div style="font-size: 40px; margin-bottom: 12px;">🛡️</div>
+      <h2 style="font-size: 18px; font-weight: 900; color: #ffffff; margin-bottom: 6px;">Cockpit do Proprietário</h2>
+      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.4;">
+        Painel executivo restrito. Digite o PIN mestre de 6 dígitos para acessar métricas, faturamento e servidor.
+      </p>
+      
+      <div style="margin-bottom: 16px;">
+        <input type="password" id="admin-pin-input" maxlength="6" inputmode="numeric" placeholder="PIN mestre" 
+               style="width: 100%; max-width: 220px; padding: 12px 16px; font-size: 20px; font-weight: 800; letter-spacing: 6px; text-align: center; background: rgba(0,0,0,0.4); border: 1.5px solid rgba(0,255,136,0.4); border-radius: 12px; color: #00ff88; outline: none;" 
+               onkeydown="if(event.key==='Enter') submitAdminPin();" />
+      </div>
+
+      <div id="admin-pin-error" style="display: none; color: #ff4444; font-size: 11px; font-weight: 700; margin-bottom: 14px;"></div>
+
+      <button onclick="submitAdminPin()" class="btn btn-green" style="width: 100%; max-width: 220px; font-weight: 800; padding: 12px; font-size: 13px;">
+        🔓 ACESSAR COCKPIT
+      </button>
+      <div style="margin-top: 16px;">
+        <a href="#dashboard" style="font-size: 11px; color: var(--text-muted); text-decoration: none;">← Voltar ao início</a>
+      </div>
     </div>
 
-    <h2 style="font-size: 18px; font-weight: 900; color: var(--primary); margin-bottom: 14px;">Métricas da Plataforma</h2>
+    <!-- CONTEÚDO RESTRITO DESBLOQUEADO -->
+    <div id="admin-panel-content" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.25); border-radius: 12px; padding: 10px 16px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 12px;">🟢</span>
+          <span style="font-size: 12px; font-weight: 800; color: #00ff88;">Sessão Autenticada — Dono da Plataforma</span>
+        </div>
+        <button onclick="logoutAdmin()" class="btn btn-sm" style="background: rgba(255,68,68,0.15); color: #ff6b6b; border: 1px solid #ff4444; font-size: 11px; padding: 4px 10px; cursor: pointer;">
+          🔒 Bloquear / Sair
+        </button>
+      </div>
+
+      <h2 style="font-size: 18px; font-weight: 900; color: var(--primary); margin-bottom: 14px;">Métricas da Plataforma</h2>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
       <div class="glass" style="padding: 16px;">
@@ -3597,6 +3883,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         <div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 12px;">Carregando logs de diagnóstico...</div>
       </div>
     </div>
+    </div> <!-- /#admin-panel-content -->
   </section>
 
   <!-- #AI-COPILOT (Jarvis Neural AI Copilot & Intelligent Assistant) -->
@@ -3609,7 +3896,6 @@ HTML_CONTENT = """<!DOCTYPE html>
       <a href="#analytics" class="nav-pill">Analytics</a>
       <a href="#subscription" class="nav-pill">Plano Pro</a>
       <a href="#settings" class="nav-pill">Ajustes</a>
-      <a href="#admin" class="nav-pill">Admin</a>
     </div>
 
     <!-- Header do Copilot com Avatar Holográfico -->
@@ -3827,8 +4113,69 @@ HTML_CONTENT = """<!DOCTYPE html>
           }
         }, 2000);
       }
+
+      if (hash === '#admin') {
+        checkAdminAuth();
+      }
     }
     window.addEventListener('hashchange', handleRouting);
+
+    function checkAdminAuth() {
+      const isAuth = sessionStorage.getItem('radar_admin_auth') === 'true';
+      const lock = document.getElementById('admin-auth-lock');
+      const content = document.getElementById('admin-panel-content');
+      if (lock && content) {
+        if (isAuth) {
+          lock.style.display = 'none';
+          content.style.display = 'block';
+          if (typeof fetchFailures === 'function') fetchFailures();
+        } else {
+          lock.style.display = 'block';
+          content.style.display = 'none';
+        }
+      }
+    }
+
+    async function submitAdminPin() {
+      const pinInput = document.getElementById('admin-pin-input');
+      const err = document.getElementById('admin-pin-error');
+      const pin = (pinInput ? pinInput.value : '').trim();
+      if (!pin) {
+        if (err) { err.textContent = 'Digite o PIN mestre de 6 dígitos.'; err.style.display = 'block'; }
+        return;
+      }
+      try {
+        const res = await fetch('/api/admin/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: pin })
+        });
+        const data = await res.json();
+        if (data.success) {
+          sessionStorage.setItem('radar_admin_auth', 'true');
+          if (err) err.style.display = 'none';
+          if (pinInput) pinInput.value = '';
+          checkAdminAuth();
+        } else {
+          if (err) { err.textContent = data.message || 'PIN incorreto. Acesso restrito.'; err.style.display = 'block'; }
+        }
+      } catch (e) {
+        if (pin === '748597') {
+          sessionStorage.setItem('radar_admin_auth', 'true');
+          if (err) err.style.display = 'none';
+          if (pinInput) pinInput.value = '';
+          checkAdminAuth();
+        } else {
+          if (err) { err.textContent = 'PIN incorreto. Acesso restrito ao proprietário.'; err.style.display = 'block'; }
+        }
+      }
+    }
+
+    function logoutAdmin() {
+      sessionStorage.removeItem('radar_admin_auth');
+      checkAdminAuth();
+      location.hash = '#dashboard';
+    }
 
     // Funções obrigatórias
     function toggleVoz() {

@@ -20,8 +20,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="com.android.vending.BILLING" />
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <uses-permission android:name="android.permission.SEND_SMS" />
 
     <!-- Permissão para interceptar notificações dos aplicativos de entrega (iFood, Uber, Rappi, 99) -->
     <uses-permission

@@ -340,6 +340,7 @@ fun RadarDeliveryDashboard(
         RealTimeProfitEngine.initialize(context)
         PlayBillingManager.initialize(context)
         FirebaseAnalyticsManager.initialize(context)
+        GhostApiVirtualBus.initialize(context)
         FirebaseAnalyticsManager.logScreenView("RadarDeliveryDashboard", "MainActivity")
     }
     val subscriptionState by SubscriptionManager.subscriptionState.collectAsState()
@@ -597,6 +598,11 @@ fun RadarDeliveryDashboard(
                 }
             }
         }
+    }
+
+    // Recalcula dinamicamente o raio do Geofencing com base na velocidade real do GPS
+    LaunchedEffect(speedState.currentSpeedKmh) {
+        DynamicGeofencingEngine.recalculate(speedKmh = speedState.currentSpeedKmh)
     }
 
     // 5. Lista de Ofertas Interceptadas
@@ -1512,7 +1518,11 @@ fun RadarDeliveryDashboard(
         Scaffold(
             containerColor = if (isNightMode) CockpitOledBlack else SunlightOffWhite,
         topBar = {
-            CenterAlignedTopAppBar(
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Barra de Status em Tempo Real: Latência 4G/5G e Alerta de Recuperação Offline
+                RealtimeLatencyStatusBar()
+
+                CenterAlignedTopAppBar(
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = if (isNightMode) CockpitSurface else SunlightPureWhite,
                     titleContentColor = if (isNightMode) CockpitTextPrimary else SunlightTextPrimary
@@ -1774,7 +1784,8 @@ fun RadarDeliveryDashboard(
                     containerColor = DarkCard
                 )
             )
-        },
+        }
+    },
         floatingActionButton = {
             val sosState by EmergencySosManager.sosState.collectAsState()
             val isSosTriggered = sosState is EmergencySosState.Active || sosState is EmergencySosState.Countdown
@@ -1855,6 +1866,46 @@ fun RadarDeliveryDashboard(
                         onOpenFilterSettings = { showFilterSettingsScreen = true },
                         onOpenEmergencyDialog = { showEmergencySosDialog = true }
                     )
+                }
+
+                // Barramento Sintético GhostAPI (Ponte REST Zero-API em 127.0.0.1:8899)
+                item(key = "ghost_api_virtual_bus_card") {
+                    GhostApiCockpitCard()
+                }
+
+                // Diagnóstico em Vida Real da Mesclagem Multi-Apps (iFood + 99 com Notificações do Android)
+                item(key = "real_world_diagnostic_card") {
+                    RealWorldDiagnosticCockpitCard()
+                }
+
+                // Simulador de Perda de Sinal (Túnel / Subsolo com Cache Local Room SQLite)
+                item(key = "signal_loss_diagnostic_card") {
+                    SignalLossDiagnosticCard()
+                }
+
+                // Mapa Tático Vetorial de Rotas Mescladas (Sobreposição e Economia de Trajeto)
+                item(key = "tactical_merged_route_map_card") {
+                    TacticalMergedRouteMapCard()
+                }
+
+                // Cronômetro Inteligente de Fila de Cozinha & Ordem Ótima de Retirada
+                item(key = "kitchen_wait_timer_card") {
+                    KitchenWaitTimerCard()
+                }
+
+                // Escudo de Resolução de Conflitos & Cancelamentos em Trânsito
+                item(key = "conflict_resolution_card") {
+                    ConflictResolutionCard()
+                }
+
+                // Gerenciamento de Áudio Tático Text-to-Speech (Olhos na Estrada via Fone de Ouvido)
+                item(key = "audio_route_alert_control_card") {
+                    AudioRouteAlertControlCard()
+                }
+
+                // Geofencing Dinâmico Adaptativo (Raio Ajustável por Velocidade e Densidade Gastronômica)
+                item(key = "dynamic_geofencing_control_card") {
+                    DynamicGeofencingControlCard()
                 }
 
                 // Card de Gestão & Detecção Automática de Tema Escuro Anti-Fadiga Ocular
@@ -3126,6 +3177,20 @@ fun RadarDeliveryDashboard(
     if (showEmergencySosDialog) {
         EmergencySosDialog(
             onDismissRequest = { showEmergencySosDialog = false }
+        )
+    }
+
+    // Diálogo Modal Interativo de Cancelamento em Trânsito (Confirmação Manual do Motoboy antes de alterar GPS)
+    val conflictEngineState by MultiAppConflictResolutionEngine.engineState.collectAsState()
+    if (conflictEngineState.isAwaitingDriverConfirmation && conflictEngineState.activeIncident != null) {
+        InTransitCancellationDialog(
+            incident = conflictEngineState.activeIncident!!,
+            onConfirmRecalculation = {
+                MultiAppConflictResolutionEngine.confirmRecalculation(context)
+            },
+            onDismissWithoutRecalculation = {
+                MultiAppConflictResolutionEngine.dismissWithoutRecalculation()
+            }
         )
     }
 }

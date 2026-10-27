@@ -150,8 +150,9 @@ class TextToSpeechManager private constructor(private val context: Context) : Te
             }
 
         } else {
-            Log.e(TAG, "Falha na inicialização do TextToSpeech (status: $status)")
+            Log.e(TAG, "Falha na inicialização do TextToSpeech (status: $status). Dispositivo sem motor TTS em português.")
             _isInitialized.value = false
+            pendingSpeechQueue.clear()
         }
     }
 
@@ -237,6 +238,9 @@ class TextToSpeechManager private constructor(private val context: Context) : Te
 
         if (!_isInitialized.value || textToSpeech == null) {
             Log.w(TAG, "TTS ainda não inicializado. Enfileirando áudio: \"$text\"")
+            if (pendingSpeechQueue.size >= 5) {
+                pendingSpeechQueue.poll() // descarta avisos antigos para evitar vazamento de memória
+            }
             pendingSpeechQueue.add(text)
             return
         }

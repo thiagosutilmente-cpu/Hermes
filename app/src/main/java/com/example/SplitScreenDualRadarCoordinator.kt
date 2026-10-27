@@ -200,15 +200,21 @@ class SplitScreenDualRadarCoordinator private constructor(private val context: C
         collectTexts(rootNode, texts)
         val blob = texts.joinToString(" ")
 
-        val valueRegex = Regex("""R\$\s*(\d+[.,]\d{2})""")
-        val distanceRegex = Regex("""(\d+[.,]?\d*)\s*km""", RegexOption.IGNORE_CASE)
+        val valueRegex = Regex("""(?:R\$|BRL)\s*([0-9]{1,3}(?:\.[0-9]{3})*(?:,[0-9]{1,2})?|[0-9]+(?:[.,][0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
+        val kmRegex = Regex("""([0-9]+[.,]?[0-9]*)\s*(?:km|quil[oô]metros)""", RegexOption.IGNORE_CASE)
+        val metersRegex = Regex("""([0-9]+)\s*(?:m|metros)(?!\w)""", RegexOption.IGNORE_CASE)
 
         val matchVal = valueRegex.find(blob)
-        val matchDist = distanceRegex.find(blob)
+        val matchKm = kmRegex.find(blob)
+        val matchMeters = if (matchKm == null) metersRegex.find(blob) else null
 
-        if (matchVal != null && matchDist != null) {
-            val v = matchVal.groupValues[1].replace(',', '.').toDoubleOrNull() ?: 0.0
-            val d = matchDist.groupValues[1].replace(',', '.').toDoubleOrNull() ?: 0.0
+        if (matchVal != null && (matchKm != null || matchMeters != null)) {
+            val v = matchVal.groupValues[1].replace(".", "").replace(',', '.').toDoubleOrNull() ?: 0.0
+            val d = if (matchKm != null) {
+                matchKm.groupValues[1].replace(',', '.').toDoubleOrNull() ?: 0.0
+            } else {
+                (matchMeters!!.groupValues[1].toDoubleOrNull() ?: 0.0) / 1000.0
+            }
 
             if (v > 0.0 && d > 0.0) {
                 val rest = texts.firstOrNull {

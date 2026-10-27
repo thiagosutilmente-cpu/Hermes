@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano de implementação para simulação de corridas reais com mesclagem profunda de pedidos e acionamento de tela dividida (split-screen 50/50) com preview interativo no guidão.",
-  "updatedAt":  "2026-10-20T15:42:51.536303514Z",
+  "summary":  "Plano de implementação para o Sistema de Resolução de Conflitos e Cancelamentos em Mesclagem Multi-Apps. Trata race conditions (outro motoboy aceitou primeiro) mantendo o pedido principal e recalculando rota individual, e gerencia cancelamentos em trânsito com diálogo de confirmação manual na tela antes de alterar o destino no GPS.",
+  "updatedAt":  "2026-10-23T12:59:31.965058222Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

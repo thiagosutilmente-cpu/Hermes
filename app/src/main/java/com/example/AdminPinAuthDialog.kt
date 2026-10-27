@@ -166,9 +166,9 @@ fun AdminPinAuthDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Dica: PIN padrão de fábrica é 1984",
+                    text = "Acesso restrito: Digite seu código de administrador",
                     color = Color(0xFF64748B),
-                    fontSize = 10.sp
+                    fontSize = 11.sp
                 )
             }
         },

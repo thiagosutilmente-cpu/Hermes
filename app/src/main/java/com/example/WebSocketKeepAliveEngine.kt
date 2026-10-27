@@ -159,6 +159,9 @@ class WebSocketKeepAliveEngine(private val context: Context) {
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             Log.w(TAG, "❌ Falha na conexão WebSocket: ${t.message} (Resp: ${response?.code})")
+            try {
+                response?.close()
+            } catch (_: Exception) {}
             stopHeartbeatLoop()
             _connectionState.value = SocketConnectionState.Error(t.message ?: "Falha de rede")
             if (!isUserExplicitDisconnect) {

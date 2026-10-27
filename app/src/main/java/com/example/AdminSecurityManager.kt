@@ -17,7 +17,7 @@ object AdminSecurityManager {
 
     private const val PREFS_NAME = "radar_admin_security_prefs"
     private const val KEY_ADMIN_PIN = "admin_secret_pin"
-    private const val DEFAULT_PIN = "1984"
+    private const val DEFAULT_PIN = "748597"
 
     // Estado reativo em memória da sessão administrativa
     private val _isAdminUnlocked = MutableStateFlow(false)
@@ -32,7 +32,7 @@ object AdminSecurityManager {
     }
 
     /**
-     * Retorna o PIN configurado pelo proprietário ou o PIN padrão (1984).
+     * Retorna o PIN configurado pelo proprietário ou o PIN padrão.
      */
     fun getAdminPin(context: Context): String {
         return getPrefs(context).getString(KEY_ADMIN_PIN, DEFAULT_PIN) ?: DEFAULT_PIN

@@ -457,8 +457,9 @@ object EmergencySosManager {
             context.startActivity(intent)
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Falha ao abrir WhatsApp para contato ${contact.name}: ${e.message}")
-            false
+            Log.e(TAG, "Falha ao abrir WhatsApp para contato ${contact.name}: ${e.message}. Executando fallback para SMS...")
+            // Fallback imediato de emergência via SMS
+            sendSosViaSms(context, contact, customMessage)
         }
     }
 
