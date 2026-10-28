@@ -28,6 +28,7 @@ import requests
 import uvicorn
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel
 
@@ -73,8 +74,24 @@ app = FastAPI(
     version="3.0.0"
 )
 
+# Middleware de CORS para permitir acesso irrestrito do app Android e Dashboards
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+def get_db():
+    """Gera conexão com SQLite otimizada com WAL mode e timeout estendido contra bloqueios de concorrência."""
+    conn = sqlite3.connect("jarvis_core.db", timeout=30.0)
+    conn.execute("PRAGMA journal_mode = WAL;")
+    conn.execute("PRAGMA busy_timeout = 30000;")
+    return conn
+
 def init_db():
-    conn = sqlite3.connect("jarvis_core.db")
+    conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
@@ -106,6 +123,15 @@ def init_db():
             leader_wallet_id TEXT,
             leader_amount REAL DEFAULT 10.0,
             master_pj_amount REAL DEFAULT 15.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS processed_payments (
+            payment_id TEXT PRIMARY KEY,
+            customer_id TEXT,
+            value REAL,
+            event TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -207,6 +233,98 @@ def download_latest_apk():
             return FileResponse(apk, filename="RadarCoordinator.apk", media_type="application/vnd.android.package-archive")
     raise HTTPException(status_code=404, detail="APK não encontrado no servidor.")
 
+@app.get("/admin", response_class=HTMLResponse)
+@app.get("/dashboard", response_class=HTMLResponse)
+def get_admin_dashboard():
+    """Serve o Dashboard Tático de Faturamento e Controle de Motoboys."""
+    paths_to_check = [
+        os.path.join(os.path.dirname(__file__), "admin.html"),
+        os.path.join(os.path.dirname(__file__), "..", "admin.html"),
+        "admin.html",
+        "/var/www/html/admin.html",
+        "/root/Hermes/deploy/admin.html"
+    ]
+    for p in paths_to_check:
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read(), status_code=200)
+    return HTMLResponse(content="<h1>Jarvis HQ Dashboard</h1><p>admin.html pronto.</p>", status_code=200)
+
+@app.get("/api/admin/metrics")
+def get_admin_metrics():
+    """Retorna métricas consolidadas de receita, motoboys e repasses split em tempo real."""
+    import datetime
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT COUNT(*), COALESCE(SUM(total_value), 0), COALESCE(SUM(master_pj_amount), 0), COALESCE(SUM(leader_amount), 0) FROM split_settlements")
+    split_stats = cursor.fetchone()
+    total_pix_count = split_stats[0] if split_stats else 0
+    total_revenue = split_stats[1] if split_stats else 0.0
+    master_revenue = split_stats[2] if split_stats else 0.0
+    leader_revenue = split_stats[3] if split_stats else 0.0
+    
+    cursor.execute("SELECT COUNT(*), SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) FROM users")
+    user_stats = cursor.fetchone()
+    total_users = user_stats[0] if user_stats else 0
+    active_users = user_stats[1] if (user_stats and user_stats[1]) else 0
+    
+    cursor.execute("SELECT id, customer_id, phone, status, plan_type, expires_at FROM users ORDER BY id DESC LIMIT 20")
+    user_rows = cursor.fetchall()
+    users = [
+        {"id": r[0], "customer_id": r[1], "phone": r[2], "status": r[3], "plan_type": r[4], "expires_at": r[5]}
+        for r in user_rows
+    ]
+    
+    cursor.execute("SELECT id, total_value, leader_amount, master_pj_amount, created_at FROM split_settlements ORDER BY id DESC LIMIT 20")
+    split_rows = cursor.fetchall()
+    splits = [
+        {"id": r[0], "total_value": r[1], "leader_amount": r[2], "master_pj_amount": r[3], "created_at": r[4]}
+        for r in split_rows
+    ]
+    conn.close()
+    
+    return {
+        "success": True,
+        "total_revenue": total_revenue,
+        "total_pix_count": total_pix_count,
+        "master_revenue": master_revenue,
+        "leader_revenue": leader_revenue,
+        "total_users": total_users,
+        "active_users": active_users,
+        "users": users,
+        "splits": splits
+    }
+
+@app.post("/api/admin/simulate-pix")
+def simulate_pix():
+    """Simula um recebimento PIX semanal de R$ 25,00 com split 60/40 para teste de fluxo."""
+    import datetime
+    conn = get_db()
+    cursor = conn.cursor()
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    expires = (datetime.datetime.now() + datetime.timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    test_id = f"cus_motoboy_{int(time.time()) % 10000}"
+    
+    cursor.execute('''
+        INSERT INTO users (customer_id, phone, status, plan_type, last_payment_date, expires_at)
+        VALUES (?, ?, 'ACTIVE', 'PLANO_SEMANAL_PIX', ?, ?)
+    ''', (test_id, "11987654321", now_str, expires))
+    
+    cursor.execute('''
+        INSERT INTO split_settlements (customer_id, total_value, leader_wallet_id, leader_amount, master_pj_amount)
+        VALUES (?, 25.0, 'wal_general_praca_sp_01', 10.0, 15.0)
+    ''', (test_id,))
+    
+    cursor.execute('''
+        INSERT INTO webhook_logs (event, customer_id, value, raw_payload)
+        VALUES ('PAYMENT_RECEIVED', ?, 25.0, '{"simulated": true, "amount": 25.0}')
+    ''', (test_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": "PIX de R$ 25,00 liquidado e split 60/40 gravado!"}
+
+
 class OfferDecisionPayload(BaseModel):
     eventType: str = "OFFER_DECISION"
     offerId: str
@@ -290,7 +408,7 @@ async def asaas_webhook(request: Request):
     value = payment.get("value", 0.0)
     customer_phone = payment.get("mobilePhone") or payment.get("phone")
 
-    conn = sqlite3.connect("jarvis_core.db")
+    conn = get_db()
     cursor = conn.cursor()
 
     # Log do evento bruto
@@ -299,7 +417,21 @@ async def asaas_webhook(request: Request):
         (event, customer_id, value, str(payload))
     )
 
+    payment_id = payment.get("id") or f"{customer_id}_{event}_{int(time.time() // 60)}"
+
+    # Idempotência de Segurança: Evita duplicar split ou estender licença em dobro caso o Asaas repita o webhook
     if event == "PAYMENT_RECEIVED":
+        cursor.execute("SELECT payment_id FROM processed_payments WHERE payment_id = ?", (payment_id,))
+        if cursor.fetchone():
+            print(f"[ASAAS] Webhook já liquidado anteriormente ({payment_id}). Ignorando repetição para evitar split duplo.")
+            conn.close()
+            return {"status": "already_processed", "payment_id": payment_id}
+
+        cursor.execute(
+            "INSERT OR REPLACE INTO processed_payments (payment_id, customer_id, value, event) VALUES (?, ?, ?, ?)",
+            (payment_id, customer_id, value, event)
+        )
+
         # Ativa o cliente por 7 dias e gera chave única de liberação
         activation_key = f"JARVIS-PRO-{abs(hash(customer_id)) % 10000:04d}"
         cursor.execute('''
@@ -407,7 +539,7 @@ async def create_subscription(request: Request):
 
 @app.get("/api/v1/subscription/status/{customer_id}")
 def get_subscription_status(customer_id: str):
-    conn = sqlite3.connect("jarvis_core.db")
+    conn = get_db()
     cursor = conn.cursor()
     cursor.execute("SELECT status, plan_type, activation_key, expires_at FROM users WHERE customer_id = ?", (customer_id,))
     row = cursor.fetchone()

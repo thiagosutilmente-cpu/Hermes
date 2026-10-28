@@ -92,12 +92,79 @@ class DeepOrderPoolMergingEngine private constructor(private val context: Contex
     private val _rankedCombos = MutableStateFlow<List<MergedDeliveryCombo>>(emptyList())
     val rankedCombos: StateFlow<List<MergedDeliveryCombo>> = _rankedCombos.asStateFlow()
 
+    // Histórico Permanente de Combos do Turno (Nunca somem sozinhos)
+    private val _comboHistory = MutableStateFlow<List<MergedDeliveryCombo>>(emptyList())
+    val comboHistory: StateFlow<List<MergedDeliveryCombo>> = _comboHistory.asStateFlow()
+
+    // Trava de Retenção Tática: Mantém as mesclagens fixas na tela até decisão manual
+    private val _isHoldModeEnabled = MutableStateFlow(true)
+    val isHoldModeEnabled: StateFlow<Boolean> = _isHoldModeEnabled.asStateFlow()
+
+    // Alerta de Imprevisto Ativo (Race condition, atraso em restaurante ou cancelamento)
+    private val _activeIncidentNotice = MutableStateFlow<String?>(null)
+    val activeIncidentNotice: StateFlow<String?> = _activeIncidentNotice.asStateFlow()
+
     // Estatísticas de varredura
     private val _lastScanTimestamp = MutableStateFlow(0L)
     val lastScanTimestamp: StateFlow<Long> = _lastScanTimestamp.asStateFlow()
 
     private val _scannedAppsCount = MutableStateFlow(0)
     val scannedAppsCount: StateFlow<Int> = _scannedAppsCount.asStateFlow()
+
+    // Conjunto de IDs de combos dispensados manualmente pelo motoboy (evita reaparecimento cíclico)
+    private val dismissedComboIds = mutableSetOf<String>()
+
+    fun toggleHoldMode(enabled: Boolean) {
+        _isHoldModeEnabled.value = enabled
+        Log.i(TAG, "🛡️ Trava de Retenção Tática: ${if (enabled) "ATIVADA (Combos Fixos)" else "DESATIVADA"}")
+    }
+
+    fun dismissCombo(comboId: String) {
+        dismissedComboIds.add(comboId)
+        if (dismissedComboIds.size > 200) {
+            val toRemove = dismissedComboIds.take(50).toSet()
+            dismissedComboIds.removeAll(toRemove)
+        }
+        _rankedCombos.value = _rankedCombos.value.filterNot { it.id == comboId }
+    }
+
+    fun dismissIncidentNotice() {
+        _activeIncidentNotice.value = null
+    }
+
+    fun generateComboId(o1: ScreenPoolOffer, o2: ScreenPoolOffer): String {
+        val k1 = "${o1.appName}_${o1.restaurantName}_${(o1.value * 100).toInt()}"
+        val k2 = "${o2.appName}_${o2.restaurantName}_${(o2.value * 100).toInt()}"
+        return if (k1 <= k2) "combo_${k1}__${k2}" else "combo_${k2}__${k1}"
+    }
+
+    /**
+     * Resolução de Imprevisto 1: Outro motoboy aceitou uma das pontas do combo (Race Condition).
+     * Desmonta suavemente sem pânico e preserva a corrida principal.
+     */
+    fun handleRaceConditionLost(lostAppName: String, remainingRestaurant: String, remainingGainPerKm: Double) {
+        val notice = "⚠️ Oferta do $lostAppName foi aceita por outro motoboy. Mantendo rota solo para $remainingRestaurant (R$ ${String.format(Locale.US, "%.2f", remainingGainPerKm)}/km)."
+        _activeIncidentNotice.value = notice
+        try {
+            TextToSpeechManager.getInstance(context).speakVoiceAlert(
+                "Atenção: A corrida do $lostAppName expirou. Rota solo recalculada mantendo apenas $remainingRestaurant."
+            )
+            HapticFeedbackHelper.vibrateWarning(context)
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Resolução de Imprevisto 2: Restaurante com atraso excessivo (>8 min).
+     */
+    fun reportRestaurantDelay(restaurantName: String, minutesDelayed: Int) {
+        val notice = "⏱️ Alerta de Atraso: $restaurantName demorando ${minutesDelayed} min. Risco de esfriar o 2º pedido do combo."
+        _activeIncidentNotice.value = notice
+        try {
+            TextToSpeechManager.getInstance(context).speakVoiceAlert(
+                "Alerta: Restaurante $restaurantName com atraso excessivo. Avalie cancelar a segunda coleta."
+            )
+        } catch (_: Exception) {}
+    }
 
     /**
      * Atualiza a lista de ofertas escaneadas de um app específico e recalcula a matriz combinatória.
@@ -107,9 +174,10 @@ class DeepOrderPoolMergingEngine private constructor(private val context: Contex
         if (offers.isEmpty()) return
 
         val currentList = _scannedPoolOffers.value.toMutableList()
-        // Remove ofertas anteriores deste mesmo app que tenham expirado (mais de 4 minutos)
-        val cutoff = System.currentTimeMillis() - (4 * 60 * 1000L)
-        currentList.removeAll { it.appName.equals(appName, ignoreCase = true) || it.timestamp < cutoff }
+        // Se a Trava de Retenção estiver ativa, mantém por até 45 minutos. Senão, 8 minutos.
+        val retentionMillis = if (_isHoldModeEnabled.value) (45 * 60 * 1000L) else (8 * 60 * 1000L)
+        val cutoff = System.currentTimeMillis() - retentionMillis
+        currentList.removeAll { it.timestamp < cutoff }
 
         // Adiciona as novas filtrando dados corrompidos ou zerados
         val validOffers = offers.filter { it.value > 0.0 && it.distanceKm > 0.05 && it.distanceKm.isFinite() }
@@ -128,7 +196,10 @@ class DeepOrderPoolMergingEngine private constructor(private val context: Contex
     fun recalculateOptimalCombos() {
         val pool = _scannedPoolOffers.value.toList()
         if (pool.size < 2) {
-            _rankedCombos.value = emptyList()
+            // Se a Trava de Retenção estiver ativa, NÃO ZERA a tela bruscamente
+            if (!_isHoldModeEnabled.value) {
+                _rankedCombos.value = emptyList()
+            }
             return
         }
 
@@ -145,6 +216,10 @@ class DeepOrderPoolMergingEngine private constructor(private val context: Contex
                 for (j in (i + 1) until pool.size) {
                     val o1 = pool[i]
                     val o2 = pool[j]
+                    val expectedId = generateComboId(o1, o2)
+                    if (dismissedComboIds.contains(expectedId)) {
+                        continue
+                    }
 
                     val combo = evaluatePair(o1, o2, costPerKm, currentLoc)
                     if (combo != null && combo.slaSafetyScore >= 70 && combo.extraDeviationMeters <= 2200) {
@@ -162,8 +237,15 @@ class DeepOrderPoolMergingEngine private constructor(private val context: Contex
                     .thenByDescending { it.slaSafetyScore }
             ).take(8)
 
-            _rankedCombos.value = sortedCombos
-            Log.i(TAG, "⚡ Combos calculados: ${combos.size} válidos. Top ${sortedCombos.size} exibidos no mesmo corredor.")
+            // Se encontrou novos combos, atualiza o ranking e alimenta o histórico permanente
+            if (sortedCombos.isNotEmpty()) {
+                _rankedCombos.value = sortedCombos
+                val updatedHistory = (sortedCombos + _comboHistory.value).distinctBy { it.id }.take(50)
+                _comboHistory.value = updatedHistory
+                Log.i(TAG, "⚡ Combos calculados: ${combos.size} válidos. Histórico: ${updatedHistory.size}")
+            } else if (!_isHoldModeEnabled.value) {
+                _rankedCombos.value = emptyList()
+            }
 
         // Se houver um combo diamante espetacular, avisa via áudio/voz se não estiver em alta velocidade
         val top = sortedCombos.firstOrNull()
@@ -296,6 +378,7 @@ class DeepOrderPoolMergingEngine private constructor(private val context: Contex
         }
 
         return MergedDeliveryCombo(
+            id = generateComboId(o1, o2),
             primaryOffer = o1,
             secondaryOffer = o2,
             totalGrossRevenue = grossRev,

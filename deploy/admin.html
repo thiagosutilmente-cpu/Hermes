@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>JARVIS HQ — Cockpit Tático & Faturamento</title>
+  <style>
+    :root {
+      --bg-dark: #080c14;
+      --card-bg: #0f172a;
+      --card-border: #1e293b;
+      --cyan: #00e5ff;
+      --green: #00e676;
+      --yellow: #ffd600;
+      --red: #ff1744;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background: var(--bg-dark);
+      color: var(--text);
+      padding: 16px;
+      padding-bottom: 40px;
+      line-height: 1.5;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 16px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-badge {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #00e5ff 0%, #0077b6 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
+    }
+    .brand-title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: #fff;
+    }
+    .brand-sub {
+      font-size: 11px;
+      color: var(--cyan);
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .live-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0, 230, 118, 0.12);
+      border: 1px solid rgba(0, 230, 118, 0.3);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--green);
+    }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.9); opacity: 0.7; }
+      50% { transform: scale(1.3); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.7; }
+    }
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    }
+    .card-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .card-val {
+      font-size: 22px;
+      font-weight: 800;
+      color: #fff;
+    }
+    .card-val.green {
+      color: var(--green);
+      text-shadow: 0 0 12px rgba(0, 230, 118, 0.3);
+    }
+    .card-val.cyan {
+      color: var(--cyan);
+      text-shadow: 0 0 12px rgba(0, 229, 255, 0.3);
+    }
+    .card-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+    .section-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 800;
+      color: var(--text-muted);
+      margin: 18px 0 10px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .actions-box {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: none;
+      font-size: 14px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: all 0.2s;
+    }
+    .btn-green {
+      background: linear-gradient(135deg, #00e676 0%, #00b0ff 100%);
+      color: #051410;
+      box-shadow: 0 4px 15px rgba(0, 230, 118, 0.3);
+    }
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: #fff;
+    }
+    .btn:active {
+      transform: scale(0.98);
+    }
+    .table-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      overflow-x: auto;
+      margin-bottom: 16px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+    th {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 12px 10px;
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--card-border);
+    }
+    td {
+      padding: 12px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .badge-active {
+      background: rgba(0, 230, 118, 0.15);
+      color: var(--green);
+      border: 1px solid rgba(0, 230, 118, 0.3);
+    }
+    .badge-pending {
+      background: rgba(255, 214, 0, 0.15);
+      color: var(--yellow);
+      border: 1px solid rgba(255, 214, 0, 0.3);
+    }
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #00e676;
+      color: #051410;
+      padding: 10px 20px;
+      border-radius: 25px;
+      font-weight: 800;
+      font-size: 13px;
+      box-shadow: 0 4px 20px rgba(0, 230, 118, 0.5);
+      display: none;
+      z-index: 999;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="brand">
+      <div class="logo-badge">⚡</div>
+      <div>
+        <div class="brand-title">JARVIS NEURAL HQ</div>
+        <div class="brand-sub">Cockpit Operacional & Faturamento</div>
+      </div>
+    </div>
+    <div class="live-indicator">
+      <div class="pulse-dot"></div>
+      AO VIVO
+    </div>
+  </div>
+
+  <!-- MÉTRICAS PRINCIPAIS -->
+  <div class="metrics-grid">
+    <div class="card">
+      <div class="card-label">💰 Total Bruto Faturado</div>
+      <div class="card-val green" id="stat-total-revenue">R$ 0,00</div>
+      <div class="card-sub" id="stat-pix-count">0 PIX confirmados</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">🏍️ Motoboys Cadastrados</div>
+      <div class="card-val cyan" id="stat-total-users">0</div>
+      <div class="card-sub" id="stat-active-users">0 ativos no plano</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">🏦 Repasse PJ Master (60%)</div>
+      <div class="card-val" id="stat-master-revenue">R$ 0,00</div>
+      <div class="card-sub">Split bancário automático</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">📍 Repasse Líder Praça (40%)</div>
+      <div class="card-val" id="stat-leader-revenue">R$ 0,00</div>
+      <div class="card-sub">Bonificação operacional</div>
+    </div>
+  </div>
+
+  <!-- META DO DIA -->
+  <div class="card" style="margin-bottom: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <span class="card-label" style="margin: 0;">🎯 Meta R$ 3 Milhões/Ano</span>
+      <span style="font-size: 12px; font-weight: 800; color: var(--yellow);" id="stat-daily-target">R$ 8.333,00 / dia</span>
+    </div>
+    <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;">
+      <div id="stat-progress-bar" style="width: 2%; height: 100%; background: linear-gradient(90deg, #00e5ff, #00e676); border-radius: 4px; transition: width 0.5s;"></div>
+    </div>
+    <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 10px; color: var(--text-muted);">
+      <span>Foco: 2.500 motoboys pagando R$ 25/semana</span>
+      <span id="stat-progress-pct">0.1%</span>
+    </div>
+  </div>
+
+  <!-- AÇÕES TÁTICAS RÁPIDAS -->
+  <div class="section-title">⚡ Ações Táticas Rápidas</div>
+  <div class="actions-box">
+    <button class="btn btn-green" onclick="simulatePixPayment()">
+      <span>⚡</span> Simular PIX de R$ 25,00 (Teste de Split)
+    </button>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+      <button class="btn btn-outline" onclick="triggerSwarmCycle()">
+        <span>🤖</span> Ciclo Enxame
+      </button>
+      <button class="btn btn-outline" onclick="optimizeMetaAds()">
+        <span>📊</span> Otimizar Ads
+      </button>
+    </div>
+  </div>
+
+  <!-- TABELA: ÚLTIMAS ASSINATURAS & CLIENTES -->
+  <div class="section-title">🏍️ Entregadores & Licenças VIP</div>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>ID / Cliente</th>
+          <th>Telefone</th>
+          <th>Plano</th>
+          <th>Status</th>
+          <th>Validade</th>
+        </tr>
+      </thead>
+      <tbody id="users-table-body">
+        <tr>
+          <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">Carregando dados da VPS...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- TABELA: HISTÓRICO DE REPASSES (SPLIT 60/40) -->
+  <div class="section-title">📊 Histórico de Repasses Split Asaas</div>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Valor Total</th>
+          <th>PJ Master (60%)</th>
+          <th>Líder Praça (40%)</th>
+        </tr>
+      </thead>
+      <tbody id="splits-table-body">
+        <tr>
+          <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">Carregando splits...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="toast" class="toast">Ação executada com sucesso!</div>
+
+  <script>
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 2500);
+    }
+
+    async function loadMetrics() {
+      try {
+        const res = await fetch('/api/admin/metrics');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // Totais
+        document.getElementById('stat-total-revenue').innerText = 'R$ ' + (data.total_revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        document.getElementById('stat-pix-count').innerText = (data.total_pix_count || 0) + ' PIX recebidos';
+        document.getElementById('stat-total-users').innerText = (data.total_users || 0);
+        document.getElementById('stat-active-users').innerText = (data.active_users || 0) + ' ativos no plano';
+        document.getElementById('stat-master-revenue').innerText = 'R$ ' + (data.master_revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        document.getElementById('stat-leader-revenue').innerText = 'R$ ' + (data.leader_revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+        // Progresso diário
+        const pct = Math.min(100, Math.max(1, ((data.total_revenue || 0) / 8333) * 100)).toFixed(1);
+        document.getElementById('stat-progress-bar').style.width = pct + '%';
+        document.getElementById('stat-progress-pct').innerText = pct + '%';
+
+        // Tabela Usuários
+        const usersTbody = document.getElementById('users-table-body');
+        if (data.users && data.users.length > 0) {
+          usersTbody.innerHTML = data.users.map(u => `
+            <tr>
+              <td><strong>${u.customer_id || 'ID #' + u.id}</strong></td>
+              <td>${u.phone || 'Sem fone'}</td>
+              <td><span style="font-weight:700; color:var(--cyan);">${u.plan_type || 'PLANO_SEMANAL'}</span></td>
+              <td><span class="badge ${u.status === 'ACTIVE' ? 'badge-active' : 'badge-pending'}">${u.status}</span></td>
+              <td>${u.expires_at ? u.expires_at.substring(0, 10) : '—'}</td>
+            </tr>
+          `).join('');
+        } else {
+          usersTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 15px;">Nenhum motoboy registrado ainda.</td></tr>';
+        }
+
+        // Tabela Splits
+        const splitsTbody = document.getElementById('splits-table-body');
+        if (data.splits && data.splits.length > 0) {
+          splitsTbody.innerHTML = data.splits.map(s => `
+            <tr>
+              <td>${s.created_at ? s.created_at.substring(0, 16) : 'Hoje'}</td>
+              <td style="font-weight:800; color:var(--green);">R$ ${(s.total_value || 25).toFixed(2)}</td>
+              <td>R$ ${(s.master_pj_amount || 15).toFixed(2)}</td>
+              <td>R$ ${(s.leader_amount || 10).toFixed(2)}</td>
+            </tr>
+          `).join('');
+        } else {
+          splitsTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 15px;">Nenhum repasse registrado ainda.</td></tr>';
+        }
+      } catch (e) {
+        console.error('Falha ao atualizar métricas:', e);
+      }
+    }
+
+    async function simulatePixPayment() {
+      try {
+        const res = await fetch('/api/admin/simulate-pix', { method: 'POST' });
+        const data = await res.json();
+        showToast('PIX de R$ 25,00 recebido! Split 60/40 liquidado.');
+        loadMetrics();
+      } catch (e) {
+        showToast('Erro ao simular PIX.');
+      }
+    }
+
+    async function triggerSwarmCycle() {
+      try {
+        showToast('Iniciando ciclo do MIND-0...');
+        const res = await fetch('/api/singularidade/cycle/run', { method: 'POST' });
+        showToast('Ciclo do Enxame executado com sucesso!');
+        loadMetrics();
+      } catch (e) {
+        showToast('Erro ao rodar ciclo.');
+      }
+    }
+
+    async function optimizeMetaAds() {
+      try {
+        showToast('Analisando campanhas no Meta Ads...');
+        const res = await fetch('/api/marketing/super-auto/optimize-ads', { method: 'POST' });
+        showToast('Otimização concluída!');
+      } catch (e) {
+        showToast('Erro ao otimizar Ads.');
+      }
+    }
+
+    // Inicialização e auto-refresh a cada 8 segundos
+    loadMetrics();
+    setInterval(loadMetrics, 8000);
+  </script>
+</body>
+</html>

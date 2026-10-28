@@ -135,6 +135,7 @@ class OverlayWindowManager private constructor(private val context: Context) {
     private var initialTouchY = 0f
     private var isDragging = false
     private var touchStartTime: Long = 0
+    private var currentSnapAnimator: ValueAnimator? = null
 
     companion object {
         @SuppressLint("StaticFieldLeak")
@@ -169,9 +170,15 @@ class OverlayWindowManager private constructor(private val context: Context) {
         if (!canDrawOverlays(context)) return
 
         mainHandler.post {
-            if (isShowing && overlayRootView != null) {
-                overlayRootView?.visibility = View.VISIBLE
+            val root = overlayRootView
+            if (isShowing && root != null && root.isAttachedToWindow) {
+                root.visibility = View.VISIBLE
                 return@post
+            }
+            if (root != null && root.isAttachedToWindow) {
+                try {
+                    windowManager.removeViewImmediate(root)
+                } catch (_: Exception) {}
             }
             createAndAttachOverlayView()
         }
@@ -276,6 +283,8 @@ class OverlayWindowManager private constructor(private val context: Context) {
      */
     fun destroy() {
         mainHandler.post {
+            currentSnapAnimator?.cancel()
+            currentSnapAnimator = null
             overlayRootView?.let { view ->
                 if (view.isAttachedToWindow) {
                     try {
@@ -1199,12 +1208,14 @@ class OverlayWindowManager private constructor(private val context: Context) {
             screenWidth - bubbleWidth - edgePadding
         }
 
+        currentSnapAnimator?.cancel()
         val animator = ValueAnimator.ofInt(params.x, targetX)
         animator.duration = 200
         animator.addUpdateListener { va ->
             params.x = va.animatedValue as Int
             updateLayoutSafe(params)
         }
+        currentSnapAnimator = animator
         animator.start()
     }
 

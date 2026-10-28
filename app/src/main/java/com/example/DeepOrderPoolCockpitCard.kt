@@ -81,10 +81,14 @@ fun DeepOrderPoolCockpitCard(
 
     val poolOffers by poolEngine.scannedPoolOffers.collectAsState()
     val rankedCombos by poolEngine.rankedCombos.collectAsState()
+    val comboHistory by poolEngine.comboHistory.collectAsState()
+    val isHoldMode by poolEngine.isHoldModeEnabled.collectAsState()
+    val activeIncidentNotice by poolEngine.activeIncidentNotice.collectAsState()
     val lastScan by poolEngine.lastScanTimestamp.collectAsState()
     val appsCount by poolEngine.scannedAppsCount.collectAsState()
 
     var expandedComboId by remember { mutableStateOf<String?>(null) }
+    var showHistorySection by remember { mutableStateOf(false) }
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -102,6 +106,47 @@ fun DeepOrderPoolCockpitCard(
             .testTag("card_deep_order_pool")
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+
+            // ALERTA DE IMPREVISTO TÁTICO (RACE CONDITION OU ATRASO EM RESTAURANTE)
+            activeIncidentNotice?.let { notice ->
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF7F1D1D).copy(alpha = 0.8f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = notice,
+                            color = Color(0xFFFEE2E2),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFFDC2626),
+                            modifier = Modifier.clickable { poolEngine.dismissIncidentNotice() }
+                        ) {
+                            Text(
+                                text = "OK",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             // CABEÇALHO DO AGREGADOR DE POOL
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -159,6 +204,51 @@ fun DeepOrderPoolCockpitCard(
                             fontSize = 11.sp
                         )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // CHIP DE CONTROLE DA TRAVA DE RETENÇÃO (COMBOS NUNCA SOMEM SOZINHOS)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (isHoldMode) Color(0xFF065F46).copy(alpha = 0.6f) else Color(0xFF334155).copy(alpha = 0.6f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isHoldMode) Color(0xFF10B981) else Color(0xFF64748B)),
+                    modifier = Modifier.clickable { poolEngine.toggleHoldMode(!isHoldMode) }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(if (isHoldMode) Color(0xFF34D399) else Color(0xFF94A3B8))
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isHoldMode) "🛡️ RETENÇÃO ATIVA: Combos Fixos" else "⚠️ RETENÇÃO OFF: Expirar Rápido",
+                            color = if (isHoldMode) Color(0xFFA7F3D0) else Color(0xFFCBD5E1),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                if (comboHistory.isNotEmpty()) {
+                    Text(
+                        text = if (showHistorySection) "Ocultar Histórico" else "Ver Histórico (${comboHistory.size})",
+                        color = Color(0xFF38BDF8),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { showHistorySection = !showHistorySection }
+                    )
                 }
             }
 
@@ -276,8 +366,69 @@ fun DeepOrderPoolCockpitCard(
                             },
                             onAcceptCombo = {
                                 executeComboQuickSwitch(context, combo)
+                            },
+                            onDismissCombo = {
+                                poolEngine.dismissCombo(combo.id)
+                                Toast.makeText(context, "Combo dispensado.", Toast.LENGTH_SHORT).show()
                             }
                         )
+                    }
+                }
+
+                // SEÇÃO DE HISTÓRICO PERMANENTE DE COMBOS DO DIA (NUNCA SOME)
+                if (showHistorySection && comboHistory.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "HISTÓRICO DE COMBOS DO DIA (${comboHistory.size} GRAVADOS):",
+                        color = Color(0xFF38BDF8),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        comboHistory.take(10).forEachIndexed { hIdx, hCombo ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF0F172A),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "${hCombo.primaryOffer.appName} + ${hCombo.secondaryOffer.appName}",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "${hCombo.primaryOffer.restaurantName} • ${hCombo.combinedDistanceKm} km",
+                                            color = Color(0xFF94A3B8),
+                                            fontSize = 9.sp
+                                        )
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(
+                                            text = "+R$ ${String.format(Locale.US, "%.2f", hCombo.totalGrossRevenue)}",
+                                            color = Color(0xFF10B981),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                        Text(
+                                            text = "Lucro R$ ${String.format(Locale.US, "%.2f", hCombo.netProfit)}",
+                                            color = Color(0xFF38BDF8),
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -320,7 +471,8 @@ private fun ComboItemView(
     position: Int,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
-    onAcceptCombo: () -> Unit
+    onAcceptCombo: () -> Unit,
+    onDismissCombo: () -> Unit = {}
 ) {
     val borderColor = if (combo.isDiamondDeal) Color(0xFFEC4899) else Color(0xFF38BDF8).copy(alpha = 0.6f)
 
@@ -525,6 +677,22 @@ private fun ComboItemView(
                             text = "Aceitar Combo e Alternar (${combo.primaryOffer.appName} + ${combo.secondaryOffer.appName})",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Text(
+                            text = "Dispensar este combo ✕",
+                            color = Color(0xFFEF4444),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clickable { onDismissCombo() }
+                                .padding(4.dp)
                         )
                     }
                 }

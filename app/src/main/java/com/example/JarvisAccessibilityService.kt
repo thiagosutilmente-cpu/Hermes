@@ -314,7 +314,7 @@ class JarvisAccessibilityService : AccessibilityService() {
                         // Projeção geodésica do restaurante e do ponto de entrega em relação ao condutor
                         val pLat = baseLat + ((rest.hashCode() % 7) * 0.0012)
                         val pLng = baseLng + (((rest.hashCode() / 7) % 7) * 0.0012)
-                        val dropAngleRad = Math.toRadians((Math.abs(drop.hashCode()) % 360).toDouble())
+                        val dropAngleRad = Math.toRadians((Math.abs(drop.hashCode().toLong()) % 360).toDouble())
                         val latKmDegree = 1.0 / 110.574
                         val lngKmDegree = 1.0 / (111.320 * Math.cos(Math.toRadians(baseLat)))
                         val dLat = pLat + (distDouble * Math.cos(dropAngleRad) * latKmDegree)
