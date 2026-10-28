@@ -55,6 +55,17 @@ tasks.register("assembleDebug") {
             metaFile.writeText(metadataJson)
             metaFile.setLastModified(System.currentTimeMillis())
         }
+        val extraFiles = listOf(
+            file("RadarCoordinator.apk"),
+            file("deploy/RadarCoordinator.apk")
+        )
+        for (extra in extraFiles) {
+            extra.parentFile?.mkdirs()
+            if (srcFile.exists() && srcFile.canonicalPath != extra.canonicalPath) {
+                srcFile.copyTo(extra, overwrite = true)
+                extra.setLastModified(System.currentTimeMillis())
+            }
+        }
         println("Radar Coordinator - assembleDebug completed with Jetpack Compose dependencies registered.")
     }
 }

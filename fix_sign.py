@@ -62,5 +62,16 @@ print('Verify:\n', res4.stdout)
 
 if "Verifies" in res4.stdout and "Verified using v2 scheme (APK Signature Scheme v2): true" in res4.stdout:
     print("SUCCESS: Replacing APKs with valid signed build!")
-    shutil.copyfile(final_apk, '.build-outputs/app-debug.apk')
-    shutil.copyfile(final_apk, 'app/build/outputs/apk/debug/app-debug.apk')
+    destinations = [
+        '.build-outputs/app-debug.apk',
+        'app/build/outputs/apk/debug/app-debug.apk',
+        'build/outputs/apk/debug/app-debug.apk',
+        'RadarCoordinator.apk',
+        'deploy/RadarCoordinator.apk'
+    ]
+    for dest in destinations:
+        dest_dir = os.path.dirname(dest)
+        if dest_dir:
+            os.makedirs(dest_dir, exist_ok=True)
+        shutil.copyfile(final_apk, dest)
+        print(f"  Copied to {dest}")

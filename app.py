@@ -1144,6 +1144,7 @@ if FLASK_AVAILABLE:
     def f_sw(): return FlaskResponse(get_sw_js(), mimetype="application/javascript")
     @app.route("/download/apk", methods=["GET"])
     @app.route("/api/download-apk", methods=["GET"])
+    @app.route("/RadarCoordinator.apk", methods=["GET"])
     def f_apk():
         apk_paths = [
             file_path for file_path in [
@@ -1188,7 +1189,7 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
-        if path in ("/download/apk", "/api/download-apk"):
+        if path in ("/download/apk", "/api/download-apk", "/RadarCoordinator.apk"):
             self.send_response(200)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Content-Type", "application/vnd.android.package-archive")
@@ -1328,7 +1329,7 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             except (BrokenPipeError, ConnectionResetError, socket.error):
                 pass
-        elif path == "/download/apk" or path == "/api/download-apk":
+        elif path in ("/download/apk", "/api/download-apk", "/RadarCoordinator.apk"):
             apk_paths = [
                 file_path for file_path in [
                     os.path.abspath("RadarCoordinator.apk"),

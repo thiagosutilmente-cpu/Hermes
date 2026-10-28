@@ -355,16 +355,20 @@
       </div>
     </div>
 
-    <!-- ÁREA DE DOWNLOAD -->
+    <!-- ÁREA DE DOWNLOAD E INSTALAÇÃO DIRETA -->
     <div class="download-section">
-      <a href="/download/apk" class="btn-download" id="btn-download-apk" download>
+      <a href="/RadarCoordinator.apk" class="btn-download" id="btn-download-apk" download>
         <span>⬇️</span>
         <span>BAIXAR APK PARA ANDROID</span>
       </a>
+      <button onclick="instalarPwaDireto()" class="btn-download" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); margin-top: 10px; border: none; cursor: pointer; color: #fff;" id="btn-pwa">
+        <span>⚡</span>
+        <span>INSTALAR DIRETO NO CELULAR (SEM ERROS / 1 TOQUE)</span>
+      </button>
       <div class="download-meta">
-        <span>📦 Versão 3.0 Oficial</span>
+        <span>📦 Versão 3.0 Oficial Assinada (v1+v2+v3)</span>
         <span>⚡ 25 MB</span>
-        <span>📱 Android 8.0+</span>
+        <span>📱 Android 8.0+ / Samsung One UI 6</span>
       </div>
     </div>
 
@@ -395,25 +399,59 @@
       </div>
     </div>
 
-    <!-- COMO INSTALAR -->
+    <!-- COMO RESOLVER "APP NÃO INSTALADO" NO SAMSUNG (ONE UI 6 / ANDROID 14) -->
     <div class="steps-card">
-      <h3>📲 Como Instalar no Celular (2 Passos):</h3>
+      <h3 style="color: #38bdf8;">📲 Solução para o erro "App não instalado" (Samsung One UI 6):</h3>
+
+      <div class="tip-box" style="background: rgba(239, 68, 68, 0.15); border-left: 4px solid #ef4444; margin-bottom: 14px;">
+        ⚠️ <strong>Por que acontece no Samsung com Android 14?</strong><br>
+        A Samsung ativou por padrão uma trava chamada <strong>"Bloqueador Automático" (Auto Blocker)</strong> que bloqueia qualquer APK fora da Play Store com a mensagem <em>"App não instalado"</em>.
+      </div>
+
       <div class="step-item">
-        <div class="step-number">1</div>
+        <div class="step-number" style="background: #38bdf8; color: #000;">1</div>
         <div class="step-desc">
-          Toque no botão <strong>"BAIXAR APK PARA ANDROID"</strong> acima.
+          <strong>Desative o Bloqueador Automático da Samsung:</strong><br>
+          Vá em <strong>Configurações do Celular</strong> ➔ <strong>Segurança e privacidade</strong> ➔ <strong>Bloqueador Automático</strong> ➔ Toque para <strong>Desativar</strong>.
         </div>
       </div>
+
       <div class="step-item">
-        <div class="step-number">2</div>
+        <div class="step-number" style="background: #38bdf8; color: #000;">2</div>
         <div class="step-desc">
-          Abra o arquivo baixado e toque em <strong>Instalar</strong>.
+          <strong>Desinstale qualquer versão anterior:</strong><br>
+          Se você já tentou instalar o Radar Coordinator antes, vá em <strong>Configurações ➔ Aplicativos ➔ Radar Coordinator ➔ Desinstalar</strong> (para evitar conflito de assinaturas).
         </div>
       </div>
-      <div class="tip-box">
-        💡 <strong>Aviso do Google:</strong> Se o Android mostrar <em>"Arquivo pode ser nocivo"</em>, toque em <strong>"Fazer download mesmo assim"</strong>. É a mensagem de segurança padrão do Android para qualquer app baixado diretamente da nuvem.
+
+      <div class="step-item">
+        <div class="step-number" style="background: #10b981; color: #000;">★</div>
+        <div class="step-desc">
+          <strong style="color: #34d399;">Método Mais Rápido (Sem Baixar APK):</strong><br>
+          Toque no menu <strong>três pontinhos (⋮)</strong> no topo do Google Chrome e selecione <strong>"Adicionar à tela inicial"</strong> ou <strong>"Instalar aplicativo"</strong>. O app funcionará imediatamente em tela cheia!
+        </div>
       </div>
     </div>
+
+    <script>
+      let deferredPrompt;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        const pwaBtn = document.getElementById('btn-pwa');
+        if (pwaBtn) pwaBtn.style.display = 'flex';
+      });
+      function instalarPwaDireto() {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then((choiceResult) => {
+            deferredPrompt = null;
+          });
+        } else {
+          alert("Para instalar direto:\\n1. Toque nos 3 pontinhos (⋮) no topo do Chrome\\n2. Escolha 'Adicionar à tela inicial' ou 'Instalar aplicativo'.");
+        }
+      }
+    </script>
 
     <!-- RODAPÉ LEGAL -->
     <footer class="footer">
