@@ -37,8 +37,8 @@ tasks.register("assembleDebug") {
       "type": "SINGLE",
       "filters": [],
       "attributes": [],
-      "versionCode": 1,
-      "versionName": "1.0",
+      "versionCode": 10,
+      "versionName": "3.0",
       "outputFile": "app-debug.apk"
     }
   ],
