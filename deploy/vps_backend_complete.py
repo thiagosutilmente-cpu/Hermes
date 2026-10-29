@@ -219,14 +219,18 @@ def get_app_version():
 
 @app.get("/download")
 @app.get("/download/apk")
+@app.get("/RadarCoordinator.apk")
 def download_latest_apk():
     """Download direto do APK compilado do Radar Coordinator para os entregadores."""
     apk_paths = [
+        "/var/www/html/RadarCoordinator.apk",
         os.path.join(os.path.dirname(__file__), "..", "RadarCoordinator.apk"),
         os.path.join(os.path.dirname(__file__), "RadarCoordinator.apk"),
         "RadarCoordinator.apk",
         "/root/jarvis/RadarCoordinator.apk",
-        "/root/jarvis_backend/RadarCoordinator.apk"
+        "/root/jarvis_backend/RadarCoordinator.apk",
+        "/root/Hermes/RadarCoordinator.apk",
+        "/root/Hermes/deploy/RadarCoordinator.apk"
     ]
     for apk in apk_paths:
         if os.path.exists(apk):
