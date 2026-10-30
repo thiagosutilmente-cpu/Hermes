@@ -298,14 +298,25 @@ class VoiceCommandService : Service() {
 
         val notification = buildForegroundNotification(initialText)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        try {
+            val hasRecordAudio = androidx.core.content.ContextCompat.checkSelfPermission(
+                this, android.Manifest.permission.RECORD_AUDIO
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && hasRecordAudio) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Falha segura ao iniciar startForeground no VoiceCommandService: ${e.message}")
+            try {
+                startForeground(NOTIFICATION_ID, notification)
+            } catch (_: Exception) {}
         }
     }
 

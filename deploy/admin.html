@@ -365,6 +365,26 @@
     </table>
   </div>
 
+  <!-- TABELA: CAIXA-PRETA DE ERROS E CRASHES DO APP -->
+  <div class="section-title" style="color: #ff5252;">🚨 Telemetria de Falhas e Quedas do App (Caixa-Preta)</div>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Data / Hora</th>
+          <th>Dispositivo</th>
+          <th>Erro</th>
+          <th>Detalhes / Linha</th>
+        </tr>
+      </thead>
+      <tbody id="crashes-table-body">
+        <tr>
+          <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">Nenhum erro registrado até o momento. App rodando estável!</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
   <div id="toast" class="toast">Ação executada com sucesso!</div>
 
   <script>
@@ -429,6 +449,27 @@
       }
     }
 
+    async function loadCrashes() {
+      try {
+        const res = await fetch('/api/admin/crashes');
+        if (!res.ok) return;
+        const crashes = await res.json();
+        const tbody = document.getElementById('crashes-table-body');
+        if (crashes && crashes.length > 0) {
+          tbody.innerHTML = crashes.map(c => `
+            <tr>
+              <td style="color:#ff5252; font-weight:700;">${c.timestamp || c.created_at || 'Agora'}</td>
+              <td><strong>${c.device || 'Android'}</strong> <br><small style="color:var(--text-muted);">${c.app_version || 'v3.1.0'}</small></td>
+              <td><span style="color:#ffb74d; font-weight:800;">${c.error_type || 'Exception'}</span>: ${c.message || ''}</td>
+              <td><pre style="max-height:80px; overflow-y:auto; font-size:10px; background:#050810; padding:6px; border-radius:4px; color:#cfd8dc;">${(c.stack_trace || '').substring(0, 400)}</pre></td>
+            </tr>
+          `).join('');
+        }
+      } catch (e) {
+        console.error('Falha ao carregar crashes:', e);
+      }
+    }
+
     async function simulatePixPayment() {
       try {
         const res = await fetch('/api/admin/simulate-pix', { method: 'POST' });
@@ -463,7 +504,9 @@
 
     // Inicialização e auto-refresh a cada 8 segundos
     loadMetrics();
+    loadCrashes();
     setInterval(loadMetrics, 8000);
+    setInterval(loadCrashes, 8000);
   </script>
 </body>
 </html>

@@ -145,7 +145,19 @@ class LocationForegroundService : Service() {
 
     @SuppressLint("MissingPermission")
     private fun startForegroundTracking() {
-        startForeground(NOTIFICATION_ID, buildForegroundNotification(0.0, false))
+        try {
+            startForeground(NOTIFICATION_ID, buildForegroundNotification(0.0, false))
+        } catch (e: Exception) {
+            Log.e(TAG, "Falha segura no startForeground: ${e.message}")
+        }
+
+        val hasFine = androidx.core.content.ContextCompat.checkSelfPermission(
+            this, android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val hasCoarse = androidx.core.content.ContextCompat.checkSelfPermission(
+            this, android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!hasFine && !hasCoarse) return
 
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L).apply {
             setMinUpdateIntervalMillis(500L)
@@ -163,12 +175,11 @@ class LocationForegroundService : Service() {
         try {
             fusedLocationClient.requestLocationUpdates(
                 locationRequest,
-                locationCallback!!,
+                locationCallback as LocationCallback,
                 Looper.getMainLooper()
             )
-            Log.d(TAG, "Monitoramento GPS de alta precisão iniciado com sucesso.")
         } catch (e: Exception) {
-            Log.e(TAG, "Falha ao requisitar updates de localização: ${e.message}")
+            Log.e(TAG, "Falha ao solicitar location updates: ${e.message}")
         }
     }
 

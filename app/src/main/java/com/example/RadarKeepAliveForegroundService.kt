@@ -201,15 +201,35 @@ class RadarKeepAliveForegroundService : Service() {
 
     private fun startForegroundWithNotification() {
         val notification = buildKeepAliveNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val serviceTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION or
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-                    } else 0
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val hasLocationPermission = ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
 
-            startForeground(NOTIFICATION_ID, notification, serviceTypes)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+                var serviceTypes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                } else 0
+
+                if (hasLocationPermission) {
+                    serviceTypes = serviceTypes or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+                }
+
+                if (serviceTypes != 0) {
+                    startForeground(NOTIFICATION_ID, notification, serviceTypes)
+                } else {
+                    startForeground(NOTIFICATION_ID, notification)
+                }
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Falha segura ao iniciar startForeground: ${e.message}")
+            try {
+                startForeground(NOTIFICATION_ID, notification)
+            } catch (_: Exception) {}
         }
     }
 

@@ -135,6 +135,19 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS crash_reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT,
+            device TEXT,
+            thread TEXT,
+            error_type TEXT,
+            message TEXT,
+            stack_trace TEXT,
+            app_version TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -236,6 +249,58 @@ def download_latest_apk():
         if os.path.exists(apk):
             return FileResponse(apk, filename="RadarCoordinator.apk", media_type="application/vnd.android.package-archive")
     raise HTTPException(status_code=404, detail="APK não encontrado no servidor.")
+
+@app.post("/api/telemetry/crash")
+def record_crash_telemetry(payload: dict):
+    """Registra falhas e exceções reportadas pelo app Android."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO crash_reports (timestamp, device, thread, error_type, message, stack_trace, app_version)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            payload.get("timestamp", ""),
+            payload.get("device", ""),
+            payload.get("thread", ""),
+            payload.get("error_type", ""),
+            payload.get("message", ""),
+            payload.get("stack_trace", ""),
+            payload.get("app_version", "3.1.0")
+        ))
+        conn.commit()
+        conn.close()
+        with open("crash_reports.log", "a", encoding="utf-8") as f:
+            f.write(f"[{payload.get('timestamp')}] {payload.get('device')} | {payload.get('message')}\n{payload.get('stack_trace')}\n\n")
+        return {"status": "ok", "message": "Crash registrado com sucesso"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+@app.get("/api/admin/crashes")
+def get_admin_crashes():
+    """Retorna os últimos crashes registrados para o Dashboard."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, timestamp, device, thread, error_type, message, stack_trace, app_version, created_at FROM crash_reports ORDER BY id DESC LIMIT 50")
+        rows = cursor.fetchall()
+        conn.close()
+        return [
+            {
+                "id": r[0],
+                "timestamp": r[1],
+                "device": r[2],
+                "thread": r[3],
+                "error_type": r[4],
+                "message": r[5],
+                "stack_trace": r[6],
+                "app_version": r[7],
+                "created_at": r[8]
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        return []
 
 @app.get("/admin", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)

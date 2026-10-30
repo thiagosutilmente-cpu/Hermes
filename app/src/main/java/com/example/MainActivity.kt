@@ -140,24 +140,36 @@ class MainActivity : ComponentActivity() {
     private var currentIntentState = mutableStateOf<Intent?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Ativação prioritária da caixa-preta de telemetria de crashes para a VPS
+        GlobalCrashReporter.initialize(this)
+
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         currentIntentState.value = intent
         val vm = NeuralVoiceManager(this)
         voiceManager = vm
 
-        // Inicializa o serviço de localização em primeiro plano com telemetria contínua
-        try {
-            LocationForegroundService.start(this)
-        } catch (e: Exception) {
-            android.util.Log.e("MainActivity", "Falha ao iniciar LocationForegroundService: ${e.message}")
-        }
+        // Inicializa serviços de localização em primeiro plano com guarda estrita de permissão para evitar SecurityException no Android 14
+        val hasLocationPerm = ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+            this, Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
 
-        // Inicializa o Foreground Service persistente anti-morte (GPS Fused contínuo + WebSocket com auto-reconexão)
-        try {
-            RadarKeepAliveForegroundService.start(this)
-        } catch (e: Exception) {
-            android.util.Log.e("MainActivity", "Falha ao iniciar RadarKeepAliveForegroundService: ${e.message}")
+        if (hasLocationPerm) {
+            try {
+                LocationForegroundService.start(this)
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Falha ao iniciar LocationForegroundService: ${e.message}")
+            }
+
+            try {
+                RadarKeepAliveForegroundService.start(this)
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Falha ao iniciar RadarKeepAliveForegroundService: ${e.message}")
+            }
+        } else {
+            android.util.Log.i("MainActivity", "Aguardando concessão de permissão de GPS para iniciar serviços em primeiro plano.")
         }
 
         // Inicializa o cliente de sincronização de telemetria e decisões com o servidor
