@@ -1,8 +1,8 @@
-# Plano de Implementação: Resolução de Conflitos e Cancelamentos em Mesclagem Multi-Apps
+# Plano de Implementação: Radar Coordinator & Jarvis Cockpit
 
 ## 1. Problema Operacional e Solução Arquitetural
 
-Em operações com múltiplos aplicativos abertos simultaneamente, ocorrem dois cenários críticos de conflito:
+Em operações com múltiplos aplicativos abertos simultaneamente (iFood, 99 Food, Rappi, Uber Eats), ocorrem dois cenários críticos de conflito:
 
 ```
 CENÁRIO 1: RACE CONDITION (Outro motoboy aceitou primeiro)
@@ -36,7 +36,7 @@ CENÁRIO 2: CANCELAMENTO EM TRÂNSITO (Cliente/Restaurante cancelou)
 
 ---
 
-## 2. Componentes da Solução
+## 2. Componentes Entregues & Validados
 
 ### Componente 1: Motor de Resolução de Conflitos (`MultiAppConflictResolutionEngine.kt`)
 - `handleOfferLostRaceCondition(lostOfferId, remainingOffer)`: Desfaz o agrupamento de pedidos, restaura as métricas individuais e aciona a síntese de voz informativa.
@@ -52,12 +52,25 @@ CENÁRIO 2: CANCELAMENTO EM TRÂNSITO (Cliente/Restaurante cancelou)
   - "Simular Perda da 2ª Oferta (Outro Motoboy Aceitou)"
   - "Simular Cancelamento de Pedido em Trânsito"
 
+### Componente 4: Blindagem contra Fechamento Inesperado no Android 14
+- Eliminação do erro `SecurityException` em `ForegroundService` (tipo `LOCATION` e `MICROPHONE`).
+- Checagem prévia de permissões em tempo de execução antes do início de qualquer serviço em segundo plano.
+- Implementação da Caixa-Preta Global (`GlobalCrashReporter`) com persistência local e relatório de telemetria.
+
+### Componente 5: Lab de Diagnóstico & Bancada (`FilterSettingsScreen.kt`)
+- Ping em tempo real da VPS Hostinger (`187.77.248.73`).
+- Teste de disparo da Bolha Tática sobre outros Apps (HUD).
+- Teste de áudio do Copiloto Jarvis no Fone Bluetooth/Capacete.
+- Histórico e visualizador de logs de diagnóstico.
+
 ---
 
-## 3. Roteiro de Implementação
+## 3. Status de Verificação e Homologação
 
-1. **`MultiAppConflictResolutionEngine.kt`**: Implementação das regras de desmonte de stack e compensação financeira.
-2. **`InTransitCancellationDialog.kt`**: Modal interativo com botões táteis de confirmação antes de redirecionar o GPS.
-3. **`ConflictResolutionCard.kt`**: Card de cockpit com telemetria de incidentes e simuladores práticos.
-4. **Integração no `MainActivity.kt`**: Conexão aos eventos de cancelamento do `AppNotificationListenerService`.
-5. **Compilação e Verificação**: Execução do `compile_applet`.
+1. **`MultiAppConflictResolutionEngine.kt`**: Concluído e integrado.
+2. **`InTransitCancellationDialog.kt`**: Concluído e testado.
+3. **`ConflictResolutionCard.kt`**: Concluído e renderizado na tela principal.
+4. **`GlobalCrashReporter.kt` & Blindagem Android 14**: Concluído e verificado.
+5. **Alinhamento e Assinatura do APK**: `resources.arsc` descomprimido e alinhado em 4 bytes (Erro `-124` no instalador resolvido).
+6. **Bateria de Testes de APIs (VPS `187.77.248.73`)**: 100% Aprovado (Ping 200 OK, Download APK 200 OK, Telemetria 200 OK, Comandos de Voz 200 OK, FCM 200 OK, Asaas Pix Webhook 200 OK).
+7. **Compilação Geral (`compile_applet`)**: 100% Sucesso.

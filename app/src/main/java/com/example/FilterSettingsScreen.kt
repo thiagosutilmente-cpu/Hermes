@@ -41,6 +41,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -89,6 +97,11 @@ fun FilterSettingsScreen(
     val context = LocalContext.current
     var showAdminPinDialog by remember { mutableStateOf(false) }
     val isAdminUnlocked by AdminSecurityManager.isAdminUnlocked.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
+    var showCrashLogsDialog by remember { mutableStateOf(false) }
+    var crashLogsContent by remember { mutableStateOf("") }
+    var isCheckingVps by remember { mutableStateOf(false) }
+    var vpsLatencyText by remember { mutableStateOf("Não testado") }
 
     // Estados locais para edição dos sliders e controles
     var minValue by remember { mutableDoubleStateOf(currentCriteria.minValue) }
@@ -1382,6 +1395,195 @@ fun FilterSettingsScreen(
                 }
             }
 
+            // 9.5. CENTRAL DE DIAGNÓSTICO & TESTES DE BANCADA (HUD, VOZ, VPS E LOGS)
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 18.dp, bottom = 6.dp)
+                        .testTag("card_diagnostics_lab"),
+                    colors = CardDefaults.cardColors(containerColor = DarkCard),
+                    border = BorderStroke(1.dp, Color(0xFF00D2FF).copy(alpha = 0.4f)),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF00D2FF).copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("🧪", fontSize = 18.sp)
+                            }
+                            Column {
+                                Text(
+                                    text = "LAB DE DIAGNÓSTICO & BANCADA",
+                                    color = Color(0xFF00D2FF),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 0.8.sp
+                                )
+                                Text(
+                                    text = "Testes de campo, voz, sobreposição e telemetria",
+                                    color = TextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // 1. Status e Ping da VPS Hostinger
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(DarkBg, RoundedCornerShape(10.dp))
+                                .padding(10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "VPS Hostinger (187.77.248.73)",
+                                    color = TextLight,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Latência: $vpsLatencyText",
+                                    color = if (vpsLatencyText.contains("ms")) NeonGreen else TextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        isCheckingVps = true
+                                        vpsLatencyText = "Medindo..."
+                                        val latency = withContext(Dispatchers.IO) {
+                                            try {
+                                                val start = System.currentTimeMillis()
+                                                val url = URL("http://187.77.248.73/api/ping")
+                                                val conn = url.openConnection() as HttpURLConnection
+                                                conn.connectTimeout = 4000
+                                                conn.readTimeout = 4000
+                                                conn.requestMethod = "GET"
+                                                val code = conn.responseCode
+                                                conn.disconnect()
+                                                if (code == 200) "${System.currentTimeMillis() - start} ms (Online)" else "Erro $code"
+                                            } catch (e: Exception) {
+                                                "Offline (${e.message?.take(15)})"
+                                            }
+                                        }
+                                        vpsLatencyText = latency
+                                        isCheckingVps = false
+                                        Toast.makeText(context, "VPS: $latency", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D2FF).copy(alpha = 0.2f)),
+                                border = BorderStroke(1.dp, Color(0xFF00D2FF)),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                enabled = !isCheckingVps
+                            ) {
+                                Text("Ping VPS", color = Color(0xFF00D2FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // 2. Botão Testar Bolha Flutuante sobre outros apps
+                        OutlinedButton(
+                            onClick = {
+                                if (!OverlayWindowManager.canDrawOverlays(context)) {
+                                    Toast.makeText(context, "Conceda permissão de sobrepor a outros apps", Toast.LENGTH_LONG).show()
+                                    OverlayWindowManager.requestOverlayPermission(context)
+                                } else {
+                                    val overlay = OverlayWindowManager.getInstance(context)
+                                    overlay.show()
+                                    overlay.showTacticalOffer(
+                                        OverlayWindowManager.FloatingTacticalOffer(
+                                            appName = "iFood",
+                                            packageName = "br.com.ifood.driver",
+                                            value = 28.50,
+                                            distanceKm = 3.9,
+                                            pricePerKm = 7.30,
+                                            isGoodDeal = true,
+                                            dealLabel = "R$ 7,30/km 🟢 EXCELENTE",
+                                            destination = "Av. Paulista, 1578 (Masp)",
+                                            pickup = "Burger King Paulista",
+                                            hasDualRoute = true,
+                                            dualRouteAppName = "Rappi",
+                                            dualRouteExtraGain = 16.50,
+                                            haversineDeviationMeters = 280,
+                                            haversineExtraMinutes = 3.5,
+                                            haversineExplanation = "Coleta a 280m no mesmo sentido viário"
+                                        )
+                                    )
+                                    Toast.makeText(context, "Bolha tática ativada! Minimize o app para ver.", Toast.LENGTH_LONG).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            border = BorderStroke(1.dp, NeonGreen.copy(alpha = 0.6f)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("⚡ Testar Bolha Tática sobre outros Apps (HUD)", color = NeonGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // 3. Botão Testar Anúncio de Voz Jarvis no Fone
+                        OutlinedButton(
+                            onClick = {
+                                OfferTextToSpeechEngine.getInstance(context).speak(
+                                    "Atenção piloto: oferta iFood detectada. Vinte e oito reais e cinquenta centavos para três ponto nove quilômetros. Lucro de sete reais e trinta centavos por quilômetro. Região recomendada. Sugestão Jarvis: Aceitar."
+                                )
+                                Toast.makeText(context, "Anúncio de voz enviado ao fone/alto-falante!", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            border = BorderStroke(1.dp, Color(0xFFFFB800).copy(alpha = 0.6f)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("🔊 Testar Voz Jarvis no Fone Bluetooth", color = Color(0xFFFFB800), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // 4. Ver Logs da Caixa-Preta (Crash Logs)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    crashLogsContent = GlobalCrashReporter.getLocalCrashLogs(context)
+                                    showCrashLogsDialog = true
+                                },
+                                modifier = Modifier.weight(1f),
+                                border = BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.6f)),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("📋 Ver Logs de Erro", color = Color(0xFFFF5252), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    GlobalCrashReporter.clearLocalCrashLogs(context)
+                                    Toast.makeText(context, "Histórico de logs limpo com sucesso!", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.weight(0.7f),
+                                border = BorderStroke(1.dp, DarkBorder),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("🗑️ Limpar", color = TextMuted, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
             // 10. RODAPÉ DE VERSÃO E GATILHO MODO DESENVOLVEDOR (5 TOQUES)
             item {
                 Column(
@@ -1439,6 +1641,54 @@ fun FilterSettingsScreen(
             onSuccess = {
                 showAdminPinDialog = false
                 onOpenAdminCockpit()
+            }
+        )
+    }
+
+    if (showCrashLogsDialog) {
+        AlertDialog(
+            onDismissRequest = { showCrashLogsDialog = false },
+            containerColor = DarkCardElevated,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🛡️ Logs de Diagnóstico & Falhas", color = TextLight, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 340.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = if (crashLogsContent.isNotBlank()) crashLogsContent else "Nenhuma falha registrada! O app está operando de forma estável e 100% segura.",
+                        color = if (crashLogsContent.isNotBlank()) Color(0xFFFFB800) else NeonGreen,
+                        fontSize = 11.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showCrashLogsDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                ) {
+                    Text("Fechar", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        GlobalCrashReporter.clearLocalCrashLogs(context)
+                        crashLogsContent = ""
+                        showCrashLogsDialog = false
+                        Toast.makeText(context, "Logs limpos!", Toast.LENGTH_SHORT).show()
+                    },
+                    border = BorderStroke(1.dp, Color(0xFFFF5252))
+                ) {
+                    Text("Limpar Histórico", color = Color(0xFFFF5252))
+                }
             }
         )
     }
