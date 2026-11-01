@@ -8,6 +8,8 @@ echo ">>> [1/4] Atualizando Dashboard e Arquivos no Nginx..."
 mkdir -p /var/www/html /root/jarvis_backend
 [ -f /root/Hermes/deploy/admin.html ] && cp -vf /root/Hermes/deploy/admin.html /var/www/html/admin.html
 [ -f /root/Hermes/deploy/admin.html ] && cp -vf /root/Hermes/deploy/admin.html /root/jarvis_backend/admin.html
+[ -f /root/Hermes/deploy/index.html ] && cp -vf /root/Hermes/deploy/index.html /var/www/html/index.html
+[ -f /root/Hermes/deploy/privacy.html ] && cp -vf /root/Hermes/deploy/privacy.html /var/www/html/privacy.html
 [ -f /root/Hermes/deploy/vps_backend_complete.py ] && cp -vf /root/Hermes/deploy/vps_backend_complete.py /root/jarvis_backend/vps_backend_complete.py
 
 echo ">>> [2/4] Alinhando e descomprimindo resources.arsc no APK..."

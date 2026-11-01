@@ -20,9 +20,13 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -516,6 +520,125 @@ private fun FintechHeroHeader() {
             lineHeight = 17.sp,
             modifier = Modifier.padding(horizontal = 8.dp)
         )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Synergy Chips das Grandes Startups (Uber, 99, iFood, Rappi)
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFF0F1420))
+                .border(1.dp, Color(0xFF1E2638), RoundedCornerShape(20.dp))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "iFood",
+                color = Color(0xFFFF4D4D),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black
+            )
+            Text(text = "•", color = Color.Gray, fontSize = 10.sp)
+            Text(
+                text = "99Food",
+                color = Color(0xFFFFC107),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black
+            )
+            Text(text = "•", color = Color.Gray, fontSize = 10.sp)
+            Text(
+                text = "Uber",
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black
+            )
+            Text(text = "•", color = Color.Gray, fontSize = 10.sp)
+            Text(
+                text = "Rappi",
+                color = Color(0xFFFF7043),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Black
+            )
+        }
+    }
+}
+
+/**
+ * QR Code Vetorial com Visual Fintech Profissional
+ */
+@Composable
+fun FintechPixQrCanvas(
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .size(145.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .padding(10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val step = size.width / 21f
+            val dotColor = Color(0xFF0C1322)
+            val pixTeal = Color(0xFF00B377)
+
+            fun drawFinder(startX: Float, startY: Float) {
+                drawRoundRect(
+                    color = dotColor,
+                    topLeft = Offset(startX, startY),
+                    size = Size(step * 7, step * 7),
+                    cornerRadius = CornerRadius(step, step)
+                )
+                drawRoundRect(
+                    color = Color.White,
+                    topLeft = Offset(startX + step, startY + step),
+                    size = Size(step * 5, step * 5),
+                    cornerRadius = CornerRadius(step * 0.6f, step * 0.6f)
+                )
+                drawRoundRect(
+                    color = pixTeal,
+                    topLeft = Offset(startX + step * 2, startY + step * 2),
+                    size = Size(step * 3, step * 3),
+                    cornerRadius = CornerRadius(step * 0.5f, step * 0.5f)
+                )
+            }
+
+            drawFinder(0f, 0f)
+            drawFinder(step * 14, 0f)
+            drawFinder(0f, step * 14)
+
+            val pattern = listOf(
+                Pair(8, 2), Pair(9, 2), Pair(11, 2), Pair(12, 2),
+                Pair(8, 4), Pair(10, 4), Pair(12, 4),
+                Pair(2, 8), Pair(4, 8), Pair(6, 8), Pair(8, 8), Pair(10, 8), Pair(12, 8), Pair(14, 8), Pair(16, 8),
+                Pair(8, 10), Pair(10, 10), Pair(14, 10), Pair(16, 10),
+                Pair(8, 12), Pair(11, 12), Pair(13, 12), Pair(15, 12),
+                Pair(8, 14), Pair(10, 14), Pair(12, 14), Pair(14, 14), Pair(17, 14),
+                Pair(8, 16), Pair(10, 16), Pair(13, 16), Pair(15, 16), Pair(18, 16)
+            )
+
+            for (p in pattern) {
+                drawRoundRect(
+                    color = dotColor,
+                    topLeft = Offset(p.first * step, p.second * step),
+                    size = Size(step * 0.9f, step * 0.9f),
+                    cornerRadius = CornerRadius(step * 0.2f, step * 0.2f)
+                )
+            }
+
+            drawCircle(
+                color = pixTeal,
+                radius = step * 1.5f,
+                center = center
+            )
+            drawCircle(
+                color = Color.White,
+                radius = step * 0.75f,
+                center = center
+            )
+        }
     }
 }
 
@@ -941,37 +1064,40 @@ fun RealtimePixCheckoutModal(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // QR Code Simulado
-                Box(
-                    modifier = Modifier
-                        .size(130.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White)
-                        .padding(8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("📱", fontSize = 28.sp)
-                        Text(
-                            text = "QR CODE PIX\n[BANCO CENTRAL]",
-                            color = Color.Black,
-                            fontSize = 8.5.sp,
-                            textAlign = TextAlign.Center,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                }
+                // QR Code Vetorial com Visual Fintech Profissional
+                FintechPixQrCanvas(modifier = Modifier.padding(vertical = 4.dp))
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                // Contador de Validade
+                // Contador de Validade com Destaque
                 val minutes = secondsRemaining / 60
                 val seconds = secondsRemaining % 60
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Válido por: ",
+                        color = FintechTextMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "%02d:%02d".format(minutes, seconds),
+                        color = FintechGold,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Badge de Garantia e Segurança
                 Text(
-                    text = "Válido por: %02d:%02d".format(minutes, seconds),
-                    color = FintechTextMuted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium
+                    text = "🔒 SSL 256-bit • 🛡️ Garantia de 7 Dias • Asaas / BACEN",
+                    color = Color(0xFF6B7280),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))

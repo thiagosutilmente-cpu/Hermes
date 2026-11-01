@@ -3,39 +3,55 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Radar Coordinator — Copiloto Tático & Calculadora de R$/km para Motoboys</title>
-  <meta name="description" content="Baixe o Radar Coordinator APK: o copiloto definitivo para motoboys e entregadores de app. Cálculo instantâneo de R$/km, alerta por voz e radar tático.">
+  <title>Radar Coordinator — O Copiloto Tático dos Entregadores de App</title>
+  <meta name="description" content="O app essencial para motoristas e entregadores iFood, 99, Uber e Rappi. Cálculo automático de R$/km, alerta no fone de ouvido, filtro anti-prejuízo e rotas duplas.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #090d14;
-      --card-bg: rgba(18, 26, 43, 0.85);
-      --card-border: rgba(0, 255, 136, 0.25);
+      --bg: #07090e;
+      --surface: #0f131c;
+      --surface-elevated: #161b27;
+      --surface-card: #121722;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(0, 255, 136, 0.4);
       --primary: #00ff88;
-      --primary-glow: rgba(0, 255, 136, 0.4);
+      --primary-dark: #00cc6a;
+      --primary-glow: rgba(0, 255, 136, 0.35);
       --cyan: #00d2ff;
-      --cyan-glow: rgba(0, 210, 255, 0.35);
+      --cyan-glow: rgba(0, 210, 255, 0.3);
       --gold: #ffb703;
+      --gold-glow: rgba(255, 183, 3, 0.3);
+      --ifood-red: #ea1d2c;
+      --ninetynine-yellow: #f8b600;
+      --uber-black: #000000;
       --text: #f8fafc;
       --text-muted: #94a3b8;
+      --text-dim: #64748b;
       --danger: #ef4444;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-full: 9999px;
     }
+
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
       -webkit-tap-highlight-color: transparent;
     }
+
     body {
       background-color: var(--bg);
       background-image: 
-        radial-gradient(circle at 50% 0%, rgba(0, 210, 255, 0.15) 0%, transparent 60%),
-        radial-gradient(circle at 100% 40%, rgba(0, 255, 136, 0.08) 0%, transparent 40%),
-        linear-gradient(180deg, #090d14 0%, #05080d 100%);
+        radial-gradient(circle at 50% 0%, rgba(0, 210, 255, 0.12) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(0, 255, 136, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 10% 40%, rgba(255, 183, 3, 0.05) 0%, transparent 40%),
+        linear-gradient(180deg, #07090e 0%, #030407 100%);
       color: var(--text);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -43,31 +59,153 @@
       line-height: 1.5;
       overflow-x: hidden;
     }
-    .container {
+
+    /* BARRA DE NAVEGAÇÃO ESTILO STARTUP UNICÓRNIO */
+    .navbar {
       width: 100%;
-      max-width: 540px;
-      padding: 24px 18px 60px;
+      max-width: 1100px;
+      padding: 18px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(20px);
+      background: rgba(7, 9, 14, 0.85);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #0f2238, #050d18);
+      border: 1.5px solid var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 0 15px var(--primary-glow);
+    }
+
+    .brand-text {
       display: flex;
       flex-direction: column;
-      gap: 22px;
     }
-    
-    /* BADGE DE STATUS */
-    .status-bar {
-      display: inline-flex;
+
+    .brand-name {
+      font-size: 17px;
+      font-weight: 900;
+      letter-spacing: -0.3px;
+      display: flex;
       align-items: center;
-      gap: 8px;
-      align-self: center;
-      background: rgba(0, 255, 136, 0.08);
-      border: 1px solid rgba(0, 255, 136, 0.3);
-      padding: 6px 14px;
-      border-radius: 999px;
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--primary);
+      gap: 6px;
+    }
+
+    .brand-pill {
+      font-size: 9px;
+      font-weight: 800;
+      color: #000;
+      background: var(--primary);
+      padding: 1px 6px;
+      border-radius: 4px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
+
+    .brand-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      transition: color 0.2s;
+      display: none;
+    }
+
+    @media (min-width: 768px) {
+      .nav-link { display: inline-block; }
+    }
+
+    .nav-link:hover {
+      color: var(--primary);
+    }
+
+    .nav-btn-checkout {
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      color: #03060a;
+      font-size: 13px;
+      font-weight: 800;
+      padding: 9px 18px;
+      border-radius: var(--radius-full);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 15px var(--primary-glow);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .nav-btn-checkout:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(0, 255, 136, 0.5);
+    }
+
+    /* CONTAINER PRINCIPAL */
+    .container {
+      width: 100%;
+      max-width: 1020px;
+      padding: 32px 20px 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+    }
+
+    /* HERO SECTION */
+    .hero-section {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      padding: 20px 0 10px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 255, 136, 0.08);
+      border: 1px solid rgba(0, 255, 136, 0.3);
+      padding: 7px 16px;
+      border-radius: var(--radius-full);
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
     .pulse-dot {
       width: 8px;
       height: 8px;
@@ -76,662 +214,1431 @@
       box-shadow: 0 0 10px var(--primary);
       animation: pulse 1.8s infinite;
     }
+
     @keyframes pulse {
       0%, 100% { transform: scale(1); opacity: 1; }
       50% { transform: scale(1.4); opacity: 0.4; }
     }
 
-    /* CABEÇALHO */
-    .header {
-      text-align: center;
-    }
-    .app-icon {
-      width: 84px;
-      height: 84px;
-      margin: 0 auto 14px;
-      background: linear-gradient(135deg, #0d1e33, #06111f);
-      border: 2px solid var(--primary);
-      border-radius: 22px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 0 25px var(--primary-glow);
-      font-size: 42px;
-    }
-    .title {
-      font-size: 28px;
-      font-weight: 900;
-      letter-spacing: -0.5px;
+    .hero-title {
+      font-size: 34px;
       line-height: 1.15;
-      background: linear-gradient(180deg, #ffffff 30%, #94a3b8 100%);
+      font-weight: 900;
+      letter-spacing: -1px;
+      max-width: 780px;
+      background: linear-gradient(180deg, #ffffff 40%, #94a3b8 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      margin-bottom: 8px;
-    }
-    .subtitle {
-      font-size: 14px;
-      color: var(--text-muted);
-      font-weight: 500;
-    }
-    .subtitle strong {
-      color: var(--cyan);
     }
 
-    /* CARD DE DESTAQUE DE LUCRO */
-    .profit-card {
-      background: linear-gradient(145deg, rgba(14, 23, 42, 0.95), rgba(7, 12, 22, 0.95));
-      border: 1.5px solid var(--card-border);
-      border-radius: 18px;
-      padding: 18px 16px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    @media (min-width: 768px) {
+      .hero-title { font-size: 48px; }
     }
-    .profit-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--text-muted);
+
+    .hero-title span {
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
-    .sim-offer {
-      background: rgba(0, 0, 0, 0.4);
-      border-left: 4px solid var(--primary);
-      padding: 12px 14px;
-      border-radius: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .sim-info h4 {
+
+    .hero-subtitle {
       font-size: 15px;
+      color: var(--text-muted);
+      max-width: 620px;
+      font-weight: 500;
+      line-height: 1.6;
+    }
+
+    .hero-subtitle strong {
+      color: #fff;
+    }
+
+    /* BADGES DE COMPATIBILIDADE DAS STARTUPS */
+    .app-synergy-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 18px;
+      background: rgba(18, 23, 34, 0.7);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      margin-top: 6px;
+    }
+
+    .synergy-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .app-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
       font-weight: 800;
       color: #fff;
     }
-    .sim-info p {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-    .sim-metric {
-      text-align: right;
-    }
-    .sim-gain {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 20px;
-      font-weight: 900;
-      color: var(--primary);
-    }
-    .sim-tag {
-      font-size: 10px;
-      font-weight: 800;
-      color: #000;
-      background: var(--primary);
-      padding: 2px 6px;
-      border-radius: 4px;
-      display: inline-block;
-      text-transform: uppercase;
-    }
 
-    /* BOTÃO DE DOWNLOAD PRINCIPAL */
-    .download-section {
+    .chip-ifood { background: rgba(234, 29, 44, 0.2); border: 1px solid rgba(234, 29, 44, 0.6); color: #ff5964; }
+    .chip-99 { background: rgba(248, 182, 0, 0.2); border: 1px solid rgba(248, 182, 0, 0.6); color: #ffd13b; }
+    .chip-uber { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); color: #fff; }
+    .chip-rappi { background: rgba(255, 68, 31, 0.2); border: 1px solid rgba(255, 68, 31, 0.6); color: #ff7657; }
+
+    /* SIMULADOR INTERATIVO DE LUCRO */
+    .interactive-simulator-card {
+      background: linear-gradient(145deg, #101624, #0b0e17);
+      border: 1.5px solid rgba(0, 255, 136, 0.25);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      align-items: center;
+      gap: 18px;
+      position: relative;
+      overflow: hidden;
     }
-    .btn-download {
-      width: 100%;
-      background: linear-gradient(135deg, #00ff88, #00d2ff);
-      color: #05080d;
-      text-decoration: none;
-      padding: 18px 20px;
-      border-radius: 16px;
-      font-size: 17px;
-      font-weight: 900;
+
+    .interactive-simulator-card::before {
+      content: "";
+      position: absolute;
+      top: -100px;
+      right: -100px;
+      width: 250px;
+      height: 250px;
+      background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .sim-top {
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      justify-content: center;
-      gap: 12px;
-      box-shadow: 0 10px 25px rgba(0, 255, 136, 0.35);
-      transition: all 0.2s ease;
-      border: none;
-      cursor: pointer;
-    }
-    .btn-download:active {
-      transform: scale(0.98);
-      box-shadow: 0 4px 15px rgba(0, 255, 136, 0.5);
-    }
-    .download-meta {
       font-size: 12px;
-      color: var(--text-muted);
-      display: flex;
-      gap: 14px;
-      align-items: center;
-    }
-    .download-meta span {
-      display: flex;
-      align-items: center;
-      gap: 4px;
+      font-weight: 800;
     }
 
-    /* RECURSOS / BENEFÍCIOS */
-    .features-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
-    .feature-card {
-      background: var(--card-bg);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 14px;
-      padding: 16px 14px;
-    }
-    .feature-card .icon {
-      font-size: 24px;
-      margin-bottom: 8px;
-    }
-    .feature-card h3 {
-      font-size: 13px;
-      font-weight: 800;
-      color: #fff;
-      margin-bottom: 4px;
-    }
-    .feature-card p {
-      font-size: 11px;
-      color: var(--text-muted);
-      line-height: 1.4;
-    }
-
-    /* PASSO A PASSO DA INSTALAÇÃO */
-    .steps-card {
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid rgba(0, 210, 255, 0.2);
-      border-radius: 16px;
-      padding: 18px 16px;
-    }
-    .steps-card h3 {
-      font-size: 14px;
-      font-weight: 800;
-      color: var(--cyan);
-      margin-bottom: 12px;
+    .sim-tag-live {
+      background: rgba(0, 255, 136, 0.15);
+      color: var(--primary);
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
       display: flex;
       align-items: center;
       gap: 6px;
     }
-    .step-item {
+
+    .sim-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    @media (min-width: 680px) {
+      .sim-grid { grid-template-columns: 1.2fr 1fr; align-items: center; }
+    }
+
+    .sim-controls {
       display: flex;
-      gap: 12px;
-      margin-bottom: 12px;
-      font-size: 12px;
-      color: #cbd5e1;
+      flex-direction: column;
+      gap: 14px;
     }
-    .step-item:last-child {
-      margin-bottom: 0;
+
+    .sim-control-group label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 6px;
     }
-    .step-number {
-      width: 22px;
-      height: 22px;
-      background: var(--cyan);
-      color: #05080d;
+
+    .sim-control-group label span {
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .sim-slider {
+      width: 100%;
+      height: 6px;
+      border-radius: 4px;
+      background: #1e293b;
+      outline: none;
+      -webkit-appearance: none;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .sim-result-box {
+      background: rgba(0, 0, 0, 0.5);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 8px;
+    }
+
+    .sim-rate {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 36px;
       font-weight: 900;
-      border-radius: 50%;
+      color: var(--primary);
+      text-shadow: 0 0 20px var(--primary-glow);
+    }
+
+    .sim-decision {
+      font-size: 11px;
+      font-weight: 900;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .decision-green { background: var(--primary); color: #000; }
+    .decision-red { background: var(--danger); color: #fff; }
+
+    .sim-voice-quote {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sim-voice-quote strong {
+      color: var(--cyan);
+    }
+
+    /* DOWNLOAD CTA */
+    .download-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    @media (min-width: 600px) {
+      .download-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    .btn-action-primary {
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      color: #03060a;
+      text-decoration: none;
+      padding: 18px 22px;
+      border-radius: var(--radius-md);
+      font-size: 16px;
+      font-weight: 900;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 11px;
-      flex-shrink: 0;
+      gap: 10px;
+      box-shadow: 0 10px 30px var(--primary-glow);
+      transition: all 0.2s ease;
+      border: none;
+      cursor: pointer;
     }
-    .step-desc strong {
+
+    .btn-action-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 35px rgba(0, 255, 136, 0.5);
+    }
+
+    .btn-action-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1.5px solid rgba(255, 255, 255, 0.15);
       color: #fff;
-    }
-    .tip-box {
-      margin-top: 10px;
-      padding: 10px;
-      background: rgba(255, 183, 3, 0.1);
-      border-left: 3px solid var(--gold);
-      border-radius: 6px;
-      font-size: 11px;
-      color: #fde047;
-    }
-
-    /* FOOTER */
-    .footer {
-      text-align: center;
-      font-size: 11px;
-      color: var(--text-muted);
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      padding-top: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .footer-links {
-      display: flex;
-      justify-content: center;
-      gap: 16px;
-    }
-    .footer-links a {
-      color: var(--cyan);
       text-decoration: none;
-      font-weight: 600;
-    }
-    .footer-links a:hover {
-      text-decoration: underline;
+      padding: 18px 22px;
+      border-radius: var(--radius-md);
+      font-size: 15px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
     }
 
-    /* DEPOIMENTOS E PROVA SOCIAL */
-    .testimonials-section {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
+    .btn-action-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
     }
-    .testimonials-header {
+
+    /* CARDS DE RECURSOS (DESIGN DE ALTA TECNOLOGIA) */
+    .section-header {
       text-align: center;
+      margin-bottom: 8px;
     }
-    .testimonials-badge {
-      display: inline-block;
-      font-size: 10px;
+
+    .section-badge {
+      font-size: 11px;
       font-weight: 800;
       color: var(--cyan);
-      background: rgba(0, 210, 255, 0.12);
+      background: rgba(0, 210, 255, 0.1);
       border: 1px solid rgba(0, 210, 255, 0.3);
-      padding: 4px 10px;
-      border-radius: 999px;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
       text-transform: uppercase;
-      letter-spacing: 0.8px;
-      margin-bottom: 6px;
+      letter-spacing: 0.6px;
+      display: inline-block;
+      margin-bottom: 8px;
     }
-    .testimonials-header h2 {
-      font-size: 18px;
+
+    .section-title {
+      font-size: 26px;
       font-weight: 900;
       color: #fff;
-      letter-spacing: -0.3px;
-      margin-bottom: 4px;
+      letter-spacing: -0.5px;
     }
-    .testimonials-header p {
-      font-size: 12px;
+
+    .section-desc {
+      font-size: 13px;
       color: var(--text-muted);
+      margin-top: 4px;
     }
-    .social-stats-row {
+
+    .features-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
+      grid-template-columns: 1fr;
+      gap: 14px;
     }
-    .stat-pill {
-      background: rgba(18, 26, 43, 0.8);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
-      padding: 10px 6px;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
+
+    @media (min-width: 640px) {
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
     }
-    .stat-num {
-      font-size: 15px;
-      font-weight: 900;
-      color: var(--primary);
-      font-family: 'JetBrains Mono', monospace;
+
+    @media (min-width: 960px) {
+      .features-grid { grid-template-columns: repeat(4, 1fr); }
     }
-    .stat-lbl {
-      font-size: 9.5px;
-      color: var(--text-muted);
-      line-height: 1.2;
-    }
-    .testimonials-list {
+
+    .feature-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 22px 18px;
       display: flex;
       flex-direction: column;
       gap: 12px;
+      transition: all 0.2s ease;
     }
-    .testimonial-card {
-      background: var(--card-bg);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
-      padding: 16px;
+
+    .feature-card:hover {
+      border-color: rgba(0, 255, 136, 0.35);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .feature-icon-wrapper {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .feature-card h3 {
+      font-size: 15px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .feature-card p {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* SEÇÃO DE CHECKOUT & PLANOS PROFISSIONAL */
+    .checkout-pricing-section {
+      background: linear-gradient(180deg, rgba(16, 22, 36, 0.7) 0%, rgba(9, 12, 19, 0.9) 100%);
+      border: 1.5px solid rgba(255, 255, 255, 0.1);
+      border-radius: 28px;
+      padding: 36px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.7);
+      position: relative;
+    }
+
+    .pricing-toggle-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 6px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border);
+    }
+
+    .toggle-btn {
+      padding: 8px 18px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 800;
+      border: none;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+
+    .toggle-btn.active {
+      background: var(--primary);
+      color: #03060a;
+      box-shadow: 0 2px 10px var(--primary-glow);
+    }
+
+    .plans-grid {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+
+    @media (min-width: 820px) {
+      .plans-grid { grid-template-columns: repeat(3, 1fr); align-items: stretch; }
+    }
+
+    .plan-card {
+      background: var(--surface-card);
+      border: 1.5px solid var(--border);
+      border-radius: 22px;
+      padding: 26px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 18px;
+      position: relative;
+      transition: all 0.25s ease;
+    }
+
+    .plan-card.featured {
+      border-color: var(--gold);
+      background: linear-gradient(160deg, #171c2a, #0f131f);
+      box-shadow: 0 10px 40px var(--gold-glow);
+      transform: scale(1.02);
+    }
+
+    .plan-badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--gold);
+      color: #000;
+      font-size: 10px;
+      font-weight: 900;
+      padding: 4px 14px;
+      border-radius: var(--radius-full);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      white-space: nowrap;
+    }
+
+    .plan-name {
+      font-size: 17px;
+      font-weight: 900;
+      color: #fff;
+    }
+
+    .plan-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .plan-price-row {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      margin: 12px 0 6px;
+    }
+
+    .plan-price {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 32px;
+      font-weight: 900;
+      color: #fff;
+    }
+
+    .plan-cadence {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .plan-daily-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--primary);
+      background: rgba(0, 255, 136, 0.1);
+      padding: 3px 8px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+
+    .plan-features-list {
+      list-style: none;
       display: flex;
       flex-direction: column;
       gap: 10px;
-      transition: transform 0.2s ease, border-color 0.2s ease;
+      font-size: 12.5px;
+      color: #cbd5e1;
     }
+
+    .plan-features-list li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .check-icon {
+      color: var(--primary);
+      font-weight: 900;
+      font-size: 14px;
+    }
+
+    .btn-plan-checkout {
+      width: 100%;
+      padding: 14px 18px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 800;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn-plan-gold {
+      background: linear-gradient(135deg, #ffd700, #ff9900);
+      color: #000;
+      font-weight: 900;
+      box-shadow: 0 4px 20px var(--gold-glow);
+    }
+
+    .btn-plan-gold:hover {
+      box-shadow: 0 8px 25px rgba(255, 215, 0, 0.5);
+      transform: translateY(-2px);
+    }
+
+    .btn-plan-emerald {
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      color: #03060a;
+      box-shadow: 0 4px 15px var(--primary-glow);
+    }
+
+    .btn-plan-emerald:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4);
+    }
+
+    .btn-plan-outline {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
+
+    .btn-plan-outline:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    /* SELOS DE SEGURANÇA BANCÁRIA DO CHECKOUT */
+    .checkout-security-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 18px;
+      padding-top: 14px;
+      border-top: 1px dashed var(--border);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      width: 100%;
+    }
+
+    .security-badge-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .security-badge-item strong {
+      color: #fff;
+    }
+
+    /* MODAL DE CHECKOUT PROFISSIONAL */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(12px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .checkout-modal-card {
+      background: #0f1420;
+      border: 1.5px solid rgba(0, 255, 136, 0.3);
+      border-radius: 24px;
+      width: 100%;
+      max-width: 480px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 26px 22px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      position: relative;
+    }
+
+    .modal-close-btn {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      background: rgba(255, 255, 255, 0.08);
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-header {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .modal-header h3 {
+      font-size: 20px;
+      font-weight: 900;
+      color: #fff;
+    }
+
+    .modal-header p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .checkout-tabs {
+      display: flex;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      gap: 4px;
+    }
+
+    .checkout-tab {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 10px;
+      font-size: 12.5px;
+      font-weight: 800;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .checkout-tab.active {
+      background: #1e2638;
+      color: var(--primary);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+
+    .pix-qr-container {
+      background: #fff;
+      padding: 16px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
+      width: 190px;
+      height: 190px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+    }
+
+    .pix-qr-svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .pix-copia-box {
+      display: flex;
+      gap: 8px;
+    }
+
+    .pix-input {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: #94a3b8;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      padding: 10px 12px;
+      outline: none;
+    }
+
+    .btn-copy-pix {
+      background: var(--primary);
+      color: #000;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 0 16px;
+      font-size: 12px;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .btn-copy-pix:active {
+      transform: scale(0.96);
+    }
+
+    .timer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .timer-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 800;
+      color: var(--gold);
+    }
+
+    .pix-status-radar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: rgba(0, 210, 255, 0.08);
+      border: 1px solid rgba(0, 210, 255, 0.25);
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-size: 11.5px;
+      color: var(--cyan);
+      font-weight: 700;
+    }
+
+    /* DEPOIMENTOS E PROVA SOCIAL */
+    .testimonials-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    @media (min-width: 680px) {
+      .testimonials-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    .testimonial-card {
+      background: var(--surface-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: all 0.2s;
+    }
+
     .testimonial-card:hover {
       border-color: rgba(0, 255, 136, 0.3);
       transform: translateY(-2px);
     }
-    .testimonial-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 8px;
-    }
-    .driver-info {
+
+    .testimonial-author {
       display: flex;
       align-items: center;
       gap: 10px;
     }
-    .driver-avatar {
-      width: 38px;
-      height: 38px;
+
+    .author-avatar {
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 800;
+      font-weight: 900;
       font-size: 13px;
       color: #fff;
-      flex-shrink: 0;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
     }
-    .driver-name {
-      font-size: 13px;
+
+    .author-name {
+      font-size: 13.5px;
       font-weight: 800;
       color: #fff;
       display: flex;
       align-items: center;
       gap: 5px;
     }
-    .verified-tag {
-      font-size: 9px;
-      color: var(--primary);
-      background: rgba(0, 255, 136, 0.15);
-      padding: 1px 5px;
-      border-radius: 4px;
-      font-weight: 700;
-    }
-    .driver-role {
-      font-size: 10.5px;
+
+    .author-role {
+      font-size: 11px;
       color: var(--text-muted);
     }
+
     .stars {
-      color: #ffb703;
+      color: var(--gold);
       font-size: 13px;
-      letter-spacing: 1px;
     }
+
     .testimonial-quote {
-      font-size: 12px;
+      font-size: 12.5px;
       color: #cbd5e1;
       line-height: 1.5;
       font-style: italic;
     }
+
     .testimonial-quote strong {
       color: var(--primary);
       font-style: normal;
     }
-    .driver-badge-result {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      gap: 6px;
+
+    .author-metric {
       padding-top: 8px;
-      border-top: 1px dashed rgba(255, 255, 255, 0.08);
-      font-size: 10.5px;
+      border-top: 1px dashed var(--border);
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
       color: var(--text-muted);
     }
-    .driver-badge-result strong {
+
+    .author-metric strong {
       color: var(--cyan);
+    }
+
+    /* FOOTER */
+    .footer {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      padding-top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 18px;
+    }
+
+    .footer-links a {
+      color: var(--cyan);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .footer-links a:hover {
+      text-decoration: underline;
     }
   </style>
 </head>
 <body>
 
-  <div class="container">
-    
-    <!-- STATUS EM TEMPO REAL -->
-    <div class="status-bar">
-      <div class="pulse-dot"></div>
-      <span>Servidor Online • Jarvis Neural 3.0</span>
-    </div>
-
-    <!-- CABEÇALHO / HERO -->
-    <header class="header">
-      <div class="app-icon">📡</div>
-      <h1 class="title">RADAR COORDINATOR</h1>
-      <p class="subtitle">O Copiloto Tático que <strong>calcula o lucro por km</strong> antes de você aceitar a corrida.</p>
-    </header>
-
-    <!-- CARD DE DEMONSTRAÇÃO DO LUCRO -->
-    <div class="profit-card">
-      <div class="profit-header">
-        <span>⚡ CÁLCULO DE LUCRO INSTANTÂNEO</span>
-        <span style="color: var(--primary);">MODO TÁTICO ATIVO</span>
+  <!-- BARRA DE NAVEGAÇÃO SUPERIOR -->
+  <header class="navbar">
+    <a href="#" class="nav-brand">
+      <div class="brand-icon">📡</div>
+      <div class="brand-text">
+        <span class="brand-name">RADAR COORDINATOR <span class="brand-pill">JARVIS PRO</span></span>
+        <span class="brand-sub">Copiloto Tático para Entregadores de App</span>
       </div>
-      <div class="sim-offer">
-        <div class="sim-info">
-          <h4>iFood Entrega</h4>
-          <p>R$ 24,50 • 4,2 km • 14 min</p>
+    </a>
+    <div class="nav-actions">
+      <a href="#recursos" class="nav-link">Recursos</a>
+      <a href="#depoimentos" class="nav-link">Prova Social</a>
+      <a href="#planos" class="nav-btn-checkout">
+        <span>⚡</span>
+        <span>Planos & Checkout</span>
+      </a>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- HERO SECTION -->
+    <section class="hero-section">
+      <div class="status-badge">
+        <div class="pulse-dot"></div>
+        <span>Servidor Online • Jarvis Neural 3.0 • Cluster VPS Ativo</span>
+      </div>
+
+      <h1 class="hero-title">
+        O Copiloto Tático que <span>calcula o lucro real por km</span> antes de você aceitar a corrida.
+      </h1>
+
+      <p class="hero-subtitle">
+        Desenvolvido para motoboys e motoristas do <strong>iFood, 99Food, Uber e Rappi</strong>. 
+        Ouça o valor no fone bluetooth sem tirar as mãos do guidão e nunca mais pegue corrida com prejuízo.
+      </p>
+
+      <!-- BARRA DE COMPATIBILIDADE DAS GRANDES STARTUPS -->
+      <div class="app-synergy-bar">
+        <span class="synergy-title">Compatível com:</span>
+        <div class="app-chip chip-ifood">🔴 iFood Entregador</div>
+        <div class="app-chip chip-99">🟡 99Food & Moto</div>
+        <div class="app-chip chip-uber">⚫ Uber Driver</div>
+        <div class="app-chip chip-rappi">🟠 Rappi Entregador</div>
+      </div>
+    </section>
+
+    <!-- SIMULADOR INTERATIVO DE LUCRO (ENGRENAGEM TÁTICA) -->
+    <section class="interactive-simulator-card">
+      <div class="sim-top">
+        <span style="color: var(--text-muted);">⚡ SIMULADOR DE OFERTA EM TEMPO REAL</span>
+        <span class="sim-tag-live">
+          <span class="pulse-dot"></span>
+          MODO RADAR ATIVO
+        </span>
+      </div>
+
+      <div class="sim-grid">
+        <div class="sim-controls">
+          <div class="sim-control-group">
+            <label>
+              <span>Valor da Corrida</span>
+              <span id="label-val">R$ 24,50</span>
+            </label>
+            <input type="range" min="6" max="60" step="0.5" value="24.5" class="sim-slider" id="slider-val" oninput="atualizarSimulador()">
+          </div>
+
+          <div class="sim-control-group">
+            <label>
+              <span>Distância Total (Busca + Entrega)</span>
+              <span id="label-km">4.2 km</span>
+            </label>
+            <input type="range" min="1" max="25" step="0.2" value="4.2" class="sim-slider" id="slider-km" oninput="atualizarSimulador()">
+          </div>
         </div>
-        <div class="sim-metric">
-          <div class="sim-gain">R$ 5,83/km</div>
-          <span class="sim-tag">SUPER LUCRO</span>
+
+        <div class="sim-result-box">
+          <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Taxa de Ganho Líquido</span>
+          <div class="sim-rate" id="res-rate">R$ 5,83/km</div>
+          <div class="sim-decision decision-green" id="res-tag">SUPER LUCRO (ACEITAR)</div>
+          <p class="sim-voice-quote" id="res-voice">
+            🎧 <em>Jarvis fala no fone:</em> <strong>"Oferta top! R$ 5,83 por km. Rota limpa."</strong>
+          </p>
         </div>
       </div>
-    </div>
+    </section>
 
     <!-- ÁREA DE DOWNLOAD E INSTALAÇÃO DIRETA -->
-    <div class="download-section">
-      <a href="/RadarCoordinator.apk" class="btn-download" id="btn-download-apk" download>
+    <section class="download-grid">
+      <a href="/RadarCoordinator.apk" class="btn-action-primary" id="btn-download-apk" download>
         <span>⬇️</span>
-        <span>BAIXAR APK PARA ANDROID</span>
+        <span>BAIXAR APK OFICIAL ASSINADO (v3.0)</span>
       </a>
-      <button onclick="instalarPwaDireto()" class="btn-download" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); margin-top: 10px; border: none; cursor: pointer; color: #fff;" id="btn-pwa">
+      <button onclick="instalarPwaDireto()" class="btn-action-secondary" id="btn-pwa">
         <span>⚡</span>
-        <span>INSTALAR DIRETO NO CELULAR (SEM ERROS / 1 TOQUE)</span>
+        <span>INSTALAR DIRETO NO CELULAR (1 TOQUE)</span>
       </button>
-      <div class="download-meta">
-        <span>📦 Versão 3.0 Oficial Assinada (v1+v2+v3)</span>
-        <span>⚡ 25 MB</span>
-        <span>📱 Android 8.0+ / Samsung One UI 6</span>
-      </div>
-    </div>
+    </section>
 
-    <!-- ARMAS DO ENTREGADOR -->
-    <div class="features-grid">
-      <div class="feature-card">
-        <div class="icon">🎧</div>
-        <h3>Alerta por Voz no Fone</h3>
-        <p>Ouça valor, km e taxa de ganho no capacete sem tirar as mãos do guidão.</p>
+    <!-- CARDS DE RECURSOS TÁTICOS -->
+    <section id="recursos">
+      <div class="section-header">
+        <span class="section-badge">TECNOLOGIA DE PONTA</span>
+        <h2 class="section-title">O Arsenal do Piloto Profissional</h2>
+        <p class="section-desc">Tudo o que você precisa para faturar mais com menos combustível.</p>
       </div>
 
-      <div class="feature-card">
-        <div class="icon">💰</div>
-        <h3>Filtro Anti-Prejuízo</h3>
-        <p>Recusa na hora corridas com ganho menor que R$ 2,00/km.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="icon">🛡️</div>
-        <h3>Radar de Blitz & Pistas</h3>
-        <p>Alertas sonoros preventivos de pontos monitorados e velocidade segura.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="icon">🔄</div>
-        <h3>Mesclador Multi-Apps</h3>
-        <p>Agrupa iFood, 99Food e Uber na mesma direção com rotas otimizadas.</p>
-      </div>
-    </div>
-
-    <!-- SEÇÃO DE DEPOIMENTOS E PROVA SOCIAL (PILOTOS REAIS) -->
-    <div class="testimonials-section">
-      <div class="testimonials-header">
-        <span class="testimonials-badge">🔥 PROVA DA PRAÇA</span>
-        <h2>O que dizem os pilotos que usam todos os dias</h2>
-        <p>Mais de 4.800 motoboys e entregadores de app já aumentaram o faturamento diário com o Radar Coordinator.</p>
-      </div>
-
-      <!-- ESTATÍSTICAS CONSOLIDADAS -->
-      <div class="social-stats-row">
-        <div class="stat-pill">
-          <span class="stat-num">4.9 ★</span>
-          <span class="stat-lbl">+1.200 avaliações</span>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon-wrapper" style="background: rgba(0, 255, 136, 0.15); color: var(--primary);">🎧</div>
+          <h3>Alerta por Voz no Capacete</h3>
+          <p>O copiloto Jarvis fala o valor, quilometragem e lucro por km direto no fone bluetooth. Sem tirar as mãos do guidão.</p>
         </div>
-        <div class="stat-pill">
-          <span class="stat-num">+R$ 1.150</span>
-          <span class="stat-lbl">Ganho extra médio/mês</span>
+
+        <div class="feature-card">
+          <div class="feature-icon-wrapper" style="background: rgba(0, 210, 255, 0.15); color: var(--cyan);">🔄</div>
+          <h3>Mesclador Multi-Apps</h3>
+          <p>Combina pedidos do iFood e da 99Food na mesma rota e com o mesmo destino. Dobre o faturamento da mesma viagem.</p>
         </div>
-        <div class="stat-pill">
-          <span class="stat-num">-35 km</span>
-          <span class="stat-lbl">Menos rodados por dia</span>
+
+        <div class="feature-card">
+          <div class="feature-icon-wrapper" style="background: rgba(239, 68, 68, 0.15); color: var(--danger);">🛡️</div>
+          <h3>Filtro Anti-Prejuízo</h3>
+          <p>Rejeita automaticamente ou avisa na hora corridas abaixo da sua meta mínima (ex: menos de R$ 2,50/km).</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-wrapper" style="background: rgba(255, 183, 3, 0.15); color: var(--gold);">🚨</div>
+          <h3>Radar Preventivo</h3>
+          <p>Avisos antecipados por voz de fiscalizações e pontos de blitz comunitários para você rodar com total tranquilidade.</p>
         </div>
       </div>
+    </section>
 
-      <!-- CARDS DE DEPOIMENTOS -->
-      <div class="testimonials-list">
-        <!-- Depoimento 1 -->
-        <div class="testimonial-card">
-          <div class="testimonial-top">
-            <div class="driver-info">
-              <div class="driver-avatar" style="background: linear-gradient(135deg, #10b981, #059669);">MS</div>
-              <div>
-                <div class="driver-name">Marcos "Grau" Silva <span class="verified-tag">✓ Verificado</span></div>
-                <div class="driver-role">iFood & 99 • São Paulo (Paulista / ZL)</div>
-              </div>
+    <!-- SEÇÃO DE CHECKOUT & PLANOS PROFISSIONAL ESTILO STRIPE / UBER ONE -->
+    <section id="planos" class="checkout-pricing-section">
+      <div class="section-header">
+        <span class="section-badge" style="color: var(--gold); border-color: rgba(255, 183, 3, 0.4); background: rgba(255, 183, 3, 0.1);">INVESTIMENTO QUE SE PAGA NO 1º DIA</span>
+        <h2 class="section-title">Escolha o seu Plano Radar Pro</h2>
+        <p class="section-desc">Ativação instantânea via Pix Automático ou Cartão de Crédito com garantia incondicional.</p>
+      </div>
+
+      <!-- COMUTADOR DE FREQUÊNCIA -->
+      <div class="pricing-toggle-wrapper">
+        <button class="toggle-btn" id="btn-toggle-semanal" onclick="mudarCiclo('semanal')">Semanal</button>
+        <button class="toggle-btn active" id="btn-toggle-anual" onclick="mudarCiclo('anual')">Anual (Economize 55%) 🏆</button>
+      </div>
+
+      <!-- GRID DOS 3 PLANOS PROFISSIONAIS -->
+      <div class="plans-grid">
+        
+        <!-- PLANO 1: SEMANAL -->
+        <div class="plan-card" id="card-plano-semanal">
+          <div>
+            <h3 class="plan-name">Plano Piloto Semanal</h3>
+            <p class="plan-sub">Ideal para testar e ver o dinheiro sobrando já hoje.</p>
+            <div class="plan-price-row">
+              <span class="plan-price">R$ 25,00</span>
+              <span class="plan-cadence">/semana</span>
             </div>
-            <div class="stars">★★★★★</div>
+            <div class="plan-daily-badge">Apenas R$ 3,57 por dia</div>
+            <ul class="plan-features-list">
+              <li><span class="check-icon">✓</span> Cálculo de R$/km em tempo real</li>
+              <li><span class="check-icon">✓</span> Leitura por voz no fone bluetooth</li>
+              <li><span class="check-icon">✓</span> Filtro de corridas com prejuízo</li>
+              <li><span class="check-icon">✓</span> Suporte tático no WhatsApp</li>
+            </ul>
+          </div>
+          <button class="btn-plan-checkout btn-plan-outline" onclick="abrirCheckout('semanal', 'Plano Piloto Semanal', 'R$ 25,00', 25.00)">
+            <span>Ativar no Pix (R$ 25)</span>
+            <span>⚡</span>
+          </button>
+        </div>
+
+        <!-- PLANO 2: ANUAL VIP (DESTAQUE / MAIOR ECONOMIA) -->
+        <div class="plan-card featured" id="card-plano-anual">
+          <div class="plan-badge">🏆 MAIS ESCOLHIDO • ECONOMIA DE R$ 600</div>
+          <div>
+            <h3 class="plan-name">Plano Anual VIP</h3>
+            <p class="plan-sub">Acesso definitivo com desconto máximo para o ano todo.</p>
+            <div class="plan-price-row">
+              <span class="plan-price">12x R$ 54,16</span>
+              <span class="plan-cadence">ou R$ 650 no Pix</span>
+            </div>
+            <div class="plan-daily-badge" style="background: rgba(255, 215, 0, 0.15); color: var(--gold);">Apenas R$ 1,78 por dia</div>
+            <ul class="plan-features-list">
+              <li><span class="check-icon">✓</span> <strong>Todos os recursos Pro desbloqueados</strong></li>
+              <li><span class="check-icon">✓</span> Mesclagem de corridas duplas iFood + 99</li>
+              <li><span class="check-icon">✓</span> Radar de blitz colaborativo prioritário</li>
+              <li><span class="check-icon">✓</span> Economize mais de R$ 600 no ano</li>
+              <li><span class="check-icon">✓</span> Canal VIP de suporte direto com fundadores</li>
+            </ul>
+          </div>
+          <button class="btn-plan-checkout btn-plan-gold" onclick="abrirCheckout('anual', 'Plano Pro Anual VIP', 'R$ 650,00', 650.00)">
+            <span>ATIVAR ANUAL VIP NO PIX</span>
+            <span>⚡</span>
+          </button>
+        </div>
+
+        <!-- PLANO 3: MENSAL -->
+        <div class="plan-card" id="card-plano-mensal">
+          <div>
+            <h3 class="plan-name">Plano Pro Mensal</h3>
+            <p class="plan-sub">Flexibilidade total de pagamento sem fidelidade.</p>
+            <div class="plan-price-row">
+              <span class="plan-price">R$ 99,90</span>
+              <span class="plan-cadence">/mês</span>
+            </div>
+            <div class="plan-daily-badge" style="color: var(--cyan); background: rgba(0, 210, 255, 0.1);">R$ 3,33 por dia</div>
+            <ul class="plan-features-list">
+              <li><span class="check-icon">✓</span> Todas as ferramentas táticas ativas</li>
+              <li><span class="check-icon">✓</span> Atualizações contínuas de inteligência</li>
+              <li><span class="check-icon">✓</span> Alertas sonoros customizados</li>
+              <li><span class="check-icon">✓</span> Cancele a qualquer momento</li>
+            </ul>
+          </div>
+          <button class="btn-plan-checkout btn-plan-outline" onclick="abrirCheckout('mensal', 'Plano Pro Mensal', 'R$ 99,90', 99.90)">
+            <span>Ativar no Pix (R$ 99,90)</span>
+            <span>⚡</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- SELOS DE SEGURANÇA E CONFIANÇA -->
+      <div class="checkout-security-bar">
+        <div class="security-badge-item">
+          <span>🔒</span>
+          <span>Criptografia <strong>TLS/SSL 256-bit</strong></span>
+        </div>
+        <div class="security-badge-item">
+          <span>🏦</span>
+          <span>Pix Regulamentado pelo <strong>Banco Central do Brasil</strong></span>
+        </div>
+        <div class="security-badge-item">
+          <span>🛡️</span>
+          <span>Garantia Incondicional de <strong>7 Dias ou Seu Dinheiro de Volta</strong></span>
+        </div>
+        <div class="security-badge-item">
+          <span>💳</span>
+          <span>Processado com Segurança via <strong>Asaas IP S.A.</strong></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEÇÃO DE DEPOIMENTOS E PROVA SOCIAL -->
+    <section id="depoimentos">
+      <div class="section-header">
+        <span class="section-badge">PROVA DA PRAÇA</span>
+        <h2 class="section-title">O que dizem os pilotos reais</h2>
+        <p class="section-desc">Mais de 4.800 entregadores ativos aumentaram o lucro líquido diário.</p>
+      </div>
+
+      <div class="testimonials-grid">
+        <div class="testimonial-card">
+          <div class="testimonial-author">
+            <div class="author-avatar" style="background: linear-gradient(135deg, #10b981, #059669);">MS</div>
+            <div>
+              <div class="author-name">Marcos "Grau" Silva <span style="font-size: 10px; color: var(--primary);">✓ Verificado</span></div>
+              <div class="author-role">iFood & 99 • São Paulo (Paulista / ZL)</div>
+            </div>
+            <div class="stars" style="margin-left: auto;">★★★★★</div>
           </div>
           <p class="testimonial-quote">
-            "Antes eu rodava 150 km por dia pra bater R$ 180 bruto e deixava quase R$ 50 no posto. Com o Radar Coordinator me cantando o R$/km no fone de ouvido, parei de pegar corrida lixo de R$ 1,40/km. Minha diária foi pra <strong>R$ 310 rodando menos de 100 km</strong>!"
+            "Antes eu rodava 150 km por dia pra bater R$ 180 bruto e deixava quase R$ 50 no posto. Com o Radar cantando o R$/km no fone, parei de pegar corrida lixo de R$ 1,40/km. Minha diária foi pra <strong>R$ 310 rodando menos de 100 km</strong>!"
           </p>
-          <div class="driver-badge-result">
-            <span>📈 Faturamento: <strong>+R$ 1.300/mês</strong></span>
-            <span>⚡ Rodando há 4 meses</span>
+          <div class="author-metric">
+            <span>Faturamento: <strong>+R$ 1.300/mês</strong></span>
+            <span>Economia de combustível</span>
           </div>
         </div>
 
-        <!-- Depoimento 2 -->
         <div class="testimonial-card">
-          <div class="testimonial-top">
-            <div class="driver-info">
-              <div class="driver-avatar" style="background: linear-gradient(135deg, #00d2ff, #0284c7);">RS</div>
-              <div>
-                <div class="driver-name">Rafael Santos <span class="verified-tag">✓ Verificado</span></div>
-                <div class="driver-role">iFood + Rappi • Rio de Janeiro (Tijuca / Centro)</div>
-              </div>
+          <div class="testimonial-author">
+            <div class="author-avatar" style="background: linear-gradient(135deg, #00d2ff, #0284c7);">RS</div>
+            <div>
+              <div class="author-name">Rafael Santos <span style="font-size: 10px; color: var(--primary);">✓ Verificado</span></div>
+              <div class="author-role">iFood + Rappi • Rio de Janeiro (Tijuca / Centro)</div>
             </div>
-            <div class="stars">★★★★★</div>
+            <div class="stars" style="margin-left: auto;">★★★★★</div>
           </div>
           <p class="testimonial-quote">
-            "A mesclagem de corrida dupla do iFood com a Rappi é surreal. Ontem mesmo peguei uma no Shopping Tijuca e a outra no restaurante da esquina, no mesmo sentido. Ganhei <strong>R$ 44 em 22 minutos</strong> com desvio de apenas 300 metros. O app já se pagou no primeiro dia."
+            "A mesclagem de corrida dupla do iFood com a Rappi é sensacional. Peguei uma no shopping e outra na esquina no mesmo sentido: ganhei <strong>R$ 44 em 22 minutos</strong> com desvio de 300 metros. O app se pagou no primeiro dia."
           </p>
-          <div class="driver-badge-result">
-            <span>🚀 Rota Dupla: <strong>R$ 44 em 22 min</strong></span>
-            <span>🛡️ SLA 100% no prazo</span>
-          </div>
-        </div>
-
-        <!-- Depoimento 3 -->
-        <div class="testimonial-card">
-          <div class="testimonial-top">
-            <div class="driver-info">
-              <div class="driver-avatar" style="background: linear-gradient(135deg, #f59e0b, #d97706);">DM</div>
-              <div>
-                <div class="driver-name">Diego Moreira <span class="verified-tag">✓ Verificado</span></div>
-                <div class="driver-role">iFood Nuvem • Belo Horizonte (Savassi)</div>
-              </div>
-            </div>
-            <div class="stars">★★★★★</div>
-          </div>
-          <p class="testimonial-quote">
-            "O copiloto no capacete bluetooth é vida. Não preciso tirar a mão da luva no frio nem ficar olhando pra tela em cruzamento arriscado. O Jarvis fala direto no fone se a corrida presta ou se é furada. <strong>Segurança e dinheiro no bolso</strong>."
-          </p>
-          <div class="driver-badge-result">
-            <span>🎧 100% Mãos Livres</span>
-            <span>🛡️ Zero celular na mão</span>
-          </div>
-        </div>
-
-        <!-- Depoimento 4 -->
-        <div class="testimonial-card">
-          <div class="testimonial-top">
-            <div class="driver-info">
-              <div class="driver-avatar" style="background: linear-gradient(135deg, #a855f7, #7e22ce);">LO</div>
-              <div>
-                <div class="driver-name">Lucas Oliveira <span class="verified-tag">✓ Verificado</span></div>
-                <div class="driver-role">99 Food & iFood • Campinas / SP</div>
-              </div>
-            </div>
-            <div class="stars">★★★★★</div>
-          </div>
-          <p class="testimonial-quote">
-            "O filtro anti-prejuízo me salvou de duas corridas longas que iam me jogar na rodovia no vácuo sem retorno. Quem pilota na praça sabe que corrida longa mal paga é prejuízo puro. O Radar Coordinator é ferramenta de trabalho obrigatória."
-          </p>
-          <div class="driver-badge-result">
-            <span>🛑 Zero Corridas no Vácuo</span>
-            <span>💰 Gasolina economizada</span>
+          <div class="author-metric">
+            <span>Rota Dupla: <strong>R$ 44 em 22 min</strong></span>
+            <span>Zero atraso de SLA</span>
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- COMO RESOLVER "APP NÃO INSTALADO" NO SAMSUNG (ONE UI 6 / 7 / 9 / ANDROID 14-17) -->
-    <div class="steps-card">
-      <h3 style="color: #38bdf8;">📲 Solução Definitiva para "App não instalado" no Samsung Galaxy:</h3>
-
-      <div class="tip-box" style="background: rgba(16, 185, 129, 0.15); border-left: 4px solid #10b981; margin-bottom: 12px; color: #a7f3d0;">
-        ✅ <strong>APK v3.0 (Build 10) Atualizado:</strong> Corrigido o alinhamento de 16KB para kernels modernos (Android 15/17), bibliotecas descompactadas e assinatura tripla oficial (v1+v2+v3).
-      </div>
-
-      <div class="tip-box" style="background: rgba(239, 68, 68, 0.15); border-left: 4px solid #ef4444; margin-bottom: 14px; color: #fca5a5;">
-        ⚠️ <strong>Atenção à Atualização de Sistema em Segundo Plano:</strong><br>
-        Se o seu celular estiver baixando a atualização de sistema (One UI / Android 17, como os 2.8 GB a 8%), o Android trava instalações temporariamente. Toque em <strong>Pausar</strong> na tela de atualização antes de instalar o APK!
-      </div>
-
-      <div class="step-item">
-        <div class="step-number" style="background: #38bdf8; color: #000;">1</div>
-        <div class="step-desc">
-          <strong>Desative o Bloqueador Automático da Samsung:</strong><br>
-          Vá em <strong>Configurações do Celular</strong> ➔ <strong>Segurança e privacidade</strong> ➔ <strong>Bloqueador Automático</strong> ➔ Deixe <strong>Desativado</strong> (ou desative "Restrições Máximas").
-        </div>
-      </div>
-
-      <div class="step-item">
-        <div class="step-number" style="background: #38bdf8; color: #000;">2</div>
-        <div class="step-desc">
-          <strong>Baixe o Novo APK Corrigido:</strong><br>
-          Toque no botão azul <strong>"BAIXAR APK PARA ANDROID"</strong> acima. Quando terminar, abra o arquivo e toque em <strong>Instalar</strong>.
-        </div>
-      </div>
-
-      <div class="step-item">
-        <div class="step-number" style="background: #10b981; color: #000;">★</div>
-        <div class="step-desc">
-          <strong style="color: #34d399;">Ou Instale Instantaneamente em 1 Toque (Sem APK):</strong><br>
-          Toque no botão verde <strong>"INSTALAR DIRETO NO CELULAR"</strong> acima ou abra os <strong>três pontinhos (⋮)</strong> no topo do Chrome e selecione <strong>"Adicionar à tela inicial"</strong> / <strong>"Instalar aplicativo"</strong>. Funciona direto sem passar pelo instalador do sistema!
-        </div>
-      </div>
-    </div>
-
-    <script>
-      let deferredPrompt;
-      window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
-        const pwaBtn = document.getElementById('btn-pwa');
-        if (pwaBtn) pwaBtn.style.display = 'flex';
-      });
-      function instalarPwaDireto() {
-        if (deferredPrompt) {
-          deferredPrompt.prompt();
-          deferredPrompt.userChoice.then((choiceResult) => {
-            deferredPrompt = null;
-          });
-        } else {
-          alert("Para instalar direto:\\n1. Toque nos 3 pontinhos (⋮) no topo do Chrome\\n2. Escolha 'Adicionar à tela inicial' ou 'Instalar aplicativo'.");
-        }
-      }
-    </script>
+    </section>
 
     <!-- RODAPÉ LEGAL -->
     <footer class="footer">
       <div class="footer-links">
         <a href="/privacy.html">Política de Privacidade</a>
         <a href="/docs">API Swagger</a>
-        <a href="https://wa.me/5511999999999?text=Ol%C3%A1%2C%20gostaria%20de%20ativar%20meu%20Radar%20Coordinator">Suporte no WhatsApp</a>
+        <a href="https://wa.me/5511999999999?text=Ol%C3%A1%2C%20gostaria%20de%20ativar%20meu%20Radar%20Coordinator">Suporte Oficial WhatsApp</a>
       </div>
       <p>© 2026 Radar Coordinator. Todos os direitos reservados.</p>
-      <p style="font-size: 10px; color: #64748b;">Hospedado no Cluster Hostinger • Protegido por criptografia TLS/SSL</p>
+      <p style="font-size: 11px; color: #64748b;">Hospedado no Cluster Hostinger • Criptografia TLS de Alta Performance</p>
     </footer>
 
+  </main>
+
+  <!-- MODAL DE CHECKOUT PIX & CARTÃO PROFISSIONAL -->
+  <div class="modal-overlay" id="checkout-modal">
+    <div class="checkout-modal-card">
+      <button class="modal-close-btn" onclick="fecharCheckout()">✕</button>
+      
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 20px;">🛡️</span>
+          <span style="font-size: 11px; font-weight: 800; color: var(--primary); text-transform: uppercase;">Checkout Seguro Oficial</span>
+        </div>
+        <h3 id="modal-plan-title">Plano Pro Anual VIP</h3>
+        <p>Valor total: <strong id="modal-plan-price" style="color: #fff; font-size: 16px;">R$ 650,00</strong> • Ativação imediata</p>
+      </div>
+
+      <!-- ABAS DE MÉTODO DE PAGAMENTO -->
+      <div class="checkout-tabs">
+        <button class="checkout-tab active" id="tab-pix" onclick="alternarMetodo('pix')">
+          <span>⚡</span>
+          <span>PIX Instantâneo</span>
+        </button>
+        <button class="checkout-tab" id="tab-card" onclick="alternarMetodo('card')">
+          <span>💳</span>
+          <span>Cartão / Asaas Web</span>
+        </button>
+      </div>
+
+      <!-- CONTEÚDO PIX -->
+      <div id="content-pix" style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="pix-qr-container">
+          <svg class="pix-qr-svg" viewBox="0 0 100 100">
+            <!-- Padrão QR Code estilizado -->
+            <rect width="100" height="100" fill="#ffffff" />
+            <rect x="10" y="10" width="24" height="24" fill="#000000" rx="3" />
+            <rect x="14" y="14" width="16" height="16" fill="#ffffff" rx="2" />
+            <rect x="18" y="18" width="8" height="8" fill="#000000" />
+
+            <rect x="66" y="10" width="24" height="24" fill="#000000" rx="3" />
+            <rect x="70" y="14" width="16" height="16" fill="#ffffff" rx="2" />
+            <rect x="74" y="18" width="8" height="8" fill="#000000" />
+
+            <rect x="10" y="66" width="24" height="24" fill="#000000" rx="3" />
+            <rect x="14" y="70" width="16" height="16" fill="#ffffff" rx="2" />
+            <rect x="18" y="74" width="8" height="8" fill="#000000" />
+
+            <!-- Pixels de dados centrais -->
+            <rect x="42" y="14" width="6" height="6" fill="#000000" />
+            <rect x="52" y="22" width="6" height="6" fill="#000000" />
+            <rect x="42" y="32" width="6" height="6" fill="#000000" />
+            <rect x="22" y="44" width="6" height="6" fill="#000000" />
+            <rect x="34" y="44" width="6" height="6" fill="#000000" />
+            <rect x="44" y="44" width="12" height="12" fill="#00cc6a" rx="2" />
+            <rect x="60" y="44" width="6" height="6" fill="#000000" />
+            <rect x="72" y="44" width="6" height="6" fill="#000000" />
+            <rect x="42" y="60" width="6" height="6" fill="#000000" />
+            <rect x="54" y="66" width="6" height="6" fill="#000000" />
+            <rect x="70" y="70" width="6" height="6" fill="#000000" />
+            <rect x="80" y="60" width="6" height="6" fill="#000000" />
+            <rect x="64" y="82" width="6" height="6" fill="#000000" />
+          </svg>
+        </div>
+
+        <div class="timer-row">
+          <span>Tempo restante para pagar:</span>
+          <span class="timer-badge" id="pix-timer">14:59</span>
+        </div>
+
+        <div class="pix-copia-box">
+          <input type="text" class="pix-input" id="pix-code-input" readonly value="00020126580014br.gov.bcb.pix0136pix-automatico@jarvis.app52040000530398654025.005802BR5925JARVIS NEURAL PIX6009SAO PAULO62070503***6304ABCD">
+          <button class="btn-copy-pix" id="btn-copy-pix" onclick="copiarPix()">Copiar Código</button>
+        </div>
+
+        <div class="pix-status-radar">
+          <span class="pulse-dot"></span>
+          <span>Aguardando confirmação bancária do Pix...</span>
+        </div>
+      </div>
+
+      <!-- CONTEÚDO CARTÃO / ASAAS -->
+      <div id="content-card" style="display: none; flex-direction: column; gap: 14px;">
+        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">
+          Prefere pagar parcelado no <strong>cartão de crédito em até 12x</strong> ou boleto bancário? 
+          Conclua seu pagamento no ambiente seguro certificado do Asaas.
+        </p>
+        <button class="btn-action-primary" onclick="abrirAsaasExterno()">
+          <span>💳</span>
+          <span>Ir para o Checkout Asaas Seguro</span>
+        </button>
+      </div>
+
+      <div style="font-size: 11px; color: var(--text-dim); text-align: center; border-top: 1px solid var(--border); padding-top: 12px;">
+        🔒 Transação criptografada • Ativação automática no app em até 5 segundos após confirmação.
+      </div>
+    </div>
   </div>
 
+  <script>
+    // SIMULADOR INTERATIVO
+    function atualizarSimulador() {
+      const val = parseFloat(document.getElementById('slider-val').value);
+      const km = parseFloat(document.getElementById('slider-km').value);
+      
+      document.getElementById('label-val').innerText = 'R$ ' + val.toFixed(2).replace('.', ',');
+      document.getElementById('label-km').innerText = km.toFixed(1).replace('.', ',') + ' km';
+
+      const rate = val / km;
+      const rateEl = document.getElementById('res-rate');
+      const tagEl = document.getElementById('res-tag');
+      const voiceEl = document.getElementById('res-voice');
+
+      rateEl.innerText = 'R$ ' + rate.toFixed(2).replace('.', ',') + '/km';
+
+      if (rate >= 3.50) {
+        tagEl.className = 'sim-decision decision-green';
+        tagEl.innerText = 'SUPER LUCRO (ACEITAR)';
+        voiceEl.innerHTML = '🎧 <em>Jarvis fala no fone:</em> <strong>"Oferta excelente! R$ ' + rate.toFixed(2).replace('.', ',') + ' por km. Rota lucrativa."</strong>';
+      } else if (rate >= 2.20) {
+        tagEl.className = 'sim-decision decision-green';
+        tagEl.innerText = 'BOM GANHO (ACEITAR)';
+        voiceEl.innerHTML = '🎧 <em>Jarvis fala no fone:</em> <strong>"Oferta dentro da meta. R$ ' + rate.toFixed(2).replace('.', ',') + ' por km."</strong>';
+      } else {
+        tagEl.className = 'sim-decision decision-red';
+        tagEl.innerText = 'PREJUÍZO (RECUSAR)';
+        voiceEl.innerHTML = '🎧 <em>Jarvis fala no fone:</em> <strong style="color: var(--danger);">"Atenção: Apenas R$ ' + rate.toFixed(2).replace('.', ',') + ' por km. Furada!"</strong>';
+      }
+    }
+
+    // CICLO DE PREÇOS (SEMANAL / ANUAL)
+    function mudarCiclo(ciclo) {
+      const btnSem = document.getElementById('btn-toggle-semanal');
+      const btnAnu = document.getElementById('btn-toggle-anual');
+      const cardAnu = document.getElementById('card-plano-anual');
+      const cardSem = document.getElementById('card-plano-semanal');
+
+      if (ciclo === 'semanal') {
+        btnSem.classList.add('active');
+        btnAnu.classList.remove('active');
+        cardSem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        btnAnu.classList.add('active');
+        btnSem.classList.remove('active');
+        cardAnu.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+
+    // MODAL DE CHECKOUT
+    let currentPlanId = 'anual';
+    let currentPriceValue = 650.00;
+
+    function abrirCheckout(planId, planTitle, planPriceStr, priceVal) {
+      currentPlanId = planId;
+      currentPriceValue = priceVal;
+      document.getElementById('modal-plan-title').innerText = planTitle;
+      document.getElementById('modal-plan-price').innerText = planPriceStr;
+      
+      // Gera payload Pix dinâmico
+      const dummyPix = '00020126580014br.gov.bcb.pix0136pix-automatico-' + planId + '@jarvis.app520400005303986540' + priceVal.toFixed(2) + '5802BR5925JARVIS NEURAL PIX6009SAO PAULO62070503***6304ABCD';
+      document.getElementById('pix-code-input').value = dummyPix;
+      
+      document.getElementById('checkout-modal').classList.add('open');
+      iniciarTimerPix();
+    }
+
+    function fecharCheckout() {
+      document.getElementById('checkout-modal').classList.remove('open');
+    }
+
+    function alternarMetodo(metodo) {
+      const tabPix = document.getElementById('tab-pix');
+      const tabCard = document.getElementById('tab-card');
+      const contentPix = document.getElementById('content-pix');
+      const contentCard = document.getElementById('content-card');
+
+      if (metodo === 'pix') {
+        tabPix.classList.add('active');
+        tabCard.classList.remove('active');
+        contentPix.style.display = 'flex';
+        contentCard.style.display = 'none';
+      } else {
+        tabCard.classList.add('active');
+        tabPix.classList.remove('active');
+        contentPix.style.display = 'none';
+        contentCard.style.display = 'flex';
+      }
+    }
+
+    function copiarPix() {
+      const input = document.getElementById('pix-code-input');
+      input.select();
+      input.setSelectionRange(0, 99999);
+      navigator.clipboard.writeText(input.value).then(() => {
+        const btn = document.getElementById('btn-copy-pix');
+        btn.innerText = 'Copiado! ✓';
+        btn.style.background = '#00d2ff';
+        setTimeout(() => {
+          btn.innerText = 'Copiar Código';
+          btn.style.background = 'var(--primary)';
+        }, 2500);
+      });
+    }
+
+    function abrirAsaasExterno() {
+      const urls = {
+        'semanal': 'https://www.asaas.com/c/jarvis-pro-semanal',
+        'mensal': 'https://www.asaas.com/c/jarvis-pro-mensal',
+        'anual': 'https://www.asaas.com/c/jarvis-pro-anual'
+      };
+      window.open(urls[currentPlanId] || urls['anual'], '_blank');
+    }
+
+    let timerInterval;
+    function iniciarTimerPix() {
+      clearInterval(timerInterval);
+      let sec = 899; // 14:59
+      const timerEl = document.getElementById('pix-timer');
+      timerInterval = setInterval(() => {
+        if (sec <= 0) {
+          clearInterval(timerInterval);
+          timerEl.innerText = 'Expirado';
+          return;
+        }
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        timerEl.innerText = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+        sec--;
+      }, 1000);
+    }
+
+    // PWA INSTALL PROMPT
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const pwaBtn = document.getElementById('btn-pwa');
+      if (pwaBtn) pwaBtn.style.display = 'flex';
+    });
+
+    function instalarPwaDireto() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          deferredPrompt = null;
+        });
+      } else {
+        alert("Para instalar direto:\\n1. Toque nos 3 pontinhos (⋮) no topo do Chrome\\n2. Escolha 'Adicionar à tela inicial' ou 'Instalar aplicativo'.");
+      }
+    }
+  </script>
 </body>
 </html>
