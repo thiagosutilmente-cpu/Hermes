@@ -64,10 +64,9 @@ private val AlertDanger = Color(0xFFEF4444)
 private val PixTeal = Color(0xFF00B494)
 
 enum class StartupTab(val label: String, val icon: ImageVector) {
-    COCKPIT("Pista", Icons.Default.Navigation),
-    EARNINGS("Ganhos", Icons.AutoMirrored.Filled.TrendingUp),
-    FILTERS("Filtros", Icons.Default.Tune),
-    PRO("Plano PRO", Icons.Default.WorkspacePremium)
+    COCKPIT("Radar", Icons.Default.Navigation),
+    COMBOS("Mesclagens", Icons.Default.AltRoute),
+    FINANCE("Finanças", Icons.AutoMirrored.Filled.TrendingUp)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -271,36 +270,22 @@ fun StartupDeliveryCockpitScreen(
                                 voiceManager?.speak("Nova corrida de R$ ${newOffer.payout.toInt()} no ${newOffer.appName}.")
                             }
                         },
-                        onUpgradePro = { selectedTab = StartupTab.PRO }
+                        onUpgradePro = { selectedTab = StartupTab.FINANCE }
                     )
                 }
 
-                StartupTab.EARNINGS -> {
-                    StartupEarningsTab(
+                StartupTab.COMBOS -> {
+                    StartupCombosTab(
+                        onOpenSettings = { /* Acesso aos parâmetros de mesclagem */ }
+                    )
+                }
+
+                StartupTab.FINANCE -> {
+                    StartupFinanceAndProTab(
                         todayEarnings = todayEarnings,
                         completedTrips = completedTrips,
                         onlineHours = onlineHours,
                         ratePerKm = currentRatePerKm
-                    )
-                }
-
-                StartupTab.FILTERS -> {
-                    StartupFiltersTab(
-                        minGainPerKm = minGainPerKm,
-                        onMinGainChange = { minGainPerKm = it },
-                        minOfferValue = minOfferValue,
-                        onMinOfferValueChange = { minOfferValue = it },
-                        autoAcceptEnabled = autoAcceptEnabled,
-                        onToggleAutoAccept = { autoAcceptEnabled = it }
-                    )
-                }
-
-                StartupTab.PRO -> {
-                    StartupFintechCheckoutScreen(
-                        onPaymentSuccess = {
-                            Toast.makeText(context, "Parabéns! Assinatura PRO Ativada com Sucesso!", Toast.LENGTH_LONG).show()
-                            selectedTab = StartupTab.COCKPIT
-                        }
                     )
                 }
             }
@@ -872,20 +857,29 @@ private fun StartupDeliveryOfferCard(
                     }
                 }
 
-                // Valor total a receber
+                // Valor total a receber + Badge Gigante de R$/km para leitura periférica instantânea
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = String.format(Locale("pt", "BR"), "R$ %.2f", offer.payout),
                         color = EmeraldSuccess,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.ExtraBold
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Black
                     )
-                    Text(
-                        text = String.format(Locale("pt", "BR"), "R$ %.2f/km", offer.ratePerKm),
-                        color = StartupTextSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Surface(
+                        color = if (offer.ratePerKm >= 5.0) EmeraldSuccess.copy(alpha = 0.2f) else NinetyNineYellow.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, if (offer.ratePerKm >= 5.0) EmeraldSuccess.copy(alpha = 0.6f) else NinetyNineYellow.copy(alpha = 0.6f))
+                    ) {
+                        Text(
+                            text = String.format(Locale("pt", "BR"), "R$ %.2f/km", offer.ratePerKm),
+                            color = if (offer.ratePerKm >= 5.0) EmeraldSuccess else NinetyNineYellow,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
                 }
             }
 
@@ -1152,7 +1146,210 @@ private fun StartupProFeatureBanner(onUpgrade: () -> Unit) {
 }
 
 // -----------------------------------------------------------------------------
-// ABA 2: EXTRATO & GANHOS (ESTILO NUBANK / UBER DRIVER)
+// -----------------------------------------------------------------------------
+// ABA 2: MESCLAGENS & ROTAS TÁTICAS (DEEP ORDER POOL MERGING ENGINE)
+// -----------------------------------------------------------------------------
+@Composable
+private fun StartupCombosTab(
+    onOpenSettings: () -> Unit = {}
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            // Card Principal do Motor de Mesclagem Multi-App
+            DeepOrderPoolCockpitCard()
+        }
+
+        item {
+            // Dica de Condução Tática para o Piloto
+            Surface(
+                color = StartupSurface,
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, StartupCardBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("💡", fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Dica do Copiloto Neural",
+                            color = StartupTextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Combos com desvio angular menor que 15° garantem mais de R$ 50/hora sem atrasar pedidos.",
+                            color = StartupTextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// ABA 3: FINANÇAS & PLANO PRO (LUCRO LÍQUIDO, METAS E ASSINATURA)
+// -----------------------------------------------------------------------------
+@Composable
+private fun StartupFinanceAndProTab(
+    todayEarnings: Double,
+    completedTrips: Int,
+    onlineHours: String,
+    ratePerKm: Double
+) {
+    var showCheckoutModal by remember { mutableStateOf(false) }
+
+    if (showCheckoutModal) {
+        AlertDialog(
+            onDismissRequest = { showCheckoutModal = false },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showCheckoutModal = false }) {
+                    Text("Fechar", color = StartupTextSecondary)
+                }
+            },
+            containerColor = StartupSurface,
+            title = {
+                Text(
+                    text = "👑 Assinatura PRO",
+                    color = StartupTextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                StartupFintechCheckoutScreen(
+                    onPaymentSuccess = {
+                        showCheckoutModal = false
+                    }
+                )
+            }
+        )
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            // Banner de Acesso PRO com botão de ação
+            StartupProFeatureBanner(onUpgrade = { showCheckoutModal = true })
+        }
+
+        item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = StartupSurface),
+                border = BorderStroke(1.dp, StartupCardBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        text = "FATURAMENTO & LUCRO REAL",
+                        color = StartupTextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = String.format(Locale("pt", "BR"), "R$ %.2f", todayEarnings),
+                        color = StartupTextPrimary,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Linha com Lucro Líquido Real (descontando combustível de 17 centavos por km)
+                    val fuelCostEstimate = completedTrips * 3.8 * 0.17
+                    val netProfitReal = (todayEarnings - fuelCostEstimate).coerceAtLeast(0.0)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("Lucro Líquido (Bolso)", color = StartupTextSecondary, fontSize = 11.sp)
+                            Text(
+                                String.format(Locale("pt", "BR"), "R$ %.2f", netProfitReal),
+                                color = EmeraldSuccess,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Gasto Gasolina (Est.)", color = StartupTextSecondary, fontSize = 11.sp)
+                            Text(
+                                String.format(Locale("pt", "BR"), "-R$ %.2f", fuelCostEstimate),
+                                color = AlertDanger,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = StartupCardBorder, thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Barra de Meta Diária
+                    Text(
+                        text = "Meta Diária: R$ ${String.format(Locale("pt", "BR"), "%.2f", todayEarnings)} de R$ 350,00",
+                        color = StartupTextSecondary,
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    LinearProgressIndicator(
+                        progress = { (todayEarnings / 350.0).toFloat().coerceIn(0f, 1f) },
+                        color = EmeraldSuccess,
+                        trackColor = StartupCardSurface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                }
+            }
+        }
+
+        item {
+            Text(
+                text = "Histórico de Corridas Recentes",
+                color = StartupTextPrimary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        items(
+            listOf(
+                HistoryItem("iFood", IFoodRed, "Madero Prime Faria Lima", 38.50, "13:42", "5.1 km"),
+                HistoryItem("99 Moto", NinetyNineYellow, "McDonald's Rebouças", 22.00, "13:05", "3.2 km"),
+                HistoryItem("iFood", IFoodRed, "Habib's Teodoro", 17.50, "12:28", "2.4 km"),
+                HistoryItem("Uber Flash", Color.White, "Droga Raia Jardins", 26.00, "11:50", "3.8 km"),
+                HistoryItem("Rappi", Color(0xFFFF5722), "Starbucks Frei Caneca", 29.50, "11:15", "4.0 km")
+            )
+        ) { item ->
+            StartupHistoryDeliveryRow(item)
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// ABA 2 ANTERIOR (MANTIDA PARA COMPATIBILIDADE INTERNA)
 // -----------------------------------------------------------------------------
 @Composable
 private fun StartupEarningsTab(
