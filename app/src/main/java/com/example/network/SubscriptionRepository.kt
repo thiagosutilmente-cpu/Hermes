@@ -113,13 +113,16 @@ class SubscriptionRepository(
             val customerId = _licenseState.value.customerId
 
             try {
-                val response = apiService.getSubscriptionStatus(customerId)
+                val token = SubscriptionManager.getAuthToken() ?: customerId
+                val response = apiService.verifySubscriptionToken(
+                    TokenVerifyRequest(token = token, deviceId = android.os.Build.MODEL)
+                )
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
-                    val isActive = body.isActive || (body.status.equals("ACTIVE", ignoreCase = true))
+                    val isActive = body.isActive && body.isValid
 
                     _licenseState.value = _licenseState.value.copy(
-                        customerId = body.customerId,
+                        customerId = body.customerId ?: customerId,
                         status = body.status,
                         isLicenseActive = isActive,
                         planType = body.planType ?: "PLANO_SEMANAL_PIX",
@@ -132,16 +135,11 @@ class SubscriptionRepository(
                         isLocalFallback = false
                     )
 
-                    // Sincroniza localmente
                     withContext(Dispatchers.Main) {
-                        if (isActive) {
-                            SubscriptionManager.activateWeeklySubscription()
-                        } else if (body.status.equals("OVERDUE", ignoreCase = true)) {
-                            SubscriptionManager.resetToFree()
-                        }
+                        SubscriptionManager.verifySubscriptionWithServer(context)
                     }
 
-                    _eventFlow.emit("Status sincronizado: ${body.status} (Ativo: $isActive)")
+                    _eventFlow.emit("Token validado com o servidor: ${body.status} (Ativo: $isActive)")
                     Log.i(TAG, "Status da licença recebido do servidor: $body")
                 } else {
                     handleSyncFailure("Erro no servidor: código HTTP ${response.code()}")

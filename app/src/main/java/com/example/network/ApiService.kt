@@ -38,6 +38,56 @@ interface ApiService {
     ): Response<SubscriptionStatusResponse>
 
     /**
+     * Valida token de assinatura Pro autenticado via HTTPS com assinatura HMAC do servidor.
+     * Endpoint: POST /api/v1/subscription/verify-token
+     */
+    @Headers("Content-Type: application/json")
+    @POST("/api/v1/subscription/verify-token")
+    suspend fun verifySubscriptionToken(
+        @Body request: TokenVerifyRequest
+    ): Response<TokenVerifyResponse>
+
+    /**
+     * Ativa chave de licença no servidor gerando token autenticado de longa duração.
+     * Endpoint: POST /api/v1/subscription/activate-key
+     */
+    @Headers("Content-Type: application/json")
+    @POST("/api/v1/subscription/activate-key")
+    suspend fun activateLicenseKey(
+        @Body request: KeyActivationRequest
+    ): Response<TokenVerifyResponse>
+
+    /**
+     * Autenticação de PIN ou chave de administrador no servidor
+     * Endpoint: POST /api/admin/login
+     */
+    @Headers("Content-Type: application/json")
+    @POST("/api/admin/login")
+    suspend fun adminLogin(
+        @Body request: AdminLoginRequest
+    ): Response<AdminLoginResponse>
+
+    /**
+     * Altera o PIN de segurança administrativa no servidor
+     * Endpoint: POST /api/admin/change-pin
+     */
+    @Headers("Content-Type: application/json")
+    @POST("/api/admin/change-pin")
+    suspend fun changeAdminPin(
+        @retrofit2.http.Header("Authorization") authHeader: String,
+        @Body request: AdminChangePinRequest
+    ): Response<ApiResponse<Map<String, Any>>>
+
+    /**
+     * Retorna métricas consolidadas administrativas protegidas por token
+     * Endpoint: GET /api/admin/metrics
+     */
+    @GET("/api/admin/metrics")
+    suspend fun getAdminMetrics(
+        @retrofit2.http.Header("Authorization") authHeader: String
+    ): Response<AdminMetricsResponse>
+
+    /**
      * Executa auditoria formal do Motor Financeiro Asaas (Passo 1: Split 40%/60% e Webhooks).
      * Endpoint: GET /api/v1/financial/split/audit
      */

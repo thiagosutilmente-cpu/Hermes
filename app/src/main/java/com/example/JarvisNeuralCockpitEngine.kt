@@ -50,7 +50,8 @@ object JarvisNeuralCockpitEngine {
         @SerializedName("financials") val financials: JarvisFinancials,
         @SerializedName("decision") val decision: JarvisDecision,
         @SerializedName("voice_alert") val voiceAlert: JarvisVoiceAlert,
-        @SerializedName("viral_group_card") val viralGroupCard: JarvisViralGroupCard?
+        @SerializedName("viral_group_card") val viralGroupCard: JarvisViralGroupCard?,
+        @SerializedName("traffic_adjusted_score") val trafficAdjustedScore: JarvisAdjustedOfferScore? = null
     )
 
     data class JarvisFinancials(
@@ -185,8 +186,72 @@ object JarvisNeuralCockpitEngine {
         return response
     }
 
-    // =========================================================================
-    // ANÁLISE DE CORRIDAS (RIDE_ANALYSIS)
+    /**
+     * Processa a notificação consultando a API de Rotas do Google com tráfego em tempo real,
+     * ajustando o peso da oferta com base no tempo de espera estimado no restaurante
+     * e a proximidade angular dos destinos de entrega.
+     */
+    suspend fun processInputWithTraffic(
+        rawText: String,
+        styleOverride: VoiceAlertStyle? = null,
+        secondaryOffer: ScreenPoolOffer? = null
+    ): JarvisResponse {
+        val baseResponse = processInput(rawText, styleOverride)
+        if (baseResponse.status != "SUCCESS" || baseResponse.rideData == null) {
+            return baseResponse
+        }
+
+        val text = rawText.trim()
+        val restaurant = extractRestaurant(text) ?: "Restaurante Parceiro"
+        val pickupAddress = extractPickupAddress(text) ?: restaurant
+        val payout = baseResponse.rideData.financials.payoutBrl
+        val distKm = baseResponse.rideData.financials.totalDistanceKm
+
+        // Coordenadas base de referência da corrida (São Paulo / Av. Paulista)
+        val pickupLat = -23.5615
+        val pickupLng = -46.6558
+        val dropoffLat = pickupLat - (distKm * 0.005)
+        val dropoffLng = pickupLng - (distKm * 0.006)
+
+        val adjustedScore = JarvisGoogleRoutesTrafficEngine.evaluateOfferWithTrafficRoutes(
+            offerTitle = "${baseResponse.rideData.platform}: $restaurant",
+            platform = baseResponse.rideData.platform,
+            payoutBrl = payout,
+            pickupLat = pickupLat,
+            pickupLng = pickupLng,
+            dropoffLat = dropoffLat,
+            dropoffLng = dropoffLng,
+            restaurantName = restaurant,
+            pickupAddress = pickupAddress,
+            secondaryOffer = secondaryOffer
+        )
+
+        // Se o tráfego severo ou a cozinha rebaixarem o retorno, o Jarvis reclassifica a decisão
+        val finalDecision = if (!adjustedScore.recommendedAction.isApproved) {
+            JarvisDecision(
+                action = "REJECT",
+                score = adjustedScore.finalScore,
+                reason = adjustedScore.tacticalExplanation
+            )
+        } else {
+            JarvisDecision(
+                action = if (adjustedScore.recommendedAction == JarvisTrafficAction.ACCEPT_OPTIMAL) "ACCEPT" else baseResponse.rideData.decision.action,
+                score = adjustedScore.finalScore,
+                reason = adjustedScore.tacticalExplanation
+            )
+        }
+
+        val updatedRideData = baseResponse.rideData.copy(
+            decision = finalDecision,
+            voiceAlert = JarvisVoiceAlert(
+                styleUsed = baseResponse.rideData.voiceAlert.styleUsed,
+                text = adjustedScore.helmetVoiceAlert
+            ),
+            trafficAdjustedScore = adjustedScore
+        )
+
+        return baseResponse.copy(rideData = updatedRideData)
+    }
     // =========================================================================
 
     private fun processRideAnalysis(
@@ -504,6 +569,24 @@ object JarvisNeuralCockpitEngine {
         return if (matcher.find()) {
             matcher.group(1)?.trim()
         } else null
+    }
+
+    fun extractRestaurant(text: String): String? {
+        val pattern = Pattern.compile("""(?:coleta|restaurante|estabelecimento|loja|buscar em)\s*[:=-]?\s*([A-Za-z0-9À-ÿ\s'-]{3,35})""", Pattern.CASE_INSENSITIVE)
+        val matcher = pattern.matcher(text)
+        if (matcher.find()) {
+            return matcher.group(1)?.trim()
+        }
+        return null
+    }
+
+    fun extractPickupAddress(text: String): String? {
+        val pattern = Pattern.compile("""(?:em|na|no|rua|av\.?|alameda)\s+([A-Za-z0-9À-ÿ\s,.-]{5,40})""", Pattern.CASE_INSENSITIVE)
+        val matcher = pattern.matcher(text)
+        if (matcher.find()) {
+            return matcher.group(1)?.trim()
+        }
+        return null
     }
 
     private fun buildErrorResponse(message: String): JarvisResponse {

@@ -1,0 +1,13 @@
+*.apk
+*.aab
+*.idsig
+*.log
+*.db
+*.keystore
+.gradle/
+build/
+app/build/
+.build-outputs/
+node_modules/
+.env
+deploy/.env

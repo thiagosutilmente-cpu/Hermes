@@ -42,6 +42,16 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.Traffic
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.google.gson.GsonBuilder
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
@@ -70,6 +80,8 @@ fun JarvisNeuralCockpitCard(
     var currentResponse by remember { mutableStateOf<JarvisNeuralCockpitEngine.JarvisResponse?>(null) }
     var executionLatencyMs by remember { mutableLongStateOf(-1L) }
     var isExpandedJson by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    var isCalculatingTraffic by remember { mutableStateOf(false) }
 
     Card(
         shape = RoundedCornerShape(18.dp),
@@ -247,59 +259,106 @@ fun JarvisNeuralCockpitCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // 4. Botão de Execução
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            // 4. Botões de Execução (Rápido ou com Google Routes & Tráfego)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Botão de Cálculo Avançado com Google Routes API
                 Button(
                     onClick = {
-                        val start = System.currentTimeMillis()
-                        val res = JarvisNeuralCockpitEngine.processAndVoice(
-                            context = context,
-                            rawText = inputText,
-                            styleOverride = selectedVoiceStyle
-                        )
-                        val elapsed = System.currentTimeMillis() - start
-                        executionLatencyMs = elapsed
-                        currentResponse = res
-                        jsonOutput = JarvisNeuralCockpitEngine.processInputToJson(
-                            rawText = inputText,
-                            styleOverride = selectedVoiceStyle
-                        )
+                        coroutineScope.launch {
+                            isCalculatingTraffic = true
+                            val start = System.currentTimeMillis()
+                            val res = JarvisNeuralCockpitEngine.processInputWithTraffic(
+                                rawText = inputText,
+                                styleOverride = selectedVoiceStyle
+                            )
+                            val elapsed = System.currentTimeMillis() - start
+                            executionLatencyMs = elapsed
+                            currentResponse = res
+                            jsonOutput = GsonBuilder().setPrettyPrinting().serializeNulls().create().toJson(res)
+                            isCalculatingTraffic = false
+
+                            res.rideData?.voiceAlert?.text?.let { speech ->
+                                try {
+                                    OfferTextToSpeechEngine.getInstance(context).speak(
+                                        speech,
+                                        android.speech.tts.TextToSpeech.QUEUE_FLUSH
+                                    )
+                                } catch (_: Exception) {}
+                            }
+                        }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C5CE7)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00B894)),
                     shape = RoundedCornerShape(12.dp),
+                    enabled = !isCalculatingTraffic,
                     modifier = Modifier
-                        .weight(1f)
+                        .fillMaxWidth()
                         .height(44.dp)
-                        .testTag("execute_jarvis_button")
+                        .testTag("execute_jarvis_google_routes_button")
                 ) {
-                    Text(
-                        text = "⚡ Processar no JARVIS",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    if (isCalculatingTraffic) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Calculando Google Routes & Tráfego...", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    } else {
+                        Icon(Icons.Default.Traffic, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("🚦 Calcular Tráfego Google Routes & Pesos", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
 
-                if (currentResponse?.rideData?.voiceAlert != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Button(
                         onClick = {
-                            currentResponse?.rideData?.voiceAlert?.text?.let { speech ->
-                                OfferTextToSpeechEngine.getInstance(context).speak(
-                                    speech,
-                                    android.speech.tts.TextToSpeech.QUEUE_FLUSH
-                                )
-                            }
+                            val start = System.currentTimeMillis()
+                            val res = JarvisNeuralCockpitEngine.processAndVoice(
+                                context = context,
+                                rawText = inputText,
+                                styleOverride = selectedVoiceStyle
+                            )
+                            val elapsed = System.currentTimeMillis() - start
+                            executionLatencyMs = elapsed
+                            currentResponse = res
+                            jsonOutput = JarvisNeuralCockpitEngine.processInputToJson(
+                                rawText = inputText,
+                                styleOverride = selectedVoiceStyle
+                            )
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF28283E)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C5CE7)),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
-                            .height(44.dp)
-                            .testTag("jarvis_speak_again_button")
+                            .weight(1f)
+                            .height(40.dp)
+                            .testTag("execute_jarvis_button")
                     ) {
-                        Text(text = "🔊 Ouvir Voz", color = Color(0xFFFFB800), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "⚡ Processar Rápido",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    if (currentResponse?.rideData?.voiceAlert != null) {
+                        Button(
+                            onClick = {
+                                currentResponse?.rideData?.voiceAlert?.text?.let { speech ->
+                                    OfferTextToSpeechEngine.getInstance(context).speak(
+                                        speech,
+                                        android.speech.tts.TextToSpeech.QUEUE_FLUSH
+                                    )
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF28283E)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .height(40.dp)
+                                .testTag("jarvis_speak_again_button")
+                        ) {
+                            Text(text = "🔊 Ouvir Voz", color = Color(0xFFFFB800), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -387,6 +446,12 @@ fun JarvisNeuralCockpitCard(
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
+
+                            // PAINEL DE AJUSTE DE PESOS: GOOGLE ROUTES + COZINHA + ÂNGULO
+                            rd.trafficAdjustedScore?.let { trafficScore ->
+                                Spacer(modifier = Modifier.height(10.dp))
+                                JarvisTrafficWeightScoreCard(score = trafficScore)
+                            }
 
                             // 6. CARD VIRAL DE COMBATE PARA WHATSAPP (QUANDO DECISÃO FOR REJECT)
                             if (rd.viralGroupCard != null) {
@@ -610,5 +675,290 @@ private fun PresetChip(
             fontWeight = FontWeight.SemiBold,
             maxLines = 1
         )
+    }
+}
+
+/**
+ * Card visual detalhado do Jarvis Neural exibindo os 3 fatores de peso ajustados:
+ * 1. Tráfego em tempo real via Google Routes API
+ * 2. Tempo de espera estimado no restaurante e risco térmico da bag
+ * 3. Proximidade angular dos destinos de entrega
+ */
+@Composable
+fun JarvisTrafficWeightScoreCard(
+    score: JarvisAdjustedOfferScore,
+    modifier: Modifier = Modifier
+) {
+    val actionColor = Color(score.recommendedAction.badgeColorHex)
+    val trafficColor = Color(score.trafficResult.congestionLevel.colorHex)
+    val kitchenColor = Color(score.kitchenResult.riskLevel.badgeColorHex)
+
+    androidx.compose.material3.Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFF0F172A),
+        border = androidx.compose.foundation.BorderStroke(1.dp, actionColor.copy(alpha = 0.6f)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+
+            // CABEÇALHO DO AJUSTE DE PESOS
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Traffic,
+                        contentDescription = null,
+                        tint = trafficColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "GOOGLE ROUTES • PESO AJUSTADO",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                androidx.compose.material3.Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = actionColor.copy(alpha = 0.2f)
+                ) {
+                    Text(
+                        text = "SCORE ${score.finalScore}/100",
+                        color = actionColor,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 1. LINHA DO TRÁFEGO GOOGLE ROUTES
+            androidx.compose.material3.Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0xFF1E293B).copy(alpha = 0.7f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "🚦 TRÁFEGO REAL:",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${score.trafficResult.congestionLevel.iconEmoji} ${score.trafficResult.congestionLevel.label}",
+                                color = trafficColor,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+
+                        Text(
+                            text = "Peso: ${String.format(Locale.US, "%.2f", score.trafficWeight)}",
+                            color = Color(0xFFFBBF24),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Tempo em Rota: ~${String.format(Locale.US, "%.0f", score.trafficResult.trafficDurationMinutes)} min",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "Lentidão: +${String.format(Locale.US, "%.0f", score.trafficResult.trafficDelayMinutes)} min",
+                            color = if (score.trafficResult.trafficDelayMinutes > 4.0) Color(0xFFF87171) else Color(0xFFA7F3D0),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // 2. LINHA DA ESPERA NA COZINHA E RISCO TÉRMICO
+            androidx.compose.material3.Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0xFF1E293B).copy(alpha = 0.7f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Storefront,
+                                contentDescription = null,
+                                tint = kitchenColor,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "ESPERA NO BALCÃO: ~${score.kitchenResult.totalWaitMinutes} min",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Text(
+                            text = "Peso: ${String.format(Locale.US, "%.2f", score.kitchenWaitWeight)}",
+                            color = Color(0xFFFBBF24),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Text(
+                        text = "Risco: ${score.kitchenResult.riskLevel.label} • ${if (score.kitchenResult.peakHourSurgeApplied) "⚡ Horário de Pico (+35%)" else "Horário Normal"}",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 9.sp
+                    )
+                }
+            }
+
+            // 3. LINHA DE PROXIMIDADE ANGULAR (SE HOUVER ROTA DUPLA / COMBO)
+            score.angularResult?.let { ang ->
+                Spacer(modifier = Modifier.height(6.dp))
+                androidx.compose.material3.Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF1E293B).copy(alpha = 0.7f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Route,
+                                contentDescription = null,
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "PROXIMIDADE ANGULAR: ${ang.corridorAngleDiffDeg.roundToInt()}°",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Text(
+                            text = "Peso: ${String.format(Locale.US, "%.2f", score.angularProximityWeight)}",
+                            color = Color(0xFF38BDF8),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 4. BALANÇO FINANCEIRO REAL APÓS TRÂNSITO E ESPERA
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "GANHO NOMINAL:",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "R$ ${String.format(Locale.US, "%.2f", score.nominalHourlyRateBrl)}/h",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "MULTIPLICADOR:",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "${String.format(Locale.US, "%.2f", score.compositeWeightMultiplier)}x",
+                        color = Color(0xFFFBBF24),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "GANHO REAL C/ TRÂNSITO:",
+                        color = actionColor,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "R$ ${String.format(Locale.US, "%.2f", score.adjustedHourlyRateBrl)}/h",
+                        color = actionColor,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // RECOMENDAÇÃO TÁTICA DO JARVIS
+            Text(
+                text = score.tacticalExplanation,
+                color = Color(0xFFFDE68A),
+                fontSize = 10.sp,
+                lineHeight = 13.sp
+            )
+        }
     }
 }

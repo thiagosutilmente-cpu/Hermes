@@ -9,8 +9,10 @@ mkdir -p /var/www/html /root/jarvis_backend
 [ -f /root/Hermes/deploy/admin.html ] && cp -vf /root/Hermes/deploy/admin.html /var/www/html/admin.html
 [ -f /root/Hermes/deploy/admin.html ] && cp -vf /root/Hermes/deploy/admin.html /root/jarvis_backend/admin.html
 [ -f /root/Hermes/deploy/index.html ] && cp -vf /root/Hermes/deploy/index.html /var/www/html/index.html
+[ -f /root/Hermes/index.html ] && cp -vf /root/Hermes/index.html /var/www/html/index.html
 [ -f /root/Hermes/deploy/privacy.html ] && cp -vf /root/Hermes/deploy/privacy.html /var/www/html/privacy.html
-[ -f /root/Hermes/deploy/vps_backend_complete.py ] && cp -vf /root/Hermes/deploy/vps_backend_complete.py /root/jarvis_backend/vps_backend_complete.py
+[ -f /root/Hermes/privacy.html ] && cp -vf /root/Hermes/privacy.html /var/www/html/privacy.html
+[ -f /root/Hermes/deploy/vps_backend_complete.py ] && cp -vf /root/Hermes/deploy/*.py /root/jarvis_backend/
 
 echo ">>> [2/4] Alinhando e descomprimindo resources.arsc no APK..."
 python3 -c "
@@ -49,8 +51,7 @@ systemctl restart jarvis 2>/dev/null || echo "Jarvis reiniciado ou em container.
 nginx -s reload 2>/dev/null || true
 
 echo ">>> [4/4] Verificando endpoints..."
-sleep 2
-curl -s http://127.0.0.1:8000/api/admin/metrics | head -n 5 || echo "Status 200"
+curl -s -H "Authorization: Bearer jarvis_admin_master_secret_2026" http://127.0.0.1:8000/api/admin/metrics | head -n 5 || echo "Status 200"
 
 echo ""
 echo "=================================================================="

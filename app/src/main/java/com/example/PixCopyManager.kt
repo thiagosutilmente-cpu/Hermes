@@ -102,7 +102,7 @@ object PixCopyManager {
         context: Context,
         pixCode: String,
         label: String = "Código PIX Jarvis",
-        toastMessage: String = "✅ Código PIX copiado com sucesso! Cole no app do seu banco."
+        toastMessage: String = "✅ Código PIX copiado para a área de transferência! Cole no app do seu banco."
     ): Boolean {
         return try {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager

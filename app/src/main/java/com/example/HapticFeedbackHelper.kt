@@ -59,6 +59,29 @@ object HapticFeedbackHelper {
     fun vibrateWarning(context: Context) = vibrateDecline(context)
 
     /**
+     * Feedback Háptico Urgente de Alerta de Blitz Policial.
+     * Assinatura física: Tremor pulsante triplo vigoroso para alertar o piloto imediatamente através da jaqueta/luvas.
+     */
+    fun vibrateBlitzUrgent(context: Context) {
+        val vibrator = getVibrator(context) ?: return
+        if (!vibrator.hasVibrator()) return
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val timings = longArrayOf(0, 300, 100, 300, 100, 500)
+                val amplitudes = intArrayOf(0, 255, 0, 255, 0, 255)
+                val effect = VibrationEffect.createWaveform(timings, amplitudes, -1)
+                vibrator.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(longArrayOf(0, 300, 100, 300, 100, 500), -1)
+            }
+        } catch (e: Exception) {
+            Log.d("HapticFeedback", "Falha vibrateBlitzUrgent: ${e.message}")
+        }
+    }
+
+    /**
      * Feedback Háptico de Recusa (Oferta Recusada ou Descartada).
      * Assinatura física: Pulso curto único e seco (80ms).
      */

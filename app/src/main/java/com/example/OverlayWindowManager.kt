@@ -48,7 +48,7 @@ class OverlayWindowManager private constructor(private val context: Context) {
         val headline: String = "JARVIS OPERACIONAL",
         val activeApp: String = "Monitorando Apps",
         val profitPerKm: String = "R$ 4,50/km",
-        val blitzAlert: String = "Raio Seguro (Sem Blitz)",
+        val blitzAlert: String = "Monitoramento Ativo",
         val latestOffer: String? = null,
         val alertLevel: AlertLevel = AlertLevel.NORMAL
     ) {
@@ -958,7 +958,7 @@ class OverlayWindowManager private constructor(private val context: Context) {
             textSize = 9f
         }
         val valBlitz = TextView(context).apply {
-            text = "Raio Seguro"
+            text = "Monitorando"
             setTextColor(Color.parseColor("#81C784"))
             textSize = 12f
             typeface = Typeface.DEFAULT_BOLD
@@ -1264,7 +1264,10 @@ class OverlayWindowManager private constructor(private val context: Context) {
         tvHudProfit?.text = currentStatus.profitPerKm
         tvHudBlitz?.apply {
             text = currentStatus.blitzAlert
-            setTextColor(if (currentStatus.blitzAlert.contains("Blitz", ignoreCase = true)) Color.parseColor("#FF5252") else Color.parseColor("#81C784"))
+            val isDanger = currentStatus.blitzAlert.contains("Blitz", ignoreCase = true) ||
+                           currentStatus.blitzAlert.contains("Perigo", ignoreCase = true) ||
+                           currentStatus.blitzAlert.contains("Atenção", ignoreCase = true)
+            setTextColor(if (isDanger) Color.parseColor("#FF5252") else Color.parseColor("#81C784"))
         }
 
         if (currentOffer == null) {

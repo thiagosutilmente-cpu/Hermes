@@ -94,4 +94,58 @@ class FcmOfferMessagingTest {
         assertTrue(speech.contains("7 reais e 44 centavos por quilômetro"))
         assertTrue(speech.contains("Corrida excelente! Recomendação: aceitar."))
     }
+
+    @Test
+    fun testFcmBlitzAlertModel() {
+        val blitz = RadarFirebaseMessagingService.FcmBlitzAlert(
+            id = "blitz_123",
+            location = "Av. Radial Leste x Rua Bresser",
+            direction = "Sentido Bairro",
+            details = "Comando de trânsito da PM com guincho",
+            severity = "CRITICAL",
+            voiceAlert = "Atenção: Blitz policial confirmada na Radial Leste"
+        )
+
+        assertEquals("blitz_123", blitz.id)
+        assertEquals("Av. Radial Leste x Rua Bresser", blitz.location)
+        assertEquals("Sentido Bairro", blitz.direction)
+        assertEquals("CRITICAL", blitz.severity)
+        assertTrue(blitz.voiceAlert.contains("Blitz"))
+
+        RadarFirebaseMessagingService.clearLatestBlitz()
+        assertEquals(null, RadarFirebaseMessagingService.latestBlitzAlert.value)
+    }
+
+    @Test
+    fun testFcmMergedComboAlertModel() {
+        val combo = RadarFirebaseMessagingService.FcmMergedComboAlert(
+            comboId = "combo_999",
+            app1 = "iFood",
+            restaurant1 = "Madero Container",
+            payout1 = 19.50,
+            distance1Km = 3.0,
+            app2 = "99Food",
+            restaurant2 = "Drogaria SP",
+            payout2 = 18.00,
+            distance2Km = 2.8,
+            totalPayout = 37.50,
+            combinedDistanceKm = 3.6,
+            extraDeviationMeters = 650,
+            netProfitPerHour = 52.00,
+            corridorLabel = "Mesmo Eixo (< 15°)",
+            voiceAlert = "Nova mesclagem detectada! Ganho de R$ 37,50",
+            isDiamond = true
+        )
+
+        assertEquals("combo_999", combo.comboId)
+        assertEquals("iFood", combo.app1)
+        assertEquals("99Food", combo.app2)
+        assertEquals(37.50, combo.totalPayout, 0.001)
+        assertEquals(650, combo.extraDeviationMeters)
+        assertEquals(52.00, combo.netProfitPerHour, 0.001)
+        assertTrue(combo.isDiamond)
+
+        RadarFirebaseMessagingService.clearLatestCombo()
+        assertEquals(null, RadarFirebaseMessagingService.latestMergedComboPush.value)
+    }
 }

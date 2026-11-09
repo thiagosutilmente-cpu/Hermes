@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.example">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -20,6 +21,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="com.android.vending.BILLING" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
 
     <!-- Permite que o app descubra e acesse a API de Speech-to-Text do Google no Android 11+ (API 30+) -->
@@ -39,6 +41,25 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.RadarCoordinator">
+
+        <!-- Chave de API do Google Maps / Google Play Services Geo (Corrige crash API key not found) -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyRadarDeliveryCoordinatorGeocoding2026" />
+        <meta-data
+            android:name="com.google.android.maps.v2.API_KEY"
+            android:value="AIzaSyRadarDeliveryCoordinatorGeocoding2026" />
+
+        <!-- Configuração Padrão do Firebase Cloud Messaging (FCM) para Alertas Push de Ofertas e Blitz -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="jarvis_fcm_offers_channel_v1" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@android:color/holo_green_dark" />
 
         <!-- Declaração do Android Auto (Automotive App Desc & Min Car API Level) -->
         <meta-data
@@ -124,7 +145,8 @@
         <!-- Serviço do Firebase Cloud Messaging para alertas de novas ofertas da Hostinger -->
         <service
             android:name="com.example.RadarFirebaseMessagingService"
-            android:exported="false">
+            android:exported="false"
+            android:directBootAware="true">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
@@ -146,7 +168,7 @@
         <!-- Provedor de Arquivos Seguro para Atualização Automática do APK (OTA) -->
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.provider"
+            android:authorities="com.aistudio.radardelivery.jkxwpa.provider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data

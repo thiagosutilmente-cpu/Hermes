@@ -633,6 +633,10 @@ private fun ComboItemView(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
 
+                    // BADGE DO OTIMIZADOR: PROXIMIDADE ANGULAR & PESO DE ESPERA DA COZINHA
+                    AngularAndKitchenOptimizationBadge(combo = combo)
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     Text(
                         text = combo.recommendationReason,
                         color = Color(0xFFFDE68A),
@@ -711,6 +715,240 @@ private fun ComboItemView(
                     tint = Color(0xFF64748B),
                     modifier = Modifier.size(18.dp)
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Componente visual Composable para exibição detalhada da Otimização de Proximidade Angular
+ * e Fator de Peso de Espera de Cozinha / Degradação Térmica.
+ */
+@Composable
+fun AngularAndKitchenOptimizationBadge(
+    combo: MergedDeliveryCombo,
+    modifier: Modifier = Modifier
+) {
+    val angular = combo.angularResult
+    val kitchen = combo.kitchenResult
+
+    val corridorColor = angular?.corridorClassification?.badgeColorHex?.let { Color(it) } ?: Color(0xFF38BDF8)
+    val riskColor = kitchen?.riskLevel?.badgeColorHex?.let { Color(it) } ?: Color(0xFF10B981)
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFF0F172A),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+
+            // CABEÇALHO DO OTIMIZADOR
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = Color(0xFFFBBF24),
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "OTIMIZADOR MULTI-APP",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = Color(0xFF10B981).copy(alpha = 0.2f)
+                ) {
+                    Text(
+                        text = "SCORE ${combo.optimizationScore.roundToInt()}/100",
+                        color = Color(0xFF34D399),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 1. SEÇÃO DE PROXIMIDADE ANGULAR
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0xFF1E293B).copy(alpha = 0.6f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Route,
+                                contentDescription = null,
+                                tint = corridorColor,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "PROXIMIDADE ANGULAR",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Text(
+                            text = angular?.corridorClassification?.label ?: "Alinhado",
+                            color = corridorColor,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Divergência: ${String.format(Locale.US, "%.0f", angular?.corridorAngleDiffDeg ?: combo.corridorAlignmentDeg)}°",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "Abertura Destinos: ${String.format(Locale.US, "%.0f", angular?.destinationApertureDeg ?: 0f)}°",
+                            color = Color(0xFFCBD5E1),
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "Alinhamento: ${((angular?.angularProximityScore ?: 0.85f) * 100).roundToInt()}%",
+                            color = Color(0xFF38BDF8),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    angular?.explanation?.let { exp ->
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = exp,
+                            color = Color(0xFF94A3B8),
+                            fontSize = 9.sp,
+                            lineHeight = 12.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // 2. SEÇÃO DE PESO DE ESPERA DE COZINHA & DEGRADAÇÃO TÉRMICA
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0xFF1E293B).copy(alpha = 0.6f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Storefront,
+                                contentDescription = null,
+                                tint = riskColor,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "PESO DE ESPERA DA COZINHA",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Text(
+                            text = kitchen?.riskLevel?.label ?: "Normal",
+                            color = riskColor,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Espera P1: ~${kitchen?.waitMinutesPickup1 ?: 5}m | P2: ~${kitchen?.waitMinutesPickup2 ?: 5}m",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "Fator Peso: ${String.format(Locale.US, "%.2f", kitchen?.kitchenWaitWeightFactor ?: 0.85f)}",
+                            color = Color(0xFFFBBF24),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "🎒 Pedido #1 na Mochila: ~${kitchen?.thermalBagTrapMinutes ?: 8} min",
+                            color = if ((kitchen?.thermalBagTrapMinutes ?: 8) > 12) Color(0xFFF87171) else Color(0xFFA7F3D0),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Text(
+                            text = if (kitchen?.peakHourSurgeApplied == true) "⚡ Horário de Pico (+35%)" else "Horário Normal",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 9.sp
+                        )
+                    }
+
+                    kitchen?.explanation?.let { kExp ->
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = kExp,
+                            color = Color(0xFF94A3B8),
+                            fontSize = 9.sp,
+                            lineHeight = 12.sp
+                        )
+                    }
+                }
             }
         }
     }
@@ -818,6 +1056,23 @@ private fun simulateDemoPoolOffers(engine: DeepOrderPoolMergingEngine) {
         )
     )
 
+    val uberOffers = listOf(
+        ScreenPoolOffer(
+            appName = "Uber Driver",
+            packageName = "com.ubercab.driver",
+            restaurantName = "McDonald's Paulista Express",
+            pickupAddress = "Av. Paulista, 2026",
+            dropoffAddress = "Rua Oscar Freire, 1200 - Cerqueira César",
+            value = 18.20,
+            distanceKm = 2.7,
+            pickupLat = -23.5595,
+            pickupLng = -46.6590,
+            dropoffLat = -23.5620,
+            dropoffLng = -46.6690
+        )
+    )
+
     engine.ingestPoolOffers("iFood", ifoodOffers)
     engine.ingestPoolOffers("99Food", noventaOffers)
+    engine.ingestPoolOffers("Uber Driver", uberOffers)
 }

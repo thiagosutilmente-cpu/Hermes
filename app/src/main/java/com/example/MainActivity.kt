@@ -156,6 +156,53 @@ class MainActivity : ComponentActivity() {
             this, Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
 
+        // Diagnóstico antecipado da inicialização do serviço FusedLocationProvider (Google Play Services) antes do menu principal
+        try {
+            val fusedClient = com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(this)
+            val gpsAvailable = (getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager)
+                ?.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) == true
+
+            android.util.Log.i(
+                "MainActivity",
+                "📡 [DIAGNÓSTICO INICIAL] FusedLocationProviderClient instanciado com sucesso. " +
+                "Permissão de GPS Concedida: $hasLocationPerm | Provedor GPS Hardware Ativo: $gpsAvailable"
+            )
+
+            if (hasLocationPerm) {
+                // Tenta obter a última localização conhecida para validar o canal do FusedLocationProvider
+                fusedClient.lastLocation.addOnSuccessListener { lastLoc ->
+                    if (lastLoc != null) {
+                        android.util.Log.i(
+                            "MainActivity",
+                            "✅ [DIAGNÓSTICO FUSED] Última coordenada obtida: Lat=${lastLoc.latitude}, Lon=${lastLoc.longitude}, " +
+                            "Precisão=${lastLoc.accuracy}m, Provedor=${lastLoc.provider}"
+                        )
+                    } else {
+                        android.util.Log.i(
+                            "MainActivity",
+                            "ℹ️ [DIAGNÓSTICO FUSED] FusedLocationProvider online, aguardando primeiro fix de satélite."
+                        )
+                    }
+                }.addOnFailureListener { err ->
+                    android.util.Log.w(
+                        "MainActivity",
+                        "⚠️ [DIAGNÓSTICO FUSED] Falha na consulta inicial da última localização: ${err.message}"
+                    )
+                }
+            } else {
+                android.util.Log.w(
+                    "MainActivity",
+                    "⚠️ [DIAGNÓSTICO FUSED] FusedLocationProvider pronto, mas aguardando permissão de runtime (ACCESS_FINE_LOCATION) do usuário."
+                )
+            }
+        } catch (e: Exception) {
+            android.util.Log.e(
+                "MainActivity",
+                "❌ [DIAGNÓSTICO FUSED] Erro crítico ao inicializar FusedLocationProviderClient: ${e.message}",
+                e
+            )
+        }
+
         if (hasLocationPerm) {
             try {
                 LocationForegroundService.start(this)
@@ -175,11 +222,13 @@ class MainActivity : ComponentActivity() {
         // Inicializa o cliente de sincronização de telemetria e decisões com o servidor
         RadarBackendSyncManager.initialize(this)
 
-        // Inicializa o Firebase Cloud Messaging para alertas em tempo real de ofertas (VPS Hostinger)
+        // Inicializa o Firebase Cloud Messaging para alertas em tempo real de ofertas e blitz críticas (VPS Hostinger)
         try {
+            android.util.Log.i("MainActivity", "🔥 [FCM INIT] Configurando Firebase Cloud Messaging para alertas de blitz e ofertas...")
             RadarFirebaseMessagingService.initializeFcm(this)
+            android.util.Log.i("MainActivity", "✅ [FCM INIT] Canais e tópicos FCM configurados com sucesso (blitz_alerts, offers, combo_alerts).")
         } catch (e: Exception) {
-            android.util.Log.e("MainActivity", "Falha ao inicializar FCM: ${e.message}")
+            android.util.Log.e("MainActivity", "❌ [FCM INIT] Falha ao inicializar FCM: ${e.message}", e)
         }
 
         // Inicializa o TextToSpeechManager e OfferTextToSpeechEngine em português brasileiro
@@ -221,23 +270,16 @@ class MainActivity : ComponentActivity() {
                 sunlightMode = !isNightMode,
                 darkTheme = isNightMode
             ) {
-                RadarDeliveryDashboard(
+                StartupDeliveryCockpitScreen(
                     voiceManager = vm,
-                    notificationIntent = currentIntentState.value,
-                    onIntentConsumed = { currentIntentState.value = null },
+                    onOpenEmergencyDialog = {
+                        Toast.makeText(context, "SOS de Emergência Acionado!", Toast.LENGTH_SHORT).show()
+                    },
                     isNightMode = isNightMode,
                     onToggleNightMode = {
                         val next = !isNightMode
                         isNightMode = next
                         ThemePreferencesManager.setNightMode(context, next)
-                        if (next) {
-                            vm.speak("Modo Noturno Cockpit ativado. Visibilidade anti-reflexo otimizada para entrega à noite.")
-                        } else {
-                            vm.speak("Modo Sol ativado. Alto contraste para luz solar direta.")
-                        }
-                    },
-                    onThemeModeChanged = { newNight ->
-                        isNightMode = newNight
                     }
                 )
             }
@@ -875,6 +917,38 @@ fun RadarDeliveryDashboard(
             if (targetOffer != null) {
                 onAcceptOffer(targetOffer, "Notificação Push FCM")
             }
+        }
+
+        // Tratamento de ação direta de Aceite de Combo de Mesclagem recebido via FCM Push
+        if (intent.action == "ACTION_ACCEPT_COMBO_FROM_NOTIFICATION" || intent.action == "com.aistudio.radardelivery.jkxwpa.ACTION_ACCEPT_COMBO") {
+            val app1 = intent.getStringExtra("EXTRA_APP1") ?: "iFood"
+            val app2 = intent.getStringExtra("EXTRA_APP2") ?: "99"
+            val pkg1 = intent.getStringExtra("EXTRA_PKG1") ?: when (app1.lowercase()) {
+                "ifood" -> AssistedQuickSwitchManager.PACKAGE_IFOOD
+                "99", "99food", "99 moto" -> AssistedQuickSwitchManager.PACKAGE_99
+                "rappi" -> AssistedQuickSwitchManager.PACKAGE_RAPPI
+                else -> AssistedQuickSwitchManager.PACKAGE_UBER
+            }
+            val pkg2 = intent.getStringExtra("EXTRA_PKG2") ?: when (app2.lowercase()) {
+                "ifood" -> AssistedQuickSwitchManager.PACKAGE_IFOOD
+                "99", "99food", "99 moto" -> AssistedQuickSwitchManager.PACKAGE_99
+                "rappi" -> AssistedQuickSwitchManager.PACKAGE_RAPPI
+                else -> AssistedQuickSwitchManager.PACKAGE_UBER
+            }
+            AssistedQuickSwitchManager.getInstance(context).executeComboQuickSwitch(
+                primaryApp = app1,
+                primaryPackage = pkg1,
+                secondaryApp = app2,
+                secondaryPackage = pkg2
+            )
+            RadarFirebaseMessagingService.clearLatestCombo()
+            Toast.makeText(context, "💎 Combo Aceito via Notificação Push! Dividindo tela...", Toast.LENGTH_LONG).show()
+        }
+
+        // Tratamento de Reconhecimento de Alerta de Blitz via Notificação
+        if (intent.action == "ACTION_ACKNOWLEDGE_BLITZ_FROM_NOTIFICATION") {
+            RadarFirebaseMessagingService.clearLatestBlitz()
+            Toast.makeText(context, "🚨 Alerta de Blitz reconhecido.", Toast.LENGTH_SHORT).show()
         }
         onIntentConsumed()
     }

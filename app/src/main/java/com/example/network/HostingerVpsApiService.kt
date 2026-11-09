@@ -62,6 +62,51 @@ interface HostingerVpsApiService {
     ): Response<SubscriptionStatusResponse>
 
     /**
+     * Valida token de assinatura Pro autenticado via HTTPS com assinatura HMAC do servidor.
+     */
+    @Headers("Content-Type: application/json")
+    @POST("/api/v1/subscription/verify-token")
+    suspend fun verifySubscriptionToken(
+        @Body request: TokenVerifyRequest
+    ): Response<TokenVerifyResponse>
+
+    /**
+     * Ativa chave de licença no servidor gerando token autenticado de longa duração.
+     */
+    @Headers("Content-Type: application/json")
+    @POST("/api/v1/subscription/activate-key")
+    suspend fun activateLicenseKey(
+        @Body request: KeyActivationRequest
+    ): Response<TokenVerifyResponse>
+
+    /**
+     * Autenticação de PIN ou chave de administrador no servidor
+     */
+    @Headers("Content-Type: application/json")
+    @POST("/api/admin/login")
+    suspend fun adminLogin(
+        @Body request: AdminLoginRequest
+    ): Response<AdminLoginResponse>
+
+    /**
+     * Altera o PIN de segurança administrativa no servidor
+     */
+    @Headers("Content-Type: application/json")
+    @POST("/api/admin/change-pin")
+    suspend fun changeAdminPin(
+        @retrofit2.http.Header("Authorization") authHeader: String,
+        @Body request: AdminChangePinRequest
+    ): Response<ApiResponse<Map<String, Any>>>
+
+    /**
+     * Retorna métricas consolidadas administrativas protegidas por token
+     */
+    @GET("/api/admin/metrics")
+    suspend fun getAdminMetrics(
+        @retrofit2.http.Header("Authorization") authHeader: String
+    ): Response<AdminMetricsResponse>
+
+    /**
      * Registra o token FCM do dispositivo para recepção de ofertas em tempo real
      */
     @Headers("Content-Type: application/json")

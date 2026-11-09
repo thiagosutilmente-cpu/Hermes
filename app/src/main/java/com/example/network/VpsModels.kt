@@ -710,5 +710,122 @@ data class SingularidadeCycleResponse(
     val result: Map<String, Any>? = null
 )
 
+// -----------------------------------------------------------------------------
+// MODELOS DE AUTENTICAÇÃO DE TOKEN DE ASSINATURA & ENDPOINTS ADMINISTRATIVOS
+// -----------------------------------------------------------------------------
+
+data class TokenVerifyRequest(
+    @SerializedName("token")
+    val token: String,
+
+    @SerializedName("deviceId")
+    val deviceId: String = android.os.Build.MODEL
+)
+
+data class TokenVerifyResponse(
+    @SerializedName("success")
+    val success: Boolean,
+
+    @SerializedName("isValid")
+    val isValid: Boolean = false,
+
+    @SerializedName("isActive")
+    val isActive: Boolean = false,
+
+    @SerializedName("status")
+    val status: String = "UNKNOWN",
+
+    @SerializedName("customerId")
+    val customerId: String? = null,
+
+    @SerializedName("planType")
+    val planType: String? = null,
+
+    @SerializedName("activationKey")
+    val activationKey: String? = null,
+
+    @SerializedName("authToken")
+    val authToken: String? = null,
+
+    @SerializedName("expiresAt")
+    val expiresAt: String? = null,
+
+    @SerializedName("serverSignature")
+    val serverSignature: String? = null,
+
+    @SerializedName("serverTime")
+    val serverTime: Long = 0L,
+
+    @SerializedName("detail")
+    val detail: String? = null,
+
+    @SerializedName("message")
+    val message: String? = null
+)
+
+data class KeyActivationRequest(
+    @SerializedName("activationKey")
+    val activationKey: String,
+
+    @SerializedName("deviceId")
+    val deviceId: String = android.os.Build.MODEL
+)
+
+data class AdminLoginRequest(
+    @SerializedName("pin")
+    val pin: String? = null,
+
+    @SerializedName("secretKey")
+    val secretKey: String? = null
+)
+
+data class AdminLoginResponse(
+    @SerializedName("success")
+    val success: Boolean,
+
+    @SerializedName("adminToken")
+    val adminToken: String? = null,
+
+    @SerializedName("tokenType")
+    val tokenType: String = "Bearer",
+
+    @SerializedName("expiresIn")
+    val expiresIn: Long = 86400L,
+
+    @SerializedName("serverTime")
+    val serverTime: Long = 0L
+)
+
+data class AdminChangePinRequest(
+    @SerializedName("currentPin")
+    val currentPin: String,
+
+    @SerializedName("newPin")
+    val newPin: String
+)
+
+data class AdminMetricsResponse(
+    @SerializedName("success")
+    val success: Boolean,
+
+    @SerializedName("total_revenue")
+    val totalRevenue: Double = 0.0,
+
+    @SerializedName("total_pix_count")
+    val totalPixCount: Int = 0,
+
+    @SerializedName("master_revenue")
+    val masterRevenue: Double = 0.0,
+
+    @SerializedName("leader_revenue")
+    val leaderRevenue: Double = 0.0,
+
+    @SerializedName("total_users")
+    val totalUsers: Int = 0,
+
+    @SerializedName("active_users")
+    val activeUsers: Int = 0
+)
+
 
 

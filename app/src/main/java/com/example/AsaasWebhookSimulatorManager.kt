@@ -2,6 +2,9 @@ package com.example
 
 import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -91,62 +94,12 @@ object AsaasWebhookSimulatorManager {
             }
         }
 
-        if (events.isEmpty()) {
-            loadInitialDemoEvents(context)
-        }
-
+        // Inicialização limpa e profissional: sem injeção de clientes ou transações fictícias
         isInitialized = true
     }
 
-    private fun loadInitialDemoEvents(context: Context) {
-        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
-        val now = System.currentTimeMillis()
-
-        val demo1 = AsaasWebhookEvent(
-            eventType = "PAYMENT_RECEIVED",
-            customerId = "cus_0000492819",
-            customerName = "Marcos Silveira (Motoboy SP)",
-            customerPhone = "+55 11 98765-4321",
-            paymentValue = 25.00,
-            planType = "Semanal PIX (R$ 25,00) • Split 40%",
-            timestampFormatted = sdf.format(Date(now - 1000L * 60 * 18)),
-            activationKey = "JARVIS-PRO-9842-MS",
-            whatsappStatus = "Licença 7 Dias Ativada (Split R$ 10,00 Líder)",
-            statusColor = "#00FF88"
-        )
-
-        val demo2 = AsaasWebhookEvent(
-            eventType = "PAYMENT_RECEIVED",
-            customerId = "cus_0000518392",
-            customerName = "Rodrigo Ferreira (Ifood Campinas)",
-            customerPhone = "+55 19 99123-8877",
-            paymentValue = 25.00,
-            planType = "Semanal PIX (R$ 25,00) • Split 40%",
-            timestampFormatted = sdf.format(Date(now - 1000L * 60 * 120)),
-            activationKey = "JARVIS-PRO-1149-RF",
-            whatsappStatus = "Licença 7 Dias Ativada (Split R$ 10,00 Líder)",
-            statusColor = "#00FF88"
-        )
-
-        val demo3 = AsaasWebhookEvent(
-            eventType = "PAYMENT_OVERDUE",
-            customerId = "cus_0000381029",
-            customerName = "Gabriel Duarte (Uber Moto)",
-            customerPhone = "+55 21 97654-1122",
-            paymentValue = 25.00,
-            planType = "Semanal PIX (R$ 25,00)",
-            timestampFormatted = sdf.format(Date(now - 1000L * 60 * 60 * 5)),
-            activationKey = "JARVIS-EXPIRED-3810",
-            whatsappStatus = "Acesso Bloqueado • Inadimplência",
-            statusColor = "#FF5252"
-        )
-
-        events.addAll(listOf(demo1, demo2, demo3))
-        saveEventsToPrefs(context)
-    }
-
     /**
-     * Registra ou simula um evento de webhook vindo do Asaas.
+     * Registra evento de webhook recebido da infraestrutura Asaas / VPS.
      */
     fun recordWebhookEvent(
         context: Context,
@@ -191,13 +144,13 @@ object AsaasWebhookSimulatorManager {
 
         saveEventsToPrefs(context)
 
-        // Aciona a regra de negócio do PASSO 1 no app
-        AsaasFinancialEngine.processWebhookEvent(
-            context = context,
-            eventType = eventType,
-            customerId = customerId,
-            value = paymentValue
-        )
+        // Aciona a verificação de token autenticada no servidor via HTTPS
+        CoroutineScope(Dispatchers.IO).launch {
+            AsaasFinancialEngine.verifySubscriptionTokenWithServer(
+                context = context,
+                token = customerId
+            )
+        }
 
         return event
     }

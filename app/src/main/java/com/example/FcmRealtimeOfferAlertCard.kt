@@ -88,8 +88,370 @@ fun FcmRealtimeOfferAlertCard(
     }
 
     val alert = fcmAlert
+    val blitzAlert by RadarFirebaseMessagingService.latestBlitzAlert.collectAsState()
+    val comboAlert by RadarFirebaseMessagingService.latestMergedComboPush.collectAsState()
     val ttsEngine = remember { OfferTextToSpeechEngine.getInstance(context) }
     val ttsState by ttsEngine.engineState.collectAsState()
+
+    // 0.1 BANNER DE ALERTA CRÍTICO DE BLITZ / RADAR POLICIAL
+    AnimatedVisibility(
+        visible = blitzAlert != null,
+        enter = fadeIn(tween(200)) + slideInVertically(tween(250)) { -it },
+        exit = fadeOut(tween(150)) + slideOutVertically(tween(200)) { -it },
+        modifier = modifier
+    ) {
+        val currentBlitz = blitzAlert
+        if (currentBlitz != null) {
+            val infiniteTransition = rememberInfiniteTransition(label = "pulse_blitz")
+            val pulseAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.5f,
+                targetValue = 1.0f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(600, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "pulse_blitz_border"
+            )
+
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E0E14)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+                    .border(
+                        width = 2.dp,
+                        brush = Brush.horizontalGradient(
+                            listOf(Color(0xFFEF4444).copy(alpha = pulseAlpha), Color(0xFFF59E0B).copy(alpha = pulseAlpha))
+                        ),
+                        shape = RoundedCornerShape(20.dp)
+                    )
+                    .testTag("fcm_critical_blitz_alert_banner")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "🚨", fontSize = 18.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "ALERTA CRÍTICO: BLITZ POLICIAL CONFIRMADA",
+                                color = Color(0xFFEF4444),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.8.sp
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFEF4444).copy(alpha = 0.25f))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = currentBlitz.severity.uppercase(),
+                                color = Color(0xFFEF4444),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Text(
+                        text = currentBlitz.location,
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+
+                    if (currentBlitz.direction.isNotEmpty()) {
+                        Text(
+                            text = "Sentido: ${currentBlitz.direction}",
+                            color = Color(0xFFF59E0B),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = currentBlitz.details,
+                        color = Color(0xFFE2E8F0),
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                ttsEngine.speak(
+                                    currentBlitz.voiceAlert,
+                                    android.speech.tts.TextToSpeech.QUEUE_FLUSH
+                                )
+                                HapticFeedbackHelper.vibrateBlitzUrgent(context)
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFF59E0B)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(text = "🔊 Ouvir", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                RadarFirebaseMessagingService.clearLatestBlitz()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1.2f)
+                        ) {
+                            Text(
+                                text = "Entendido / Fechar",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 0.2 BANNER DE NOVA OFERTA DE MESCLAGEM MULTI-APP VIA FCM PUSH
+    AnimatedVisibility(
+        visible = comboAlert != null,
+        enter = fadeIn(tween(200)) + slideInVertically(tween(250)) { -it },
+        exit = fadeOut(tween(150)) + slideOutVertically(tween(200)) { -it },
+        modifier = modifier
+    ) {
+        val currentCombo = comboAlert
+        if (currentCombo != null) {
+            val infiniteTransition = rememberInfiniteTransition(label = "pulse_combo")
+            val pulseAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.5f,
+                targetValue = 1.0f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(800, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "pulse_combo_border"
+            )
+
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1E24)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp)
+                    .border(
+                        width = 2.dp,
+                        brush = Brush.horizontalGradient(
+                            listOf(Color(0xFF00FF88).copy(alpha = pulseAlpha), Color(0xFF00D2FF).copy(alpha = pulseAlpha))
+                        ),
+                        shape = RoundedCornerShape(20.dp)
+                    )
+                    .testTag("fcm_merged_combo_alert_banner")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "💎", fontSize = 18.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "COMBO DE MESCLAGEM MULTI-APP (FCM)",
+                                color = Color(0xFF00FF88),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.8.sp
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF00D2FF).copy(alpha = 0.2f))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = "${currentCombo.app1} + ${currentCombo.app2}".uppercase(),
+                                color = Color(0xFF00D2FF),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "GANHO COMBINADO",
+                                color = TextGray,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = String.format(Locale.GERMAN, "R$ %.2f", currentCombo.totalPayout),
+                                color = Color(0xFF00FF88),
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "PROJEÇÃO / HORA",
+                                color = TextGray,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = String.format(Locale.GERMAN, "R$ %.0f/h", currentCombo.netProfitPerHour),
+                                color = Color(0xFF00D2FF),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Detalhe dos pares
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF142B34))
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "1. ${currentCombo.app1}: ${currentCombo.restaurant1} (R$ ${String.format(Locale.GERMAN, "%.2f", currentCombo.payout1)})",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFF142B34))
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "2. ${currentCombo.app2}: ${currentCombo.restaurant2} (R$ ${String.format(Locale.GERMAN, "%.2f", currentCombo.payout2)})",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "📍 Desvio extra: +${currentCombo.extraDeviationMeters}m", color = Color(0xFFF59E0B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "• ${currentCombo.corridorLabel}", color = TextLight, fontSize = 11.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                RadarFirebaseMessagingService.clearLatestCombo()
+                            },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(text = "Dispensar", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Button(
+                            onClick = {
+                                // Aceita o combo e ativa transição assistida para os dois apps
+                                AssistedQuickSwitchManager.getInstance(context).executeComboQuickSwitch(
+                                    primaryApp = currentCombo.app1,
+                                    primaryPackage = when (currentCombo.app1.lowercase()) {
+                                        "ifood" -> AssistedQuickSwitchManager.PACKAGE_IFOOD
+                                        "99", "99food", "99 moto" -> AssistedQuickSwitchManager.PACKAGE_99
+                                        "rappi" -> AssistedQuickSwitchManager.PACKAGE_RAPPI
+                                        else -> AssistedQuickSwitchManager.PACKAGE_UBER
+                                    },
+                                    secondaryApp = currentCombo.app2,
+                                    secondaryPackage = when (currentCombo.app2.lowercase()) {
+                                        "ifood" -> AssistedQuickSwitchManager.PACKAGE_IFOOD
+                                        "99", "99food", "99 moto" -> AssistedQuickSwitchManager.PACKAGE_99
+                                        "rappi" -> AssistedQuickSwitchManager.PACKAGE_RAPPI
+                                        else -> AssistedQuickSwitchManager.PACKAGE_UBER
+                                    }
+                                )
+                                RadarFirebaseMessagingService.clearLatestCombo()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FF88)),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .weight(1.8f)
+                                .testTag("fcm_accept_combo_button")
+                        ) {
+                            Text(
+                                text = "Aceitar Combo & Split",
+                                color = Color.Black,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    val alert = fcmAlert
 
     AnimatedVisibility(
         visible = alert != null && !isDismissed,
@@ -554,12 +916,76 @@ fun FcmStatusDiagnosticsCard(
                             .testTag("simulate_fcm_push_button")
                     ) {
                         Text(
-                            text = "⚡ Simular Push FCM",
+                            text = "⚡ Simular Oferta",
                             color = Color(0xFFFFB800),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Linha com os novos disparadores táticos FCM: Blitz Crítica e Mesclagens Multi-App
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF2E1218))
+                        .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .clickable {
+                            RadarFirebaseMessagingService.simulateIncomingBlitzAlert(
+                                context = context,
+                                location = "Radial Leste x Rua Bresser",
+                                direction = "Sentido Bairro",
+                                details = "Comando de trânsito da PM com guincho e fiscalização de documentação",
+                                severity = "CRITICAL"
+                            )
+                        }
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .testTag("simulate_fcm_blitz_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "🚨 Testar Push Blitz",
+                        color = Color(0xFFEF4444),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF0F2B26))
+                        .border(1.dp, Color(0xFF00FF88).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .clickable {
+                            RadarFirebaseMessagingService.simulateIncomingMergedCombo(
+                                context = context,
+                                app1 = "iFood",
+                                restaurant1 = "Madero Container Paulista",
+                                payout1 = 19.50,
+                                app2 = "99Food",
+                                restaurant2 = "Drogaria São Paulo Augusta",
+                                payout2 = 18.00
+                            )
+                        }
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                        .testTag("simulate_fcm_combo_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "💎 Testar Push Mesclagem",
+                        color = Color(0xFF00FF88),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }

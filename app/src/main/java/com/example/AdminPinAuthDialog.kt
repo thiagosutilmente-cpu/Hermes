@@ -27,11 +27,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,9 +48,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 /**
  * Diálogo seguro de autenticação por PIN para desbloquear o Modo Desenvolvedor / Administrador.
+ * Autentica com o servidor VPS via HTTPS e obtém o token de sessão administrativa.
  */
 @Composable
 fun AdminPinAuthDialog(
@@ -55,22 +60,29 @@ fun AdminPinAuthDialog(
     onSuccess: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var pinText by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isPinVisible by remember { mutableStateOf(false) }
+    var isVerifying by remember { mutableStateOf(false) }
 
     val handleConfirm = {
         if (pinText.isBlank()) {
             errorMessage = "Digite o PIN de 4 dígitos"
-        } else {
-            val success = AdminSecurityManager.verifyAndUnlock(context, pinText)
-            if (success) {
-                HapticFeedbackHelper.vibrateSuccess(context)
-                Toast.makeText(context, "🔓 Modo Administrador Desbloqueado com Sucesso!", Toast.LENGTH_SHORT).show()
-                onSuccess()
-            } else {
-                HapticFeedbackHelper.vibrateDecline(context)
-                errorMessage = "PIN incorreto. Acesso restrito ao proprietário."
+        } else if (!isVerifying) {
+            isVerifying = true
+            errorMessage = null
+            coroutineScope.launch {
+                val success = AdminSecurityManager.authenticateWithServer(context, pinText)
+                isVerifying = false
+                if (success) {
+                    HapticFeedbackHelper.vibrateSuccess(context)
+                    Toast.makeText(context, "🔓 Modo Administrador Desbloqueado com Sucesso!", Toast.LENGTH_SHORT).show()
+                    onSuccess()
+                } else {
+                    HapticFeedbackHelper.vibrateDecline(context)
+                    errorMessage = "PIN incorreto. Acesso restrito ao proprietário."
+                }
             }
         }
     }
@@ -175,18 +187,35 @@ fun AdminPinAuthDialog(
         confirmButton = {
             Button(
                 onClick = handleConfirm,
+                enabled = !isVerifying,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF00FF88),
-                    contentColor = Color(0xFF0A0A0F)
+                    contentColor = Color(0xFF0A0A0F),
+                    disabledContainerColor = Color(0xFF00FF88).copy(alpha = 0.5f),
+                    disabledContentColor = Color(0xFF0A0A0F).copy(alpha = 0.7f)
                 ),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.testTag("btn_confirm_admin_pin")
             ) {
-                Text(
-                    text = "DESBLOQUEAR",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 12.sp
-                )
+                if (isVerifying) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        color = Color(0xFF0A0A0F),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "VERIFICANDO...",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 12.sp
+                    )
+                } else {
+                    Text(
+                        text = "DESBLOQUEAR",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 12.sp
+                    )
+                }
             }
         },
         dismissButton = {

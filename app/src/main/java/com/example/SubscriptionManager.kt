@@ -2,9 +2,11 @@ package com.example
 
 import android.content.Context
 import android.content.SharedPreferences
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -234,5 +236,143 @@ object SubscriptionManager {
         if (!::prefs.isInitialized) return
         prefs.edit().clear().apply()
         loadSavedState()
+    }
+
+    private const val KEY_AUTH_TOKEN = "sub_auth_token"
+    private const val KEY_CUSTOMER_ID = "sub_customer_id"
+    private const val KEY_SERVER_SIGNATURE = "sub_server_signature"
+
+    fun getAuthToken(): String? {
+        if (!::prefs.isInitialized) return null
+        return prefs.getString(KEY_AUTH_TOKEN, null)
+    }
+
+    fun setAuthToken(token: String?) {
+        if (!::prefs.isInitialized) return
+        prefs.edit().putString(KEY_AUTH_TOKEN, token).apply()
+    }
+
+    fun getCustomerId(): String {
+        if (!::prefs.isInitialized) return "cus_pilot_sp_01"
+        return prefs.getString(KEY_CUSTOMER_ID, "cus_pilot_sp_01") ?: "cus_pilot_sp_01"
+    }
+
+    fun setCustomerId(customerId: String) {
+        if (!::prefs.isInitialized) return
+        prefs.edit().putString(KEY_CUSTOMER_ID, customerId).apply()
+    }
+
+    /**
+     * Validação de assinatura Pro autenticada diretamente com o servidor via HTTPS.
+     * Consulta o endpoint /api/v1/subscription/verify-token transmitindo o token/chave do motoboy.
+     * Atualiza o estado PRO de acordo com a validação criptografada do servidor backend.
+     */
+    suspend fun verifySubscriptionWithServer(context: Context): Boolean = withContext(Dispatchers.IO) {
+        if (!::prefs.isInitialized) initialize(context)
+        val token = getAuthToken() ?: getCustomerId()
+        val apiService = com.example.network.NetworkModule.provideApiService()
+
+        try {
+            val response = apiService.verifySubscriptionToken(
+                com.example.network.TokenVerifyRequest(
+                    token = token,
+                    deviceId = android.os.Build.MODEL
+                )
+            )
+
+            if (response.isSuccessful && response.body() != null) {
+                val data = response.body()!!
+                if (data.isValid && data.isActive) {
+                    val tier = when (data.planType?.uppercase()) {
+                        "PRO_ANNUAL", "PLANO_ANUAL_VIP" -> SubscriptionTier.PRO_ANNUAL
+                        "PRO_MONTHLY", "PLANO_MENSAL" -> SubscriptionTier.PRO_MONTHLY
+                        else -> SubscriptionTier.PRO_WEEKLY
+                    }
+                    val expiryMs = parseExpiryToMs(data.expiresAt)
+                    prefs.edit()
+                        .putString(KEY_TIER, tier.name)
+                        .putLong(KEY_EXPIRY_MS, expiryMs)
+                        .putString(KEY_AUTH_TOKEN, data.authToken ?: token)
+                        .putString(KEY_CUSTOMER_ID, data.customerId ?: getCustomerId())
+                        .putString(KEY_SERVER_SIGNATURE, data.serverSignature ?: "")
+                        .apply()
+
+                    withContext(Dispatchers.Main) {
+                        loadSavedState()
+                    }
+                    android.util.Log.i("SubscriptionManager", "✅ Assinatura validada com sucesso pelo servidor HTTPS: ${tier.title}")
+                    return@withContext true
+                } else {
+                    android.util.Log.w("SubscriptionManager", "⚠️ Servidor informou licença inativa/expirada: ${data.status}")
+                    withContext(Dispatchers.Main) {
+                        resetToFree()
+                    }
+                    return@withContext false
+                }
+            } else {
+                android.util.Log.e("SubscriptionManager", "Falha HTTP ao validar licença com o servidor: ${response.code()}")
+                return@withContext _subscriptionState.value.isActive
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SubscriptionManager", "Erro de rede ao validar licença com servidor: ${e.message}")
+            return@withContext _subscriptionState.value.isActive
+        }
+    }
+
+    /**
+     * Ativa chave de licença oficial no servidor via HTTPS
+     */
+    suspend fun activateKeyWithServer(context: Context, key: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        if (!::prefs.isInitialized) initialize(context)
+        val apiService = com.example.network.NetworkModule.provideApiService()
+
+        try {
+            val response = apiService.activateLicenseKey(
+                com.example.network.KeyActivationRequest(
+                    activationKey = key,
+                    deviceId = android.os.Build.MODEL
+                )
+            )
+
+            if (response.isSuccessful && response.body() != null) {
+                val data = response.body()!!
+                if (data.isActive) {
+                    val tier = when (data.planType?.uppercase()) {
+                        "PRO_ANNUAL", "PLANO_ANUAL_VIP" -> SubscriptionTier.PRO_ANNUAL
+                        "PRO_MONTHLY", "PLANO_MENSAL" -> SubscriptionTier.PRO_MONTHLY
+                        else -> SubscriptionTier.PRO_WEEKLY
+                    }
+                    val expiryMs = parseExpiryToMs(data.expiresAt)
+                    prefs.edit()
+                        .putString(KEY_TIER, tier.name)
+                        .putLong(KEY_EXPIRY_MS, expiryMs)
+                        .putString(KEY_AUTH_TOKEN, data.token ?: key)
+                        .putString(KEY_CUSTOMER_ID, data.customerId ?: getCustomerId())
+                        .putString(KEY_SERVER_SIGNATURE, data.serverSignature ?: "")
+                        .apply()
+
+                    withContext(Dispatchers.Main) {
+                        loadSavedState()
+                    }
+                    Result.success(true)
+                } else {
+                    Result.failure(Exception("Chave inativa ou recusada pelo servidor."))
+                }
+            } else {
+                Result.failure(Exception("Erro no servidor: código HTTP ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun parseExpiryToMs(expiresAt: String?): Long {
+        if (expiresAt.isNullOrBlank()) return System.currentTimeMillis() + 7L * 24 * 60 * 60 * 1000
+        return try {
+            val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+            sdf.parse(expiresAt)?.time ?: (System.currentTimeMillis() + 7L * 24 * 60 * 60 * 1000)
+        } catch (_: Exception) {
+            System.currentTimeMillis() + 7L * 24 * 60 * 60 * 1000
+        }
     }
 }

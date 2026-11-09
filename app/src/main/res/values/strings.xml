@@ -3,4 +3,5 @@
     <string name="app_name">Radar Coordinator</string>
     <string name="accessibility_service_label">Radar Copiloto Tático</string>
     <string name="accessibility_service_description">Permite ao Radar ler ofertas de entregas na tela para cálculo automático de lucro por km e leitura em voz alta, garantindo maior segurança ao motoboy sem tirar as mãos do guidão.</string>
+    <string name="google_maps_key">AIzaSyRadarDeliveryCoordinatorGeocoding2026</string>
 </resources>

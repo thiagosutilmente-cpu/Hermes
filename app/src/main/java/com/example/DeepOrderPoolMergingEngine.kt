@@ -57,7 +57,10 @@ data class MergedDeliveryCombo(
     val corridorLabel: String = "Mesmo Corredor Viário",
     val pickupDeviationMeters: Int = 0,
     val dropoffDeviationMeters: Int = 0,
-    val haversineResult: HaversineDeviationResult? = null
+    val haversineResult: HaversineDeviationResult? = null,
+    val angularResult: AngularProximityResult? = null,
+    val kitchenResult: KitchenWaitAnalysisResult? = null,
+    val optimizationScore: Float = 0f
 )
 
 /**
@@ -228,9 +231,10 @@ class DeepOrderPoolMergingEngine private constructor(private val context: Contex
                 }
             }
 
-            // Ordena priorizando Menor Desvio no mesmo corredor e Maior Lucro Líquido por Hora
+            // Ordena priorizando Combo Diamante, Maior Score de Otimização (Angular + Cozinha), Menor Desvio e Lucro/Hora
             val sortedCombos = combos.sortedWith(
                 compareByDescending<MergedDeliveryCombo> { it.isDiamondDeal }
+                    .thenByDescending { it.optimizationScore }
                     .thenBy { it.extraDeviationMeters }
                     .thenBy { it.corridorAlignmentDeg }
                     .thenByDescending { it.netProfitPerHour }
@@ -293,9 +297,8 @@ class DeepOrderPoolMergingEngine private constructor(private val context: Contex
     ): MergedDeliveryCombo? {
         val grossRev = o1.value + o2.value
 
-        // Distância entre coletas
+        // 1. Distância geodésica preliminar entre coletas e entregas
         val distBetweenPickups = calculateGeodeticKm(o1.pickupLat, o1.pickupLng, o2.pickupLat, o2.pickupLng)
-        // Distância entre entregas
         val distBetweenDropoffs = calculateGeodeticKm(o1.dropoffLat, o1.dropoffLng, o2.dropoffLat, o2.dropoffLng)
 
         // Se coletas ou entregas forem excessivamente distantes (acima de 2.8 km), descarta
@@ -303,28 +306,48 @@ class DeepOrderPoolMergingEngine private constructor(private val context: Contex
             return null
         }
 
-        // Análise de Vetor Direcional (Azimute de Deslocamento das duas corridas)
-        val bearing1 = calculateBearing(o1.pickupLat, o1.pickupLng, o1.dropoffLat, o1.dropoffLng)
-        val bearing2 = calculateBearing(o2.pickupLat, o2.pickupLng, o2.dropoffLat, o2.dropoffLng)
-        val angularDiff = calculateAngularDifference(bearing1, bearing2)
-
-        // Se as duas rotas seguem em direções opostas (divergência angular > 70 graus) e a entrega não for hiper-próxima, descarta para evitar contra-fluxo
-        if (angularDiff > 70f && distBetweenDropoffs > 1.2) {
+        // 2. Executa o algoritmo de otimização especializada:
+        // Prioriza proximidade angular entre os pontos de entrega de diferentes plataformas
+        // e calcula o tempo estimado de espera no restaurante como fator de peso (kitchen wait weight factor)
+        val optScore = AngularProximityKitchenMergingOptimizer.optimizeDeliveryMerge(o1, o2, costPerKm)
+        if (!optScore.isApproved) {
             return null
         }
 
-        // Rota combinada estimada: Coleta 1 -> Coleta 2 -> Entrega 1 -> Entrega 2
-        // Distância combinada: maior perna + o desvio entre coletas e entregas com fator de malha urbana (1.18x)
+        val angularResult = optScore.angularResult
+        val kitchenResult = optScore.kitchenResult
+        val angularDiff = angularResult.corridorAngleDiffDeg
+        val kitchenDelay1 = kitchenResult.waitMinutesPickup1
+        val kitchenDelay2 = kitchenResult.waitMinutesPickup2
+        val totalKitchenWaitMinutes = kitchenResult.totalWaitMinutes
+
+        // 3. Rota combinada estimada com Otimização TSP de 4 Paradas (Traveling Salesperson):
         val maxDirect = max(o1.distanceKm, o2.distanceKm)
-        val extraKm = (distBetweenPickups + distBetweenDropoffs) * 1.18
+
+        // Sequência A (FIFO): Coleta 1 -> Coleta 2 -> Entrega 1 -> Entrega 2
+        val distP2toD1 = calculateGeodeticKm(o2.pickupLat, o2.pickupLng, o1.dropoffLat, o1.dropoffLng)
+        val routeDistA = distBetweenPickups + distP2toD1 + distBetweenDropoffs
+
+        // Sequência B (LIFO / Dropoff Intermediário): Coleta 1 -> Coleta 2 -> Entrega 2 -> Entrega 1
+        val distP2toD2 = o2.distanceKm
+        val routeDistB = distBetweenPickups + distP2toD2 + distBetweenDropoffs
+
+        // Seleciona a permutação com menor quilometragem e menor tempo de comida na bag
+        val isSequenceBFaster = routeDistB < (routeDistA - 0.35)
+        val chosenSeqDesc = if (isSequenceBFaster) "LIFO (Entrega ${o2.appName} no caminho)" else "FIFO (Entrega ${o1.appName} prioritária)"
+
+        // Distância combinada calculada a partir da sequência ótima
+        val baseTourKm = if (isSequenceBFaster) routeDistB else routeDistA
+        val extraKm = baseTourKm * 1.18
         val totalKm = maxDirect + extraKm
         val deviationMeters = (extraKm * 1000).roundToInt()
         val pickupDevMeters = (distBetweenPickups * 1000).roundToInt()
         val dropoffDevMeters = (distBetweenDropoffs * 1000).roundToInt()
 
-        // Estimativa de tempo total e extra
+        // Estimativa de tempo total somando deslocamento em trânsito e espera ponderada de balcão
+        val transitMinutes = ((totalKm / 28.0) * 60.0).roundToInt().coerceAtLeast(4)
         val extraMinutes = ((extraKm / 28.0) * 60.0).roundToInt().coerceAtLeast(3)
-        val totalMinutes = max(o1.estimatedMinutes, o2.estimatedMinutes) + extraMinutes
+        val totalMinutes = transitMinutes + totalKitchenWaitMinutes
 
         // Lucro líquido: Receita bruta menos o custo de combustível
         val fuelCost = totalKm * costPerKm
@@ -332,30 +355,44 @@ class DeepOrderPoolMergingEngine private constructor(private val context: Contex
         val rawNetPerHour = if (totalMinutes > 0) (netProfit / totalMinutes) * 60.0 else 0.0
         val netProfitPerHour = if (rawNetPerHour.isFinite()) rawNetPerHour.coerceAtLeast(0.0) else 0.0
 
-        // Score de Segurança SLA (Evita atraso na entrega de comida quente)
-        val anglePenalty = (angularDiff / 10).roundToInt()
-        val slaScore = (100 - (extraMinutes * 3) - (deviationMeters / 90) - anglePenalty).coerceIn(10, 100)
+        // Score de Segurança SLA: Combina desvio, segurança térmica da bag e peso de proximidade angular
+        val baseSla = 100 - (extraMinutes * 3) - (deviationMeters / 90)
+        val slaScore = (
+            baseSla * 0.40f +
+            kitchenResult.thermalBagSafetyScore * 0.35f +
+            angularResult.angularProximityScore * 25f
+        ).roundToInt().coerceIn(10, 100)
 
-        // Combo Diamante: mais de R$ 26,00 bruto, mais de R$ 45,00/h líquida e desvio < 1.000m com ângulo <= 45°
-        val isDiamond = grossRev >= 26.0 && netProfitPerHour >= 45.0 && deviationMeters <= 1000 && angularDiff <= 45f
+        // Combo Diamante: rentabilidade líquida alta, alinhamento angular forte e balcão rápido
+        val isDiamond = grossRev >= 26.0 &&
+                netProfitPerHour >= 45.0 &&
+                deviationMeters <= 1000 &&
+                angularDiff <= 32f &&
+                kitchenResult.riskLevel == KitchenRiskLevel.MINIMAL_QUICK_GRAB
 
-        val corridorLabel = when {
-            angularDiff <= 25f -> "Corredor Direcional Alinhado (${angularDiff.roundToInt()}°)"
-            angularDiff <= 45f -> "Mesmo Corredor Viário (${angularDiff.roundToInt()}°)"
-            else -> "Corredor Transversal Compatível (${angularDiff.roundToInt()}°)"
+        val corridorLabel = "${angularResult.corridorClassification.label} • Balcão ~${kitchenDelay2}m (Peso ${String.format(Locale.US, "%.2f", kitchenResult.kitchenWaitWeightFactor)})"
+
+        val platformLabel = if (optScore.isCrossPlatform) "${o1.appName} + ${o2.appName} (Multi-App)" else o1.appName
+        val steps = if (isSequenceBFaster) {
+            listOf(
+                "1. Coletar em ${o1.restaurantName} (${o1.appName}) • Balcão: ~${kitchenDelay1}m",
+                "2. Coletar em ${o2.restaurantName} (${o2.appName}) • Desvio: +${pickupDevMeters}m (Balcão: ~${kitchenDelay2}m | Peso: ${String.format(Locale.US, "%.2f", kitchenResult.kitchenWaitWeightFactor)})",
+                "3. Entregar em ${o2.dropoffAddress} (${o2.appName}) • Entrega intermediária no caminho",
+                "4. Entregar em ${o1.dropoffAddress} (${o1.appName}) • Destino final do corredor (+${dropoffDevMeters}m | Bag: ~${kitchenResult.thermalBagTrapMinutes}m)"
+            )
+        } else {
+            listOf(
+                "1. Coletar em ${o1.restaurantName} (${o1.appName}) • Balcão: ~${kitchenDelay1}m",
+                "2. Coletar em ${o2.restaurantName} (${o2.appName}) • Desvio: +${pickupDevMeters}m (Balcão: ~${kitchenDelay2}m | Peso: ${String.format(Locale.US, "%.2f", kitchenResult.kitchenWaitWeightFactor)})",
+                "3. Entregar em ${o1.dropoffAddress} (${o1.appName}) • 1ª Entrega prioritária (Bag: ~${kitchenResult.thermalBagTrapMinutes}m)",
+                "4. Entregar em ${o2.dropoffAddress} (${o2.appName}) • Desvio final: +${dropoffDevMeters}m"
+            )
         }
 
-        val steps = listOf(
-            "1. Coletar em ${o1.restaurantName} (${o1.appName})",
-            "2. Coletar em ${o2.restaurantName} (${o2.appName}) - Desvio: +${pickupDevMeters}m",
-            "3. Entregar em ${o1.dropoffAddress} (${o1.appName})",
-            "4. Entregar em ${o2.dropoffAddress} (${o2.appName}) - Desvio: +${dropoffDevMeters}m"
-        )
-
         val reason = if (isDiamond) {
-            "💎 Combo Diamante de Corredor: $corridorLabel com ganho líquido de R$ ${String.format(Locale.US, "%.2f", netProfitPerHour)}/h e apenas +${deviationMeters}m de desvio."
+            "💎 Combo Diamante Multi-App [$platformLabel]: $corridorLabel com ganho líquido de R$ ${String.format(Locale.US, "%.2f", netProfitPerHour)}/h e retenção na bag de apenas ~${kitchenResult.thermalBagTrapMinutes}m."
         } else {
-            "⚡ Mesclagem de Corredor: $corridorLabel com rendimento líquido de R$ ${String.format(Locale.US, "%.2f", netProfitPerHour)}/h (+${extraMinutes} min)."
+            "⚡ Mesclagem Otimizada [$platformLabel]: $corridorLabel com rendimento líquido de R$ ${String.format(Locale.US, "%.2f", netProfitPerHour)}/h (Score: ${optScore.overallScore.roundToInt()}/100)."
         }
 
         val driverLat = if (currentLoc.latitude != 0.0) currentLoc.latitude else -23.561684
@@ -396,7 +433,10 @@ class DeepOrderPoolMergingEngine private constructor(private val context: Contex
             corridorLabel = corridorLabel,
             pickupDeviationMeters = haversineEval.distancePickup1ToPickup2Meters,
             dropoffDeviationMeters = haversineEval.distanceDropoff1ToDropoff2Meters,
-            haversineResult = haversineEval
+            haversineResult = haversineEval,
+            angularResult = angularResult,
+            kitchenResult = kitchenResult,
+            optimizationScore = optScore.overallScore
         )
     }
 
@@ -421,6 +461,32 @@ class DeepOrderPoolMergingEngine private constructor(private val context: Contex
         val results = FloatArray(1)
         Location.distanceBetween(lat1, lon1, lat2, lon2, results)
         return (results[0] / 1000.0)
+    }
+
+    /**
+     * Estima o tempo de espera no balcão/cozinha com base no tipo de estabelecimento
+     * e localização (Shoppings / Praças de Alimentação / Fast-Food).
+     */
+    fun estimateKitchenDelayMinutes(restaurantName: String, address: String): Int {
+        val text = (restaurantName + " " + address).lowercase(Locale.ROOT)
+        return when {
+            // Shoppings e galerias: tempo de estacionar moto, subir até praça de alimentação
+            text.contains("shopping") || text.contains("center") || text.contains("bourbon") ||
+            text.contains("iguatemi") || text.contains("mall") || text.contains("eldorado") ||
+            text.contains("morumbi") || text.contains("piazza") -> 10
+
+            // Restaurantes lentos ou à la carte em horário de pico
+            text.contains("pizzaria") || text.contains("churrascaria") || text.contains("barbecue") ||
+            text.contains("restaurante") || text.contains("cantina") -> 8
+
+            // Fast foods e conveniências rápidas
+            text.contains("mcdonald") || text.contains("burger king") || text.contains("habib") ||
+            text.contains("subway") || text.contains("drogasil") || text.contains("droga raia") ||
+            text.contains("farmacia") || text.contains("conveniencia") -> 3
+
+            // Padrão de rua / dark kitchen
+            else -> 5
+        }
     }
 
     /**

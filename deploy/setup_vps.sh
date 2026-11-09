@@ -83,17 +83,16 @@ server {
     listen [::]:80 default_server;
     server_name _;
 
+    root /var/www/html;
+    index index.html;
+
     client_max_body_size 50M;
 
-    location /privacy.html {
-        alias /var/www/html/privacy.html;
-    }
-
-    location /privacy {
-        alias /var/www/html/privacy.html;
-    }
-
     location / {
+        try_files $uri $uri/ @backend;
+    }
+
+    location @backend {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

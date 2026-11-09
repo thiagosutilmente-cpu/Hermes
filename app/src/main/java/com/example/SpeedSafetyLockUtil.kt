@@ -36,11 +36,11 @@ class SpeedSafetyLockUtil private constructor(private val context: Context) {
     companion object {
         private const val TAG = "SpeedSafetyLockUtil"
 
-        // Limiar obrigatório de segurança: 10.0 km/h
-        const val LOCK_SPEED_THRESHOLD_KMH = 10.0
+        // Limiar obrigatório de segurança Fail-Closed: 5.0 km/h
+        const val LOCK_SPEED_THRESHOLD_KMH = 5.0
 
-        // Limiar inferior de histerese para desbloquear (evita oscilação na borda de 10 km/h)
-        const val UNLOCK_HYSTERESIS_THRESHOLD_KMH = 8.5
+        // Limiar inferior de histerese para desbloquear (evita oscilação na borda de 5 km/h)
+        const val UNLOCK_HYSTERESIS_THRESHOLD_KMH = 3.5
 
         @Volatile
         private var instance: SpeedSafetyLockUtil? = null
@@ -59,12 +59,12 @@ class SpeedSafetyLockUtil private constructor(private val context: Context) {
         val currentSpeedKmh: Double = 0.0,
         val isLocked: Boolean = false,
         val thresholdKmh: Double = LOCK_SPEED_THRESHOLD_KMH,
-        val latitude: Double = -23.561684,
-        val longitude: Double = -46.655981,
+        val latitude: Double = 0.0,
+        val longitude: Double = 0.0,
         val accuracyMeters: Float = 0f,
         val isTrackingActive: Boolean = false,
         val isSimulationMode: Boolean = false,
-        val statusMessage: String = "Monitoramento inativo"
+        val statusMessage: String = "Monitoramento de segurança ativo"
     )
 
     private val fusedLocationClient: FusedLocationProviderClient =
@@ -121,7 +121,7 @@ class SpeedSafetyLockUtil private constructor(private val context: Context) {
             )
             _state.value = _state.value.copy(
                 isTrackingActive = true,
-                statusMessage = "GPS Fused Location ativo (Limite: 10 km/h)"
+                statusMessage = "GPS Fused Location ativo (Limite: 5 km/h)"
             )
             Log.i(TAG, "Monitoramento FusedLocationProviderClient iniciado com sucesso.")
             return true
@@ -212,7 +212,7 @@ class SpeedSafetyLockUtil private constructor(private val context: Context) {
             longitude = lng,
             accuracyMeters = accuracy,
             statusMessage = if (newLocked) {
-                "🚨 TRAVA ATIVA (> 10 km/h) • Interface Bloqueada para Segurança"
+                "🚨 TRAVA ATIVA (> 5 km/h) • Interface Bloqueada para Segurança"
             } else {
                 "✅ Interface Liberada (Velocidade Segura)"
             }
@@ -227,7 +227,7 @@ class SpeedSafetyLockUtil private constructor(private val context: Context) {
             if (newLocked) {
                 try {
                     TextToSpeechManager.getInstance(context).speak(
-                        "Atenção: velocidade acima de 10 por hora detectada por GPS. Trava de segurança ativada. Não use a tela em movimento."
+                        "Atenção: velocidade acima de 5 por hora detectada por GPS. Trava de segurança ativada. Não use a tela em movimento."
                     )
                 } catch (_: Exception) {}
             } else {
@@ -241,9 +241,14 @@ class SpeedSafetyLockUtil private constructor(private val context: Context) {
     }
 
     /**
-     * Simula velocidade para testes rápidos em bancada sem necessidade de moto em movimento
+     * Teste de bancada seguro: apenas propaga em modo estritamente local se Fused Location não estiver conectado
      */
+    @Deprecated("Segurança de produção: GPS real do FusedLocationProviderClient é mandatório")
     fun simulateSpeed(simSpeedKmh: Double) {
+        if (_state.value.isTrackingActive) {
+            Log.w(TAG, "Tentativa de simular velocidade ignorada: GPS de produção está ativo.")
+            return
+        }
         _state.value = _state.value.copy(isSimulationMode = true)
         updateSpeedAndEvaluateLock(
             speedKmh = simSpeedKmh,
@@ -253,9 +258,6 @@ class SpeedSafetyLockUtil private constructor(private val context: Context) {
         )
     }
 
-    /**
-     * Desativa o modo de simulação e retorna ao GPS real do FusedLocationProviderClient
-     */
     fun resetSimulation() {
         _state.value = _state.value.copy(isSimulationMode = false)
         startTracking()

@@ -2,9 +2,12 @@ package com.example
 
 import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -101,44 +104,45 @@ object AsaasFinancialEngine {
     }
 
     /**
-     * Processa evento de Webhook recebido do Asaas na VPS ou simulador.
-     * Executa a regra de negócio do PASSO 1:
-     * - PAYMENT_RECEIVED: Ativa licença por 7 dias no SubscriptionManager
-     * - PAYMENT_OVERDUE: Bloqueia acesso PRO no app imediatamente
+     * Valida o token de assinatura Pro autenticado via HTTPS diretamente com o servidor VPS.
+     * Substitui o processamento local de webhooks (processWebhookEvent), delegando
+     * a validação de pagamento e status ao backend seguro do servidor.
      */
+    suspend fun verifySubscriptionTokenWithServer(
+        context: Context,
+        token: String? = null
+    ): Boolean {
+        if (!token.isNullOrBlank()) {
+            SubscriptionManager.setAuthToken(token)
+        }
+        val isVerified = SubscriptionManager.verifySubscriptionWithServer(context)
+        _engineState.value = _engineState.value.copy(
+            lastWebhookProcessed = if (isVerified) {
+                "HTTPS_TOKEN_VERIFIED: Licença PRO validada pelo servidor"
+            } else {
+                "HTTPS_TOKEN_REJECTED: Licença inativa ou expirada no servidor"
+            }
+        )
+        return isVerified
+    }
+
+    /**
+     * @deprecated Webhooks do Asaas são agora recebidos e validados com exclusividade pelo servidor backend VPS.
+     * Esta função foi substituída por [verifySubscriptionTokenWithServer] via HTTPS autenticado.
+     */
+    @Deprecated("Substituído por verificação de token autenticada via HTTPS no servidor")
     fun processWebhookEvent(
         context: Context,
         eventType: String,
         customerId: String,
-        value: Double
+        value: Double,
+        webhookSecretToken: String? = null
     ): Boolean {
-        Log.i(TAG, "Processando Webhook Asaas: $eventType | Cliente: $customerId | Valor: R$ $value")
-
-        return when (eventType) {
-            "PAYMENT_RECEIVED", "PAYMENT_CONFIRMED" -> {
-                // Ativa licença de 7 dias (Assinatura Semanal)
-                SubscriptionManager.initialize(context)
-                SubscriptionManager.activateWeeklySubscription()
-                _engineState.value = _engineState.value.copy(
-                    lastWebhookProcessed = "PAYMENT_RECEIVED: Licença 7 dias ATIVA para $customerId"
-                )
-                true
-            }
-
-            "PAYMENT_OVERDUE" -> {
-                // Bloqueia acesso PRO imediatamente (volta ao plano FREE restrito)
-                SubscriptionManager.initialize(context)
-                SubscriptionManager.resetToFree()
-                _engineState.value = _engineState.value.copy(
-                    lastWebhookProcessed = "PAYMENT_OVERDUE: Acesso PRO BLOQUEADO para $customerId"
-                )
-                true
-            }
-
-            else -> {
-                Log.d(TAG, "Evento informativo Asaas não-bloqueante: $eventType")
-                false
-            }
+        Log.w(TAG, "Aviso: processWebhookEvent local foi substituído. Webhooks são recebidos no servidor VPS.")
+        Log.i(TAG, "Acionando sincronização de token autenticada via HTTPS para o cliente: $customerId")
+        CoroutineScope(Dispatchers.IO).launch {
+            verifySubscriptionTokenWithServer(context, customerId)
         }
+        return true
     }
 }

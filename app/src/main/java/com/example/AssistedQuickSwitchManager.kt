@@ -42,24 +42,26 @@ import androidx.compose.ui.unit.sp
  */
 object AssistedQuickSwitchManager {
 
-    // Pacotes oficiais dos aplicativos de entrega suportados
+    // Pacotes oficiais dos aplicativos de entrega suportados no Brasil
     const val PACKAGE_IFOOD = "com.ifood.driver"
+    const val PACKAGE_IFOOD_ENTREGADOR = "com.ifood.entregador"
     const val PACKAGE_UBER = "com.ubercab.driver"
     const val PACKAGE_99 = "com.taxis99"
+    const val PACKAGE_99_DRIVER = "com.taxis99.driver"
     const val PACKAGE_RAPPI = "com.grability.rappi"
 
     data class DualRouteOpportunity(
         val id: String,
         val primaryApp: String, // ex: "iFood"
-        val primaryValue: Double, // ex: 18.00
+        val primaryValue: Double,
         val secondaryApp: String, // ex: "99 Moto"
-        val secondaryPackage: String, // ex: PACKAGE_99
-        val secondaryValue: Double, // ex: 16.00
+        val secondaryPackage: String,
+        val secondaryValue: Double,
         val totalCombinedValue: Double = primaryValue + secondaryValue,
-        val extraDeviationMeters: Int = 450,
-        val extraMinutes: Int = 3,
-        val slaProtectionScore: Int = 99, // 99% de garantia contra atrasos
-        val destinationCorridor: String = "Av. Paulista / Jardins"
+        val extraDeviationMeters: Int = 0,
+        val extraMinutes: Int = 0,
+        val slaProtectionScore: Int = 95,
+        val destinationCorridor: String = "Corredor compatível"
     )
 
     /**

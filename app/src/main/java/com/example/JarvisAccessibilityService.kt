@@ -175,38 +175,47 @@ class JarvisAccessibilityService : AccessibilityService() {
                 }
             }
 
-            // Se encontrou dados válidos de oferta disponível na tela
-            if (extractedValue > 0 || acceptButtonFound) {
+            // Se encontrou dados válidos de oferta disponível na tela (somente com valor monetário real)
+            if (extractedValue > 0.0) {
+                val realDistance = if (extractedDistanceKm > 0.0) extractedDistanceKm else 0.0
+                val parsedDest = textNodes.firstOrNull {
+                    it.contains("Rua", true) ||
+                    it.contains("Av", true) ||
+                    it.contains("Alameda", true) ||
+                    it.contains("Travessa", true)
+                } ?: "Destino a confirmar"
+
+                val parsedPickup = textNodes.firstOrNull {
+                    it.contains("Shopping", true) ||
+                    it.contains("Restaurante", true) ||
+                    it.contains("Burg", true) ||
+                    it.contains("Pizza", true) ||
+                    it.contains("Lanches", true)
+                } ?: "Ponto de coleta a confirmar"
+
                 val offer = DetectedScreenOffer(
                     appName = appName,
                     packageName = packageName,
-                    value = if (extractedValue > 0) extractedValue else 15.00,
-                    distanceKm = if (extractedDistanceKm > 0) extractedDistanceKm else 3.0,
-                    destinationAddress = textNodes.firstOrNull { it.contains("Rua", true) || it.contains("Av", true) } ?: "Av. Paulista / Jardins",
-                    pickupLocation = textNodes.firstOrNull { it.contains("Shopping", true) || it.contains("Restaurante", true) } ?: "Balcão Próximo"
+                    value = extractedValue,
+                    distanceKm = realDistance,
+                    destinationAddress = parsedDest,
+                    pickupLocation = parsedPickup
                 )
 
                 _latestDetectedOffer.value = offer
 
-                // Notifica o gestor tático de Rota Dupla sobre a oportunidade ativa
-                val dualOpportunity = AssistedQuickSwitchManager.DualRouteOpportunity(
-                    id = "offer_${System.currentTimeMillis()}",
-                    primaryApp = "iFood",
-                    primaryValue = 18.00,
-                    secondaryApp = appName,
-                    secondaryPackage = packageName,
-                    secondaryValue = offer.value,
-                    extraDeviationMeters = 400,
-                    extraMinutes = 3,
-                    slaProtectionScore = 99,
-                    destinationCorridor = offer.destinationAddress
-                )
-                _activeDualOpportunity.value = dualOpportunity
+                // Rota Dupla real: somente ativada se houver oportunidade simultânea genuína registrada
+                val pendingDual = _activeDualOpportunity.value
+                val hasRealDualRoute = pendingDual != null && pendingDual.secondaryPackage != packageName
 
-                // Atualiza e exibe o Card Flutuante Compacto do Jarvis em tempo real sobre a tela do app
-                val pricePerKm = if (offer.distanceKm > 0) offer.value / offer.distanceKm else 0.0
-                val isGood = pricePerKm >= 4.50
-                val label = String.format(Locale.ROOT, "R$ %.2f/km %s", pricePerKm, if (isGood) "🟢 BOA" else "🔴 PREJUÍZO")
+                // Cálculo tático profissional do R$/km
+                val pricePerKm = if (realDistance > 0.0) offer.value / realDistance else 0.0
+                val isGood = realDistance > 0.0 && pricePerKm >= 4.50
+                val label = when {
+                    realDistance <= 0.0 -> String.format(Locale.ROOT, "R$ %.2f (Distância em cálculo)", offer.value)
+                    isGood -> String.format(Locale.ROOT, "R$ %.2f/km 🟢 BOA", pricePerKm)
+                    else -> String.format(Locale.ROOT, "R$ %.2f/km 🔴 PREJUÍZO", pricePerKm)
+                }
 
                 val tacticalOffer = OverlayWindowManager.FloatingTacticalOffer(
                     appName = appName,
@@ -218,9 +227,9 @@ class JarvisAccessibilityService : AccessibilityService() {
                     dealLabel = label,
                     destination = offer.destinationAddress,
                     pickup = offer.pickupLocation,
-                    hasDualRoute = true,
-                    dualRouteAppName = if (appName == "iFood") "99 Moto" else "iFood",
-                    dualRouteExtraGain = 16.50
+                    hasDualRoute = hasRealDualRoute,
+                    dualRouteAppName = if (hasRealDualRoute) (pendingDual?.secondaryApp ?: "") else "",
+                    dualRouteExtraGain = if (hasRealDualRoute) (pendingDual?.secondaryValue ?: 0.0) else 0.0
                 )
 
                 OverlayWindowManager.getInstance(this).showTacticalOffer(tacticalOffer)
@@ -308,17 +317,15 @@ class JarvisAccessibilityService : AccessibilityService() {
                         } ?: "Destino de Entrega"
 
                         val currentGps = LocationService.globalLocationState.value
-                        val baseLat = if (currentGps.latitude != 0.0) currentGps.latitude else -23.561684
-                        val baseLng = if (currentGps.longitude != 0.0) currentGps.longitude else -46.655981
+                        val baseLat = currentGps.latitude
+                        val baseLng = currentGps.longitude
 
-                        // Projeção geodésica do restaurante e do ponto de entrega em relação ao condutor
-                        val pLat = baseLat + ((rest.hashCode() % 7) * 0.0012)
-                        val pLng = baseLng + (((rest.hashCode() / 7) % 7) * 0.0012)
-                        val dropAngleRad = Math.toRadians((Math.abs(drop.hashCode().toLong()) % 360).toDouble())
-                        val latKmDegree = 1.0 / 110.574
-                        val lngKmDegree = 1.0 / (111.320 * Math.cos(Math.toRadians(baseLat)))
-                        val dLat = pLat + (distDouble * Math.cos(dropAngleRad) * latKmDegree)
-                        val dLng = pLng + (distDouble * Math.sin(dropAngleRad) * lngKmDegree)
+                        // Telemetria real: utiliza o ponto GPS real do condutor como origem da rota
+                        val pLat = baseLat
+                        val pLng = baseLng
+                        // Destino permanece sem distorção artificial: coordenadas 0.0 indicam pendência de geocodificação OSRM
+                        val dLat = 0.0
+                        val dLng = 0.0
 
                         poolOffers.add(
                             ScreenPoolOffer(
@@ -397,13 +404,30 @@ class JarvisAccessibilityService : AccessibilityService() {
         }
     }
 
+    override fun onUnbind(intent: Intent?): Boolean {
+        instance = null
+        isServiceRunning = false
+        currentAcceptButtonNode = null
+        currentAcceptBounds = null
+        _latestDetectedOffer.value = null
+        _activeDualOpportunity.value = null
+        try {
+            OverlayWindowManager.getInstance(this).destroy()
+        } catch (_: Exception) {}
+        return super.onUnbind(intent)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         instance = null
         isServiceRunning = false
         currentAcceptButtonNode = null
         currentAcceptBounds = null
-        OverlayWindowManager.getInstance(this).destroy()
+        _latestDetectedOffer.value = null
+        _activeDualOpportunity.value = null
+        try {
+            OverlayWindowManager.getInstance(this).destroy()
+        } catch (_: Exception) {}
     }
 
     companion object {
@@ -423,11 +447,22 @@ class JarvisAccessibilityService : AccessibilityService() {
         val activeDualOpportunity: StateFlow<AssistedQuickSwitchManager.DualRouteOpportunity?> = _activeDualOpportunity.asStateFlow()
 
         /**
-         * Dispara a ação de clique no botão "Aceitar" da tela ativa.
-         * Possui fallback inteligente para gesto físico (dispatchGesture) caso o AccessibilityNodeInfo
-         * tenha sido reciclado ou invalidado por recomposição visual do aplicativo parceiro.
+         * Flag de Segurança Anti-Ban (Human-in-the-Loop):
+         * Por padrão, false. O Radar opera como Assistente Tático Puro (Copiloto HUD),
+         * alertando por voz e tela flutuante, deixando o clique de aceite sempre para o condutor humano.
+         */
+        var isAutoClickEnabled: Boolean = false
+
+        /**
+         * Dispara a ação de clique no botão "Aceitar" apenas se o condutor tiver ativado
+         * explicitamente o modo autônomo nas configurações de risco.
          */
         fun performAcceptClick(): Boolean {
+            if (!isAutoClickEnabled) {
+                // Modo Assistente Tático: Zero automação forçada, sem risco de ban
+                return false
+            }
+
             // 1. Tenta clique nativo via node se ainda conectado e visível
             try {
                 val node = currentAcceptButtonNode
@@ -506,16 +541,20 @@ class JarvisAccessibilityService : AccessibilityService() {
 
         private fun isSupportedDeliveryApp(packageName: String): Boolean {
             return packageName == AssistedQuickSwitchManager.PACKAGE_IFOOD ||
+                   packageName == AssistedQuickSwitchManager.PACKAGE_IFOOD_ENTREGADOR ||
                    packageName == AssistedQuickSwitchManager.PACKAGE_UBER ||
                    packageName == AssistedQuickSwitchManager.PACKAGE_99 ||
+                   packageName == AssistedQuickSwitchManager.PACKAGE_99_DRIVER ||
                    packageName == AssistedQuickSwitchManager.PACKAGE_RAPPI
         }
 
         private fun resolveAppName(packageName: String): String {
             return when (packageName) {
-                AssistedQuickSwitchManager.PACKAGE_IFOOD -> "iFood"
+                AssistedQuickSwitchManager.PACKAGE_IFOOD,
+                AssistedQuickSwitchManager.PACKAGE_IFOOD_ENTREGADOR -> "iFood"
                 AssistedQuickSwitchManager.PACKAGE_UBER -> "Uber"
-                AssistedQuickSwitchManager.PACKAGE_99 -> "99 Moto"
+                AssistedQuickSwitchManager.PACKAGE_99,
+                AssistedQuickSwitchManager.PACKAGE_99_DRIVER -> "99 Moto"
                 AssistedQuickSwitchManager.PACKAGE_RAPPI -> "Rappi"
                 else -> "App de Entrega"
             }
