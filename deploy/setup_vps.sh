@@ -6,30 +6,60 @@ set -e
 
 echo "🚀 Iniciando configuração do Jarvis Neural Cockpit na VPS..."
 
+GITHUB_USER="thiagosutilmente-cpu"
+GITHUB_REPO="Hermes"
+REPO_URL="https://github.com/${GITHUB_USER}/${GITHUB_REPO}.git"
+REPO_DIR="/root/${GITHUB_REPO}"
+
 # 1. Identificar onde estão os arquivos do repositório
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "📂 Diretório do script: $SCRIPT_DIR"
 
 # 2. Atualizar e instalar pacotes do sistema
 apt-get update -y
-apt-get install -y python3 python3-pip python3-venv curl psmisc nginx
+apt-get install -y python3 python3-pip python3-venv curl psmisc nginx git ufw
+
+# Garantir repositório atualizado em /root/Hermes caso executado de forma avulsa
+SOURCE_DIR="$SCRIPT_DIR"
+if [ ! -f "$SOURCE_DIR/vps_backend_complete.py" ]; then
+    echo "📥 Clonando repositório oficial ($REPO_URL) em $REPO_DIR..."
+    if [ -d "$REPO_DIR/.git" ]; then
+        git -C "$REPO_DIR" pull origin main || true
+    else
+        rm -rf "$REPO_DIR"
+        git clone "$REPO_URL" "$REPO_DIR"
+    fi
+    SOURCE_DIR="$REPO_DIR/deploy"
+fi
 
 # 3. Diretório de execução do Backend
 APP_DIR="/root/jarvis_backend"
-mkdir -p "$APP_DIR"
+mkdir -p "$APP_DIR" /var/www/html
 
-# Copiar arquivos do repositório para o diretório de execução
-if [ -f "$SCRIPT_DIR/vps_backend_complete.py" ]; then
-    echo "📋 Copiando arquivos do backend a partir de $SCRIPT_DIR..."
-    cp -f "$SCRIPT_DIR/vps_backend_complete.py" "$APP_DIR/"
-    [ -f "$SCRIPT_DIR/privacy.html" ] && cp -f "$SCRIPT_DIR/privacy.html" "$APP_DIR/"
-    [ -f "$SCRIPT_DIR/.env" ] && cp -f "$SCRIPT_DIR/.env" "$APP_DIR/" 2>/dev/null || true
-fi
+# Copiar todos os arquivos Python, HTMLs e configurações do repositório
+if [ -f "$SOURCE_DIR/vps_backend_complete.py" ]; then
+    echo "📋 Copiando todos os módulos do backend a partir de $SOURCE_DIR..."
+    cp -f "$SOURCE_DIR"/*.py "$APP_DIR/"
+    [ -f "$SOURCE_DIR/requirements.txt" ] && cp -f "$SOURCE_DIR/requirements.txt" "$APP_DIR/"
+    [ -f "$SOURCE_DIR/admin.html" ] && cp -f "$SOURCE_DIR/admin.html" "$APP_DIR/" && cp -f "$SOURCE_DIR/admin.html" /var/www/html/admin.html
+    [ -f "$SOURCE_DIR/index.html" ] && cp -f "$SOURCE_DIR/index.html" "$APP_DIR/" && cp -f "$SOURCE_DIR/index.html" /var/www/html/index.html
+    [ -f "$SOURCE_DIR/privacy.html" ] && cp -f "$SOURCE_DIR/privacy.html" "$APP_DIR/" && cp -f "$SOURCE_DIR/privacy.html" /var/www/html/privacy.html
 
-# Copiar privacy.html também para o Nginx padrão
-mkdir -p /var/www/html
-if [ -f "$APP_DIR/privacy.html" ]; then
-    cp -f "$APP_DIR/privacy.html" /var/www/html/privacy.html
+    # Fallback para arquivos na raiz do repositório (um nível acima de deploy/)
+    REPO_ROOT="$(dirname "$SOURCE_DIR")"
+    [ ! -f /var/www/html/index.html ] && [ -f "$REPO_ROOT/index.html" ] && cp -f "$REPO_ROOT/index.html" /var/www/html/index.html && cp -f "$REPO_ROOT/index.html" "$APP_DIR/index.html"
+    [ ! -f /var/www/html/privacy.html ] && [ -f "$REPO_ROOT/privacy.html" ] && cp -f "$REPO_ROOT/privacy.html" /var/www/html/privacy.html && cp -f "$REPO_ROOT/privacy.html" "$APP_DIR/privacy.html"
+
+    # Configurar .env (preserva .env existente se já preenchido)
+    if [ -f "$SOURCE_DIR/.env" ]; then
+        cp -f "$SOURCE_DIR/.env" "$APP_DIR/.env"
+    elif [ ! -f "$APP_DIR/.env" ] && [ -f "$SOURCE_DIR/.env.production.example" ]; then
+        cp -f "$SOURCE_DIR/.env.production.example" "$APP_DIR/.env"
+        echo "📝 Arquivo modelo $APP_DIR/.env criado. Lembre-se de preencher suas chaves de API."
+    fi
+else
+    echo "❌ Erro: vps_backend_complete.py não encontrado em $SOURCE_DIR"
+    exit 1
 fi
 
 cd "$APP_DIR"
@@ -45,9 +75,19 @@ source venv/bin/activate
 # 5. Instalar dependências Python
 echo "⚡ Instalando FastAPI, Uvicorn e dependências..."
 pip install --upgrade pip
-pip install fastapi uvicorn requests pydantic google-generativeai
+if [ -f "requirements.txt" ]; then
+    pip install -r requirements.txt
+else
+    pip install fastapi uvicorn requests pydantic google-generativeai python-dotenv
+fi
 
-# 6. Liberar porta 8000 caso haja processo antigo travando
+# 6. Liberar portas no Firewall (se UFW estiver ativo) e matar processo antigo
+if ufw status | grep -q "Status: active"; then
+    ufw allow 22/tcp || true
+    ufw allow 80/tcp || true
+    ufw allow 443/tcp || true
+    ufw allow 8000/tcp || true
+fi
 echo "🔄 Liberando porta 8000..."
 fuser -k 8000/tcp 2>/dev/null || true
 pkill -f "vps_backend_complete" 2>/dev/null || true

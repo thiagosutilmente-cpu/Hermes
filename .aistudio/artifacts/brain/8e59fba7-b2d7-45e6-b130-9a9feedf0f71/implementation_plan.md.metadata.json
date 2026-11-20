@@ -1,6 +1,0 @@
-{
-  "summary":  "Planejamento completo de Design System e Arquitetura de Informação para o Radar Coordinator, no padrão de grandes startups de mobilidade urbana (iFood, Uber Driver, Waze).\nDefine:\n1. Identidade Visual 'Tactical Cockpit HUD' (OLED Dark e Modo Sol de Alto Contraste).\n2. Arquitetura de Navegação em 3 Abas Primárias (Radar Cockpit, Mesclagens & Rotas, Finanças & Assinatura).\n3. Hierarquia Tática de Elementos em Movimento (Destaque imediato de R$/km e Lucro Líquido sem poluição visual).\n4. Cronograma de Implementação Modular em 3 Fases com Validação Automatizada.",
-  "updatedAt":  "2026-11-09T15:13:12.756788877Z",
-  "requestFeedback":  true,
-  "userFacing":  true
-}
