@@ -249,7 +249,12 @@ def send_evolution_whatsapp(phone: str, message: str) -> bool:
         "apikey": EVOLUTION_API_KEY,
         "Content-Type": "application/json"
     }
-    payload = {
+    payload_v2 = {
+        "number": clean_phone,
+        "delay": 1200,
+        "text": message
+    }
+    payload_v1 = {
         "number": clean_phone,
         "options": {
             "delay": 1200,
@@ -261,7 +266,9 @@ def send_evolution_whatsapp(phone: str, message: str) -> bool:
     }
 
     try:
-        response = requests.post(endpoint, json=payload, headers=headers, timeout=10)
+        response = requests.post(endpoint, json=payload_v2, headers=headers, timeout=10)
+        if response.status_code >= 400:
+            response = requests.post(endpoint, json=payload_v1, headers=headers, timeout=10)
         print(f"[WHATSAPP ENVIADO] Status: {response.status_code} para {clean_phone}")
         return response.status_code in (200, 201)
     except Exception as e:
