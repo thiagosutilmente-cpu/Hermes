@@ -209,7 +209,9 @@ fun FcmRealtimeOfferAlertCard(
                             },
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFF59E0B)),
                             shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp)
                         ) {
                             Text(text = "🔊 Ouvir", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
@@ -220,7 +222,9 @@ fun FcmRealtimeOfferAlertCard(
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
                             shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1.2f)
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .height(50.dp)
                         ) {
                             Text(
                                 text = "Entendido / Fechar",
@@ -406,7 +410,9 @@ fun FcmRealtimeOfferAlertCard(
                             },
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = TextGray),
                             shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(54.dp)
                         ) {
                             Text(text = "Dispensar", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
@@ -436,12 +442,13 @@ fun FcmRealtimeOfferAlertCard(
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .weight(1.8f)
+                                .height(54.dp)
                                 .testTag("fcm_accept_combo_button")
                         ) {
                             Text(
                                 text = "Aceitar Combo & Split",
                                 color = Color.Black,
-                                fontSize = 12.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Black
                             )
                         }
@@ -709,7 +716,7 @@ fun FcmRealtimeOfferAlertCard(
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .weight(1f)
-                                .height(44.dp)
+                                .height(54.dp)
                         ) {
                             Text(text = "Dispensar", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
@@ -736,14 +743,14 @@ fun FcmRealtimeOfferAlertCard(
                             colors = ButtonDefaults.buttonColors(containerColor = NeonGreen),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
-                                .weight(1.5f)
-                                .height(44.dp)
+                                .weight(1.6f)
+                                .height(54.dp)
                                 .testTag("fcm_accept_offer_button")
                         ) {
                             Text(
                                 text = "Aceitar Corrida",
                                 color = Color.Black,
-                                fontSize = 13.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Black
                             )
                         }

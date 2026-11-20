@@ -27,17 +27,25 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_APK = os.path.join(BASE_DIR, '.build-outputs', 'app-debug.apk')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'release_bundle')
 FINAL_AAB = os.path.join(OUTPUT_DIR, 'RadarCoordinator-release.aab')
-KEYSTORE = os.path.join(BASE_DIR, 'debug.keystore')
+KEYSTORE = os.environ.get('PLAYSTORE_KEYSTORE', os.path.join(BASE_DIR, 'debug.keystore'))
 KEYSTORE_PASS = os.environ.get('PLAYSTORE_KEYSTORE_PASS', 'android')
 KEY_ALIAS = os.environ.get('PLAYSTORE_KEY_ALIAS', 'androiddebugkey')
 KEY_PASS = os.environ.get('PLAYSTORE_KEY_PASS', 'android')
 
 AAPT2 = '/opt/android/sdk/build-tools/36.0.0/aapt2'
 BUNDLETOOL_JAR = os.path.join(BASE_DIR, 'tools', 'bundletool.jar')
+BUNDLETOOL_URL = 'https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar'
 TMP_DIR = '/tmp/radar_bundle_build'
 
 VERSION_CODE = 30
 VERSION_NAME = "3.1.0"
+
+
+def ensure_bundletool():
+    if not os.path.exists(BUNDLETOOL_JAR) or os.path.getsize(BUNDLETOOL_JAR) < 1024 * 1024:
+        os.makedirs(os.path.dirname(BUNDLETOOL_JAR), exist_ok=True)
+        print("⬇️ Baixando Google bundletool-all-1.18.3.jar...")
+        subprocess.run(['curl', '-fsSL', '-o', BUNDLETOOL_JAR, BUNDLETOOL_URL], check=True)
 
 
 def main():
@@ -50,6 +58,7 @@ def main():
         print(f"❌ Erro: APK base não encontrado em: {SRC_APK}")
         sys.exit(1)
 
+    ensure_bundletool()
     os.makedirs(TMP_DIR, exist_ok=True)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 

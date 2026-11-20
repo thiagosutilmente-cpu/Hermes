@@ -1,18 +1,11 @@
 package com.example
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,42 +19,94 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.util.Locale
 
 // -----------------------------------------------------------------------------
-// PALETA DE CORES MODERNA ESTILO START-UP (iFood, Uber, 99, Nubank)
+// SISTEMA DE CORES ADAPTATIVO: NOITE OLED vs MODO SOL ALTO CONTRASTE (WCAG AAA)
 // -----------------------------------------------------------------------------
-private val StartupBackground = Color(0xFF090D16)       // Obsidian ultra profundo e limpo
-private val StartupSurface = Color(0xFF111827)          // Cinza ardósia moderno
-private val StartupCardSurface = Color(0xFF162032)      // Superfície de card premium
-private val StartupCardBorder = Color(0xFF26334D)       // Borda sutil de 1dp sem neon
-private val StartupTextPrimary = Color(0xFFF9FAFB)      // Branco níveo
-private val StartupTextSecondary = Color(0xFF94A3B8)    // Cinza suave de alta legibilidade
-private val StartupTextMuted = Color(0xFF64748B)        // Cinza discreto
+@Immutable
+data class CockpitPalette(
+    val isNight: Boolean,
+    val background: Color,
+    val surface: Color,
+    val cardSurface: Color,
+    val border: Color,
+    val borderWidth: Dp,
+    val textPrimary: Color,
+    val textSecondary: Color,
+    val textMuted: Color,
+    val emerald: Color,
+    val emeraldTint: Color,
+    val amber: Color,
+    val amberTint: Color,
+    val danger: Color,
+    val dangerTint: Color,
+    val pixTeal: Color,
+    val uberBadgeBg: Color,
+    val uberBadgeFg: Color,
+    val toggleOfflineBg: Color
+)
 
-// Cores Oficiais das Startups de Mobilidade e Delivery
+private val NightCockpitPalette = CockpitPalette(
+    isNight = true,
+    background = Color(0xFF070B12),
+    surface = Color(0xFF101826),
+    cardSurface = Color(0xFF172235),
+    border = Color(0xFF283652),
+    borderWidth = 1.dp,
+    textPrimary = Color(0xFFF9FAFB),
+    textSecondary = Color(0xFFCBD5E1),
+    textMuted = Color(0xFF94A3B8),
+    emerald = Color(0xFF10B981),
+    emeraldTint = Color(0xFF10B981).copy(alpha = 0.16f),
+    amber = Color(0xFFF59E0B),
+    amberTint = Color(0xFFF59E0B).copy(alpha = 0.18f),
+    danger = Color(0xFFEF4444),
+    dangerTint = Color(0xFFEF4444).copy(alpha = 0.18f),
+    pixTeal = Color(0xFF00B494),
+    uberBadgeBg = Color(0xFF0F172A),
+    uberBadgeFg = Color.White,
+    toggleOfflineBg = Color(0xFF334155)
+)
+
+private val SunlightHighContrastPalette = CockpitPalette(
+    isNight = false,
+    background = SunlightOffWhite,
+    surface = SunlightPureWhite,
+    cardSurface = Color(0xFFEFF3F8),
+    border = SunlightBorderHeavy,
+    borderWidth = 1.5.dp,
+    textPrimary = SunlightTextPrimary,
+    textSecondary = SunlightTextSecondary,
+    textMuted = SunlightTextMuted,
+    emerald = SunlightEmeraldGreen,
+    emeraldTint = Color(0xFFD1FADF),
+    amber = SunlightAmberWarning,
+    amberTint = Color(0xFFFEF3C7),
+    danger = SunlightRedAlert,
+    dangerTint = Color(0xFFFEE2E2),
+    pixTeal = Color(0xFF00796B),
+    uberBadgeBg = Color(0xFF000000),
+    uberBadgeFg = Color.White,
+    toggleOfflineBg = Color(0xFF374151)
+)
+
+val LocalCockpitPalette = staticCompositionLocalOf { NightCockpitPalette }
+
 private val IFoodRed = Color(0xFFEA1D2C)
 private val NinetyNineYellow = Color(0xFFF59E0B)
-private val UberBlack = Color(0xFF000000)
-private val EmeraldSuccess = Color(0xFF10B981)
-private val AlertDanger = Color(0xFFEF4444)
-private val PixTeal = Color(0xFF00B494)
+private val RappiOrange = Color(0xFFFF5722)
 
 enum class StartupTab(val label: String, val icon: ImageVector) {
     COCKPIT("Radar", Icons.Default.Navigation),
@@ -78,215 +123,363 @@ fun StartupDeliveryCockpitScreen(
     onToggleNightMode: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+    val activePalette = if (isNightMode) NightCockpitPalette else SunlightHighContrastPalette
 
-    var selectedTab by remember { mutableStateOf(StartupTab.COCKPIT) }
-    var isDriverOnline by remember { mutableStateOf(true) }
-    var isVoiceActive by remember { mutableStateOf(voiceManager?.isMuted != true) }
+    CompositionLocalProvider(LocalCockpitPalette provides activePalette) {
+        val palette = LocalCockpitPalette.current
 
-    // Métricas financeiras em tempo real
-    var todayEarnings by remember { mutableDoubleStateOf(284.50) }
-    var completedTrips by remember { mutableIntStateOf(18) }
-    var onlineHours by remember { mutableStateOf("6h 40m") }
-    var currentRatePerKm by remember { mutableDoubleStateOf(5.85) }
+        var selectedTab by remember { mutableStateOf(StartupTab.COCKPIT) }
+        var isDriverOnline by remember { mutableStateOf(true) }
+        var isVoiceActive by remember { mutableStateOf(voiceManager?.isMuted != true) }
 
-    // Critérios de filtro de R$/km
-    var minGainPerKm by remember { mutableFloatStateOf(4.50f) }
-    var minOfferValue by remember { mutableFloatStateOf(15.0f) }
-    var autoAcceptEnabled by remember { mutableStateOf(true) }
+        // Modais ergonômicos
+        var showFilterSheet by remember { mutableStateOf(false) }
+        var showSosConfirmDialog by remember { mutableStateOf(false) }
 
-    // Lista de ofertas ativas
-    val activeOffers = remember {
-        mutableStateListOf(
-            StartupOffer(
-                id = "off_1",
-                appName = "iFood",
-                appColor = IFoodRed,
-                restaurant = "Madero Container - Faria Lima",
-                pickupAddress = "Av. Brig. Faria Lima, 2000",
-                destinationAddress = "Rua Haddock Lobo, 850 (Jardins)",
-                payout = 33.50,
-                distanceKm = 5.2,
-                estimatedMinutes = 16,
-                ratePerKm = 6.44,
-                isChained = true,
-                chainedBonus = 18.00,
-                surgeActive = true
-            ),
-            StartupOffer(
-                id = "off_2",
-                appName = "99 Moto",
-                appColor = NinetyNineYellow,
-                restaurant = "Burger King - Av. Paulista",
-                pickupAddress = "Av. Paulista, 1000",
-                destinationAddress = "Rua Augusta, 1400 (Consolação)",
-                payout = 21.00,
-                distanceKm = 3.1,
-                estimatedMinutes = 11,
-                ratePerKm = 6.77,
-                isChained = false,
-                surgeActive = false
-            ),
-            StartupOffer(
-                id = "off_3",
-                appName = "Uber Flash",
-                appColor = Color(0xFF0F172A),
-                restaurant = "Drogasil Farmácia - Moema",
-                pickupAddress = "Av. Ibirapuera, 3103",
-                destinationAddress = "Alameda dos Arapanés, 420",
-                payout = 19.50,
-                distanceKm = 2.4,
-                estimatedMinutes = 9,
-                ratePerKm = 8.12,
-                isChained = false,
-                surgeActive = true
+        // Métricas financeiras em tempo real
+        var todayEarnings by remember { mutableDoubleStateOf(284.50) }
+        var completedTrips by remember { mutableIntStateOf(18) }
+        val onlineHours by remember { mutableStateOf("6h 40m") }
+        val currentRatePerKm by remember { mutableDoubleStateOf(5.85) }
+
+        // Critérios ativos de filtro de R$/km
+        var minGainPerKm by remember { mutableFloatStateOf(4.50f) }
+        var minOfferValue by remember { mutableFloatStateOf(15.0f) }
+        var hideBelowThreshold by remember { mutableStateOf(false) }
+        var autoAcceptEnabled by remember { mutableStateOf(false) }
+
+        // Lista de ofertas ativas
+        val activeOffers = remember {
+            mutableStateListOf(
+                StartupOffer(
+                    id = "off_1",
+                    appName = "iFood",
+                    appColor = IFoodRed,
+                    restaurant = "Madero Container - Faria Lima",
+                    pickupAddress = "Av. Brig. Faria Lima, 2000",
+                    destinationAddress = "Rua Haddock Lobo, 850 (Jardins)",
+                    payout = 33.50,
+                    distanceKm = 5.2,
+                    estimatedMinutes = 16,
+                    ratePerKm = 6.44,
+                    isChained = true,
+                    chainedBonus = 18.00,
+                    surgeActive = true
+                ),
+                StartupOffer(
+                    id = "off_2",
+                    appName = "99 Moto",
+                    appColor = NinetyNineYellow,
+                    restaurant = "Burger King - Av. Paulista",
+                    pickupAddress = "Av. Paulista, 1000",
+                    destinationAddress = "Rua Augusta, 1400 (Consolação)",
+                    payout = 21.00,
+                    distanceKm = 3.1,
+                    estimatedMinutes = 11,
+                    ratePerKm = 6.77,
+                    isChained = false,
+                    surgeActive = false
+                ),
+                StartupOffer(
+                    id = "off_3",
+                    appName = "Uber Flash",
+                    appColor = Color(0xFF0F172A),
+                    restaurant = "Drogasil Farmácia - Moema",
+                    pickupAddress = "Av. Ibirapuera, 3103",
+                    destinationAddress = "Alameda dos Arapanés, 420",
+                    payout = 19.50,
+                    distanceKm = 2.4,
+                    estimatedMinutes = 9,
+                    ratePerKm = 8.12,
+                    isChained = false,
+                    surgeActive = true
+                )
             )
-        )
-    }
+        }
 
-    val backgroundOffers by BackgroundOfferDispatcher.latestOffers.collectAsState()
-    LaunchedEffect(backgroundOffers) {
-        backgroundOffers.forEach { radarOffer ->
-            if (activeOffers.none { it.id == radarOffer.id }) {
-                val appColor = when {
-                    radarOffer.appName.contains("iFood", true) -> IFoodRed
-                    radarOffer.appName.contains("99", true) -> NinetyNineYellow
-                    radarOffer.appName.contains("Uber", true) -> Color(0xFF0F172A)
-                    else -> Color(0xFFFF5722)
-                }
-                activeOffers.add(
-                    0,
-                    StartupOffer(
-                        id = radarOffer.id,
-                        appName = radarOffer.appName,
-                        appColor = appColor,
-                        restaurant = radarOffer.restaurant,
-                        pickupAddress = radarOffer.pickupLocation?.address ?: "${radarOffer.restaurant}, São Paulo",
-                        destinationAddress = "Destino do Cliente",
-                        payout = radarOffer.value,
-                        distanceKm = radarOffer.distanceKm,
-                        estimatedMinutes = radarOffer.estimatedTimeMin,
-                        ratePerKm = radarOffer.gainPerKm,
-                        isChained = radarOffer.gainPerKm > 6.0,
-                        chainedBonus = if (radarOffer.gainPerKm > 6.0) 16.00 else 0.0,
-                        surgeActive = radarOffer.gainPerKm > 5.0
+        val backgroundOffers by BackgroundOfferDispatcher.latestOffers.collectAsState()
+        LaunchedEffect(backgroundOffers) {
+            backgroundOffers.forEach { radarOffer ->
+                if (activeOffers.none { it.id == radarOffer.id }) {
+                    val appColor = when {
+                        radarOffer.appName.contains("iFood", true) -> IFoodRed
+                        radarOffer.appName.contains("99", true) -> NinetyNineYellow
+                        radarOffer.appName.contains("Uber", true) -> Color(0xFF0F172A)
+                        else -> RappiOrange
+                    }
+                    activeOffers.add(
+                        0,
+                        StartupOffer(
+                            id = radarOffer.id,
+                            appName = radarOffer.appName,
+                            appColor = appColor,
+                            restaurant = radarOffer.restaurant,
+                            pickupAddress = radarOffer.pickupLocation?.address
+                                ?: "${radarOffer.restaurant}, São Paulo",
+                            destinationAddress = "Destino do Cliente",
+                            payout = radarOffer.value,
+                            distanceKm = radarOffer.distanceKm,
+                            estimatedMinutes = radarOffer.estimatedTimeMin,
+                            ratePerKm = radarOffer.gainPerKm,
+                            isChained = radarOffer.gainPerKm > 6.0,
+                            chainedBonus = if (radarOffer.gainPerKm > 6.0) 16.00 else 0.0,
+                            surgeActive = radarOffer.gainPerKm > 5.0
+                        )
                     )
+                }
+            }
+        }
+
+        val displayedOffers by remember(hideBelowThreshold, minGainPerKm, minOfferValue) {
+            derivedStateOf {
+                if (!hideBelowThreshold) {
+                    activeOffers.toList()
+                } else {
+                    activeOffers.filter {
+                        it.ratePerKm >= minGainPerKm && it.payout >= minOfferValue
+                    }
+                }
+            }
+        }
+
+        val acceptOfferAction: (StartupOffer) -> Unit = { offer ->
+            val currentSpeed = LocationService.globalLocationState.value.currentSpeedKmh
+            val isLocked =
+                LocationService.globalLocationState.value.isSafetyLockActive || currentSpeed > 10.0
+            if (isLocked) {
+                HapticFeedbackHelper.vibrateDecline(context)
+                Toast.makeText(
+                    context,
+                    "🚨 Toque bloqueado por segurança: moto em movimento (${String.format(Locale("pt", "BR"), "%.1f", currentSpeed)} km/h)",
+                    Toast.LENGTH_SHORT
+                ).show()
+                if (isVoiceActive) voiceManager?.speak("Toque bloqueado por segurança. Moto em movimento.")
+            } else {
+                HapticFeedbackHelper.vibrateAccept(context)
+                activeOffers.remove(offer)
+                todayEarnings += offer.payout
+                completedTrips += 1
+                try {
+                    DailyGoalTrackerManager.getInstance(context)
+                        .recordDeliveryEarnings(offer.payout, offer.distanceKm * 0.17)
+                } catch (_: Exception) {
+                }
+                Toast.makeText(
+                    context,
+                    "Corrida aceita no ${offer.appName} (+R$ ${String.format(Locale("pt", "BR"), "%.2f", offer.payout)})",
+                    Toast.LENGTH_LONG
+                ).show()
+                if (isVoiceActive) {
+                    voiceManager?.speak("Corrida aceita. Navegando para ${offer.restaurant}.")
+                }
+            }
+        }
+
+        // Diálogo de confirmação SOS (evita disparo acidental com luva/trepidação)
+        if (showSosConfirmDialog) {
+            AlertDialog(
+                onDismissRequest = { showSosConfirmDialog = false },
+                containerColor = palette.surface,
+                title = {
+                    Text(
+                        text = "🚨 Confirmar SOS Emergência?",
+                        color = palette.danger,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 18.sp
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Ao confirmar, o alerta de emergência será acionado com sua localização atual.",
+                        color = palette.textSecondary,
+                        fontSize = 13.sp
+                    )
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = { showSosConfirmDialog = false },
+                        modifier = Modifier
+                            .height(48.dp)
+                            .testTag("sos_cancel_button")
+                    ) {
+                        Text("Cancelar", color = palette.textPrimary)
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showSosConfirmDialog = false
+                            HapticFeedbackHelper.vibrateBlitzUrgent(context)
+                            onOpenEmergencyDialog()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = palette.danger),
+                        modifier = Modifier
+                            .height(48.dp)
+                            .testTag("sos_confirm_button")
+                    ) {
+                        Text("Acionar SOS", color = Color.White, fontWeight = FontWeight.Black)
+                    }
+                }
+            )
+        }
+
+        // Bottom Sheet de Filtros de Rentabilidade (reintegrado na aba Radar sem ocupar aba fixa)
+        if (showFilterSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showFilterSheet = false },
+                containerColor = palette.surface
+            ) {
+                ProfitabilityFiltersSheetContent(
+                    minGainPerKm = minGainPerKm,
+                    onMinGainChange = { minGainPerKm = it },
+                    minOfferValue = minOfferValue,
+                    onMinOfferValueChange = { minOfferValue = it },
+                    hideBelowThreshold = hideBelowThreshold,
+                    onToggleHideBelow = { hideBelowThreshold = it },
+                    autoAcceptEnabled = autoAcceptEnabled,
+                    onToggleAutoAccept = { autoAcceptEnabled = it },
+                    onClose = { showFilterSheet = false }
                 )
             }
         }
-    }
 
-    Scaffold(
-        containerColor = StartupBackground,
-        topBar = {
-            StartupTopHeader(
-                isOnline = isDriverOnline,
-                onToggleOnline = {
-                    isDriverOnline = !isDriverOnline
-                    HapticFeedbackHelper.vibrateSuccess(context)
-                    if (isDriverOnline) {
-                        Toast.makeText(context, "Radar Ativo: Você está online nos 4 apps!", Toast.LENGTH_SHORT).show()
-                        if (isVoiceActive) voiceManager?.speak("Você está online. Radar ativado buscando as melhores corridas.")
-                    } else {
-                        Toast.makeText(context, "Radar em pausa: Você está offline.", Toast.LENGTH_SHORT).show()
-                        if (isVoiceActive) voiceManager?.speak("Radar em pausa.")
-                    }
-                },
-                isVoiceActive = isVoiceActive,
-                onToggleVoice = {
-                    isVoiceActive = !isVoiceActive
-                    voiceManager?.isMuted = !isVoiceActive
-                    HapticFeedbackHelper.vibrateTap(context)
-                },
-                onOpenEmergency = onOpenEmergencyDialog
-            )
-        },
-        bottomBar = {
-            StartupBottomNavigationBar(
-                currentTab = selectedTab,
-                onSelectTab = { selectedTab = it }
-            )
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            when (selectedTab) {
-                StartupTab.COCKPIT -> {
-                    StartupCockpitTab(
-                        isOnline = isDriverOnline,
-                        todayEarnings = todayEarnings,
-                        completedTrips = completedTrips,
-                        onlineHours = onlineHours,
-                        ratePerKm = currentRatePerKm,
-                        offers = activeOffers,
-                        onAcceptOffer = { offer ->
-                            val currentSpeed = LocationService.globalLocationState.value.currentSpeedKmh
-                            val isLocked = LocationService.globalLocationState.value.isSafetyLockActive || currentSpeed > 10.0
-                            if (isLocked) {
+        Scaffold(
+            containerColor = palette.background,
+            contentWindowInsets = WindowInsets.safeDrawing,
+            topBar = {
+                StartupTopHeader(
+                    isOnline = isDriverOnline,
+                    onToggleOnline = {
+                        isDriverOnline = !isDriverOnline
+                        HapticFeedbackHelper.vibrateSuccess(context)
+                        if (isDriverOnline) {
+                            Toast.makeText(
+                                context,
+                                "Radar Ativo: Você está online nos 4 apps!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            if (isVoiceActive) {
+                                voiceManager?.speak("Você está online. Radar ativado buscando as melhores corridas.")
+                            }
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Radar em pausa: Você está offline.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            if (isVoiceActive) voiceManager?.speak("Radar em pausa.")
+                        }
+                    },
+                    isVoiceActive = isVoiceActive,
+                    onToggleVoice = {
+                        isVoiceActive = !isVoiceActive
+                        voiceManager?.isMuted = !isVoiceActive
+                        HapticFeedbackHelper.vibrateTap(context)
+                    },
+                    isNightMode = isNightMode,
+                    onToggleNightMode = {
+                        HapticFeedbackHelper.vibrateTap(context)
+                        onToggleNightMode()
+                    },
+                    onOpenEmergency = { showSosConfirmDialog = true }
+                )
+            },
+            bottomBar = {
+                StartupBottomNavigationBar(
+                    currentTab = selectedTab,
+                    onSelectTab = { selectedTab = it }
+                )
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                when (selectedTab) {
+                    StartupTab.COCKPIT -> {
+                        StartupCockpitTab(
+                            isOnline = isDriverOnline,
+                            todayEarnings = todayEarnings,
+                            completedTrips = completedTrips,
+                            onlineHours = onlineHours,
+                            ratePerKm = currentRatePerKm,
+                            minGainPerKm = minGainPerKm,
+                            hideBelowThreshold = hideBelowThreshold,
+                            offers = displayedOffers,
+                            totalUnfilteredCount = activeOffers.size,
+                            onOpenFilters = { showFilterSheet = true },
+                            onAcceptFcmOffer = { radarOffer ->
+                                val offer = StartupOffer(
+                                    id = radarOffer.id,
+                                    appName = radarOffer.appName,
+                                    appColor = when {
+                                        radarOffer.appName.contains("iFood", true) -> IFoodRed
+                                        radarOffer.appName.contains("99", true) -> NinetyNineYellow
+                                        radarOffer.appName.contains("Uber", true) -> Color(0xFF0F172A)
+                                        else -> RappiOrange
+                                    },
+                                    restaurant = radarOffer.restaurant,
+                                    pickupAddress = radarOffer.restaurant,
+                                    destinationAddress = "Destino do Cliente",
+                                    payout = radarOffer.value,
+                                    distanceKm = radarOffer.distanceKm,
+                                    estimatedMinutes = radarOffer.estimatedTimeMin,
+                                    ratePerKm = radarOffer.gainPerKm
+                                )
+                                acceptOfferAction(offer)
+                            },
+                            onAcceptOffer = acceptOfferAction,
+                            onDeclineOffer = { offer ->
                                 HapticFeedbackHelper.vibrateDecline(context)
-                                Toast.makeText(context, "🚨 Toque manual bloqueado por segurança: moto em movimento (${String.format(Locale("pt", "BR"), "%.1f", currentSpeed)} km/h)", Toast.LENGTH_SHORT).show()
-                                if (isVoiceActive) voiceManager?.speak("Toque bloqueado por segurança. Moto em movimento.")
-                                return@StartupCockpitTab
+                                activeOffers.remove(offer)
+                                Toast.makeText(context, "Oferta recusada.", Toast.LENGTH_SHORT).show()
+                            },
+                            onSimulateNewOffer = {
+                                val newOffer = StartupOffer(
+                                    id = "sim_${System.currentTimeMillis() % 10000}",
+                                    appName = listOf("iFood", "99 Moto", "Uber Direct", "Rappi").random(),
+                                    appColor = listOf(
+                                        IFoodRed,
+                                        NinetyNineYellow,
+                                        Color(0xFF0F172A),
+                                        RappiOrange
+                                    ).random(),
+                                    restaurant = listOf(
+                                        "Outback Steakhouse",
+                                        "McDonald's Berrini",
+                                        "Coco Bambu",
+                                        "Habib's Rebouças"
+                                    ).random(),
+                                    pickupAddress = "Av. Eng. Luís Carlos Berrini, 1200",
+                                    destinationAddress = "Rua Gomes de Carvalho, 1500 (Vila Olímpia)",
+                                    payout = (18..45).random().toDouble(),
+                                    distanceKm = (20..65).random() / 10.0,
+                                    estimatedMinutes = (10..25).random(),
+                                    ratePerKm = (42..85).random() / 10.0,
+                                    isChained = (1..2).random() == 1,
+                                    chainedBonus = 16.00,
+                                    surgeActive = true
+                                )
+                                activeOffers.add(0, newOffer)
+                                HapticFeedbackHelper.vibrateSuccess(context)
+                                if (isVoiceActive) {
+                                    voiceManager?.speak("Nova corrida de R$ ${newOffer.payout.toInt()} no ${newOffer.appName}.")
+                                }
                             }
-                            HapticFeedbackHelper.vibrateAccept(context)
-                            activeOffers.remove(offer)
-                            todayEarnings += offer.payout
-                            completedTrips += 1
-                            try {
-                                DailyGoalTrackerManager.getInstance(context).recordDeliveryEarnings(offer.payout, offer.distanceKm * 0.17)
-                            } catch (_: Exception) {}
-                            Toast.makeText(context, "Corrida aceita no ${offer.appName} (+R$ ${String.format(Locale("pt", "BR"), "%.2f", offer.payout)})", Toast.LENGTH_LONG).show()
-                            if (isVoiceActive) {
-                                voiceManager?.speak("Corrida aceita. Navegando para ${offer.restaurant}.")
-                            }
-                        },
-                        onDeclineOffer = { offer ->
-                            HapticFeedbackHelper.vibrateDecline(context)
-                            activeOffers.remove(offer)
-                            Toast.makeText(context, "Oferta recusada.", Toast.LENGTH_SHORT).show()
-                        },
-                        onSimulateNewOffer = {
-                            val newOffer = StartupOffer(
-                                id = "sim_${System.currentTimeMillis() % 10000}",
-                                appName = listOf("iFood", "99 Moto", "Uber Direct", "Rappi").random(),
-                                appColor = listOf(IFoodRed, NinetyNineYellow, Color(0xFF0F172A), Color(0xFFFF5722)).random(),
-                                restaurant = listOf("Outback Steakhouse", "McDonald's Berrini", "Coco Bambu", "Habib's Rebouças").random(),
-                                pickupAddress = "Av. Eng. Luís Carlos Berrini, 1200",
-                                destinationAddress = "Rua Gomes de Carvalho, 1500 (Vila Olímpia)",
-                                payout = (18..45).random().toDouble(),
-                                distanceKm = (20..65).random() / 10.0,
-                                estimatedMinutes = (10..25).random(),
-                                ratePerKm = (55..85).random() / 10.0,
-                                isChained = (1..2).random() == 1,
-                                chainedBonus = 16.00,
-                                surgeActive = true
-                            )
-                            activeOffers.add(0, newOffer)
-                            HapticFeedbackHelper.vibrateSuccess(context)
-                            if (isVoiceActive) {
-                                voiceManager?.speak("Nova corrida de R$ ${newOffer.payout.toInt()} no ${newOffer.appName}.")
-                            }
-                        },
-                        onUpgradePro = { selectedTab = StartupTab.FINANCE }
-                    )
-                }
+                        )
+                    }
 
-                StartupTab.COMBOS -> {
-                    StartupCombosTab(
-                        onOpenSettings = { /* Acesso aos parâmetros de mesclagem */ }
-                    )
-                }
+                    StartupTab.COMBOS -> {
+                        StartupCombosTab()
+                    }
 
-                StartupTab.FINANCE -> {
-                    StartupFinanceAndProTab(
-                        todayEarnings = todayEarnings,
-                        completedTrips = completedTrips,
-                        onlineHours = onlineHours,
-                        ratePerKm = currentRatePerKm
-                    )
+                    StartupTab.FINANCE -> {
+                        StartupFinanceAndProTab(
+                            todayEarnings = todayEarnings,
+                            completedTrips = completedTrips
+                        )
+                    }
                 }
             }
         }
@@ -294,7 +487,7 @@ fun StartupDeliveryCockpitScreen(
 }
 
 // -----------------------------------------------------------------------------
-// TOP HEADER ESTILO STARTUP (UBER / 99 / iFOOD)
+// TOP HEADER ESTILO COCKPIT TÁTICO (48dp+ TOUCH TARGETS & TOGGLE MODO SOL)
 // -----------------------------------------------------------------------------
 @Composable
 private fun StartupTopHeader(
@@ -302,131 +495,168 @@ private fun StartupTopHeader(
     onToggleOnline: () -> Unit,
     isVoiceActive: Boolean,
     onToggleVoice: () -> Unit,
+    isNightMode: Boolean,
+    onToggleNightMode: () -> Unit,
     onOpenEmergency: () -> Unit
 ) {
+    val palette = LocalCockpitPalette.current
+
     Surface(
-        color = StartupSurface,
+        color = palette.surface,
         modifier = Modifier.fillMaxWidth(),
-        shadowElevation = 6.dp
+        shadowElevation = if (palette.isNight) 6.dp else 2.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Perfil do Motorista com status ao vivo
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // Perfil + Status GPS
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Box(contentAlignment = Alignment.BottomEnd) {
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
-                                .background(StartupCardSurface)
-                                .border(1.5.dp, if (isOnline) EmeraldSuccess else StartupCardBorder, CircleShape),
+                                .background(palette.cardSurface)
+                                .border(
+                                    2.dp,
+                                    if (isOnline) palette.emerald else palette.border,
+                                    CircleShape
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("🛵", fontSize = 22.sp)
+                            Text("🛵", fontSize = 20.sp)
                         }
                         Box(
                             modifier = Modifier
                                 .size(13.dp)
                                 .clip(CircleShape)
-                                .background(if (isOnline) EmeraldSuccess else AlertDanger)
-                                .border(2.dp, StartupSurface, CircleShape)
+                                .background(if (isOnline) palette.emerald else palette.danger)
+                                .border(2.dp, palette.surface, CircleShape)
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
 
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "Radar Piloto",
-                                color = StartupTextPrimary,
+                                color = palette.textPrimary,
                                 fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Surface(
-                                color = EmeraldSuccess.copy(alpha = 0.15f),
+                                color = palette.emeraldTint,
                                 shape = RoundedCornerShape(6.dp)
                             ) {
                                 Text(
                                     text = "PRO",
-                                    color = EmeraldSuccess,
+                                    color = palette.emerald,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Black,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
+
                         val locState by LocationService.globalLocationState.collectAsState()
                         val gpsSubtitle = if (!isOnline) {
                             "Em Espera • Modo Pausado"
                         } else if (locState.isSafetyLockActive) {
-                            "🚨 Trava de Velocidade (${String.format(Locale("pt", "BR"), "%.0f", locState.currentSpeedKmh)} km/h)"
+                            "🚨 Trava Velocidade (${String.format(Locale("pt", "BR"), "%.0f", locState.currentSpeedKmh)} km/h)"
                         } else if (locState.isTracking) {
-                            "GPS ±${String.format(Locale("pt", "BR"), "%.1f", locState.accuracyMeters.coerceAtLeast(1.0f))}m • 4 Apps Integrados"
+                            "GPS ±${String.format(Locale("pt", "BR"), "%.1f", locState.accuracyMeters.coerceAtLeast(1.0f))}m • 4 Apps"
                         } else {
-                            "GPS Pronto • 4 Apps Integrados"
+                            "GPS Pronto • 4 Apps Conectados"
                         }
                         Text(
                             text = gpsSubtitle,
-                            color = if (locState.isSafetyLockActive && isOnline) AlertDanger else StartupTextSecondary,
+                            color = if (locState.isSafetyLockActive && isOnline) palette.danger else palette.textSecondary,
                             fontSize = 11.sp,
-                            fontWeight = if (locState.isSafetyLockActive && isOnline) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (locState.isSafetyLockActive && isOnline) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
-                // Ações do Topo: Som e SOS
+                // Ações do Topo (48dp mínimos; SOS separado visualmente com borda de aviso)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     IconButton(
-                        onClick = onToggleVoice,
+                        onClick = onToggleNightMode,
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
-                            .background(StartupCardSurface)
+                            .background(if (isNightMode) palette.cardSurface else palette.amberTint)
+                            .border(palette.borderWidth, palette.border, CircleShape)
+                            .testTag("sunlight_mode_toggle_button")
                     ) {
                         Icon(
-                            imageVector = if (isVoiceActive) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-                            contentDescription = "Voz",
-                            tint = if (isVoiceActive) EmeraldSuccess else StartupTextMuted,
-                            modifier = Modifier.size(20.dp)
+                            imageVector = if (isNightMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = if (isNightMode) "Ativar Modo Sol Alto Contraste" else "Ativar Modo Noturno OLED",
+                            tint = if (isNightMode) palette.amber else palette.textPrimary,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
 
                     IconButton(
+                        onClick = onToggleVoice,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(palette.cardSurface)
+                            .border(palette.borderWidth, palette.border, CircleShape)
+                            .testTag("voice_toggle_button")
+                    ) {
+                        Icon(
+                            imageVector = if (isVoiceActive) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                            contentDescription = if (isVoiceActive) "Silenciar Voz" else "Ativar Voz",
+                            tint = if (isVoiceActive) palette.emerald else palette.textMuted,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(2.dp))
+
+                    IconButton(
                         onClick = onOpenEmergency,
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
-                            .background(AlertDanger.copy(alpha = 0.18f))
+                            .background(palette.dangerTint)
+                            .border(1.5.dp, palette.danger.copy(alpha = 0.7f), CircleShape)
+                            .testTag("emergency_sos_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Warning,
                             contentDescription = "SOS Emergência",
-                            tint = AlertDanger,
-                            modifier = Modifier.size(20.dp)
+                            tint = palette.danger,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Barra de Status Online/Offline estilo Uber Driver / 99
             val toggleBgColor by animateColorAsState(
-                targetValue = if (isOnline) EmeraldSuccess else Color(0xFF334155),
-                animationSpec = tween(300),
+                targetValue = if (isOnline) palette.emerald else palette.toggleOfflineBg,
+                animationSpec = tween(250),
                 label = "onlineToggleColor"
             )
 
@@ -434,9 +664,10 @@ private fun StartupTopHeader(
                 onClick = onToggleOnline,
                 color = toggleBgColor,
                 shape = RoundedCornerShape(14.dp),
+                border = if (!palette.isNight) BorderStroke(1.5.dp, palette.border) else null,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
+                    .height(50.dp)
                     .testTag("driver_online_toggle_button")
             ) {
                 Row(
@@ -458,16 +689,16 @@ private fun StartupTopHeader(
                             text = if (isOnline) "VOCÊ ESTÁ ONLINE" else "VOCÊ ESTÁ OFFLINE",
                             color = Color.White,
                             fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.Black,
                             letterSpacing = 0.8.sp
                         )
                     }
 
                     Text(
                         text = if (isOnline) "Toque para Pausar" else "Toque para Conectar",
-                        color = Color.White.copy(alpha = 0.85f),
+                        color = Color.White.copy(alpha = 0.92f),
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -476,7 +707,7 @@ private fun StartupTopHeader(
 }
 
 // -----------------------------------------------------------------------------
-// ABA 1: COCKPIT DE PISTA (OFERTAS E MONITORAMENTO EM TEMPO REAL)
+// ABA 1: RADAR COCKPIT (SEM BANNERS DUPLICADOS + FCM VIVO + FILTROS R$/KM)
 // -----------------------------------------------------------------------------
 @Composable
 private fun StartupCockpitTab(
@@ -485,19 +716,30 @@ private fun StartupCockpitTab(
     completedTrips: Int,
     onlineHours: String,
     ratePerKm: Double,
+    minGainPerKm: Float,
+    hideBelowThreshold: Boolean,
     offers: List<StartupOffer>,
+    totalUnfilteredCount: Int,
+    onOpenFilters: () -> Unit,
+    onAcceptFcmOffer: (RadarOffer) -> Unit,
     onAcceptOffer: (StartupOffer) -> Unit,
     onDeclineOffer: (StartupOffer) -> Unit,
-    onSimulateNewOffer: () -> Unit,
-    onUpgradePro: () -> Unit
+    onSimulateNewOffer: () -> Unit
 ) {
+    val palette = LocalCockpitPalette.current
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(top = 14.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // 0. Alertas em Tempo Real do FCM (Blitz Policial, Combos Multi-App e Push)
+        item {
+            FcmRealtimeOfferAlertCard(onAcceptOffer = onAcceptFcmOffer)
+        }
+
         // 1. Resumo Financeiro Compacto no Topo
         item {
             StartupDailySummaryCard(
@@ -508,54 +750,98 @@ private fun StartupCockpitTab(
             )
         }
 
-        // 2. Barramento de Conexão com os 4 Apps (Multi-App Synergy)
+        // 2. Barramento dos 4 Apps Integrados
         item {
             StartupMultiAppStatusBar()
         }
 
-        // 3. Título da Seção com Botão de Teste de Corrida
+        // 3. Cabeçalho de Chamadas + Filtro Ativo + Simulador Discreto
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
-                        text = "Chamadas Disponíveis",
-                        color = StartupTextPrimary,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold
+                        text = "Chamadas",
+                        color = palette.textPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Surface(
-                        color = StartupCardSurface,
-                        shape = CircleShape
+                        color = palette.cardSurface,
+                        shape = CircleShape,
+                        border = BorderStroke(palette.borderWidth, palette.border)
                     ) {
                         Text(
                             text = "${offers.size}",
-                            color = EmeraldSuccess,
+                            color = palette.emerald,
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.Black,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
                 }
 
-                TextButton(onClick = onSimulateNewOffer) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = null,
-                        tint = EmeraldSuccess,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Nova Oferta",
-                        color = EmeraldSuccess,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Chip de Filtro R$/km (48dp touch target)
+                    Surface(
+                        onClick = onOpenFilters,
+                        color = if (hideBelowThreshold) palette.emeraldTint else palette.surface,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(
+                            palette.borderWidth,
+                            if (hideBelowThreshold) palette.emerald else palette.border
+                        ),
+                        modifier = Modifier
+                            .height(48.dp)
+                            .testTag("filter_cockpit_button")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = "Configurar Filtros de Rentabilidade",
+                                tint = palette.emerald,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = String.format(Locale("pt", "BR"), "≥ R$ %.1f/km", minGainPerKm),
+                                color = palette.textPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Botão de Simulação Rápida (48dp)
+                    OutlinedButton(
+                        onClick = onSimulateNewOffer,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(palette.borderWidth, palette.border),
+                        contentPadding = PaddingValues(horizontal = 10.dp),
+                        modifier = Modifier
+                            .height(48.dp)
+                            .testTag("simulate_offer_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Simular Nova Oferta",
+                            tint = palette.emerald,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }
@@ -563,21 +849,22 @@ private fun StartupCockpitTab(
         // 4. Lista de Ofertas Interceptadas
         if (offers.isEmpty()) {
             item {
-                StartupEmptyStateCard(isOnline = isOnline, onSimulate = onSimulateNewOffer)
+                StartupEmptyStateCard(
+                    isOnline = isOnline,
+                    hiddenByFilterCount = if (hideBelowThreshold) totalUnfilteredCount else 0,
+                    onOpenFilters = onOpenFilters,
+                    onSimulate = onSimulateNewOffer
+                )
             }
         } else {
             items(offers, key = { it.id }) { offer ->
                 StartupDeliveryOfferCard(
                     offer = offer,
+                    minGainPerKm = minGainPerKm,
                     onAccept = { onAcceptOffer(offer) },
                     onDecline = { onDeclineOffer(offer) }
                 )
             }
-        }
-
-        // 5. Banner de Assinatura PRO
-        item {
-            StartupProFeatureBanner(onUpgrade = onUpgradePro)
         }
     }
 }
@@ -592,19 +879,21 @@ private fun StartupDailySummaryCard(
     onlineHours: String,
     ratePerKm: Double
 ) {
+    val palette = LocalCockpitPalette.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("earnings_summary_card"),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = StartupSurface),
-        border = BorderStroke(1.dp, StartupCardBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = palette.surface),
+        border = BorderStroke(palette.borderWidth, palette.border),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (palette.isNight) 2.dp else 4.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp)
+                .padding(16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -613,13 +902,13 @@ private fun StartupDailySummaryCard(
             ) {
                 Text(
                     text = "GANHO DE HOJE",
-                    color = StartupTextSecondary,
+                    color = palette.textSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
                 Surface(
-                    color = EmeraldSuccess.copy(alpha = 0.15f),
+                    color = palette.emeraldTint,
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Row(
@@ -629,34 +918,34 @@ private fun StartupDailySummaryCard(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                             contentDescription = null,
-                            tint = EmeraldSuccess,
+                            tint = palette.emerald,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "+18% que ontem",
-                            color = EmeraldSuccess,
+                            text = "+18% vs ontem",
+                            color = palette.emerald,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.ExtraBold
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = String.format(Locale("pt", "BR"), "R$ %.2f", todayEarnings),
-                color = StartupTextPrimary,
+                color = palette.textPrimary,
                 fontSize = 32.sp,
-                fontWeight = FontWeight.ExtraBold
+                fontWeight = FontWeight.Black,
+                fontFamily = FontFamily.Monospace
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
-            HorizontalDivider(color = StartupCardBorder, thickness = 1.dp)
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = palette.border.copy(alpha = 0.4f), thickness = 1.dp)
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Linha com as 3 métricas de pista
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -687,32 +976,34 @@ private fun StartupMetricItem(
     value: String,
     icon: ImageVector
 ) {
+    val palette = LocalCockpitPalette.current
+
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
                 .size(32.dp)
                 .clip(CircleShape)
-                .background(StartupCardSurface),
+                .background(palette.cardSurface),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = StartupTextSecondary,
+                tint = palette.textSecondary,
                 modifier = Modifier.size(16.dp)
             )
         }
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         Column {
             Text(
                 text = value,
-                color = StartupTextPrimary,
+                color = palette.textPrimary,
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.ExtraBold
             )
             Text(
                 text = label,
-                color = StartupTextSecondary,
+                color = palette.textSecondary,
                 fontSize = 11.sp
             )
         }
@@ -720,59 +1011,63 @@ private fun StartupMetricItem(
 }
 
 // -----------------------------------------------------------------------------
-// STATUS DOS 4 APPS CONECTADOS (MULTI-APP SYNERGY BAR)
+// STATUS DOS 4 APPS CONECTADOS
 // -----------------------------------------------------------------------------
 @Composable
 private fun StartupMultiAppStatusBar() {
+    val palette = LocalCockpitPalette.current
+
     Surface(
-        color = StartupSurface,
+        color = palette.surface,
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, StartupCardBorder),
+        border = BorderStroke(palette.borderWidth, palette.border),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
             Text(
                 text = "RADAR MULTI-APPS INTEGRADO",
-                color = StartupTextSecondary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
+                color = palette.textSecondary,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.ExtraBold,
                 letterSpacing = 0.8.sp
             )
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                StartupAppBadge(name = "iFood", color = IFoodRed, active = true)
-                StartupAppBadge(name = "99 Moto", color = NinetyNineYellow, active = true)
-                StartupAppBadge(name = "Uber", color = Color.White, active = true)
-                StartupAppBadge(name = "Rappi", color = Color(0xFFFF5722), active = true)
+                StartupAppBadge(name = "iFood", accentColor = IFoodRed)
+                StartupAppBadge(name = "99 Moto", accentColor = NinetyNineYellow)
+                StartupAppBadge(name = "Uber", accentColor = palette.textPrimary)
+                StartupAppBadge(name = "Rappi", accentColor = RappiOrange)
             }
         }
     }
 }
 
 @Composable
-private fun StartupAppBadge(name: String, color: Color, active: Boolean) {
+private fun StartupAppBadge(name: String, accentColor: Color) {
+    val palette = LocalCockpitPalette.current
+
     Surface(
-        color = StartupCardSurface,
+        color = palette.cardSurface,
         shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, if (active) color.copy(alpha = 0.4f) else StartupCardBorder)
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.5f))
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(if (active) EmeraldSuccess else StartupTextMuted)
+                    .background(palette.emerald)
             )
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(5.dp))
             Text(
                 text = name,
-                color = StartupTextPrimary,
+                color = palette.textPrimary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -781,7 +1076,7 @@ private fun StartupAppBadge(name: String, color: Color, active: Boolean) {
 }
 
 // -----------------------------------------------------------------------------
-// CARD DE CORRIDA 100% ESTILO iFOOD / UBER DRIVER
+// CARD DE CORRIDA (BOTÕES LUVA 56dp + BADGE R$/KM DE LEITURA PERIFÉRICA)
 // -----------------------------------------------------------------------------
 data class StartupOffer(
     val id: String,
@@ -802,16 +1097,25 @@ data class StartupOffer(
 @Composable
 private fun StartupDeliveryOfferCard(
     offer: StartupOffer,
+    minGainPerKm: Float,
     onAccept: () -> Unit,
     onDecline: () -> Unit
 ) {
+    val palette = LocalCockpitPalette.current
+    val meetsTarget = offer.ratePerKm >= minGainPerKm
+    val rateColor = if (meetsTarget) palette.emerald else palette.amber
+    val rateTint = if (meetsTarget) palette.emeraldTint else palette.amberTint
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("delivery_offer_card_${offer.id}"),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = StartupSurface),
-        border = BorderStroke(1.5.dp, if (offer.isChained) EmeraldSuccess.copy(alpha = 0.5f) else StartupCardBorder),
+        colors = CardDefaults.cardColors(containerColor = palette.surface),
+        border = BorderStroke(
+            if (offer.isChained || !palette.isNight) 2.dp else 1.dp,
+            if (offer.isChained) palette.emerald else palette.border
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
@@ -819,36 +1123,40 @@ private fun StartupDeliveryOfferCard(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // Cabeçalho da Oferta: App de Origem + Payout Total
+            // Cabeçalho: App de Origem + Valor & R$/km em destaque absoluto
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Badge do App de Origem
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val badgeBg =
+                        if (offer.appName.contains("Uber", true)) palette.uberBadgeBg else offer.appColor
+                    val badgeFg =
+                        if (offer.appName.contains("99", true)) Color.Black else Color.White
+
                     Surface(
-                        color = offer.appColor,
+                        color = badgeBg,
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
                             text = offer.appName,
-                            color = Color.White,
+                            color = badgeFg,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Black,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
                         )
                     }
 
                     if (offer.surgeActive) {
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
-                            color = NinetyNineYellow.copy(alpha = 0.15f),
+                            color = palette.amberTint,
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
                                 text = "🔥 Tarifa Alta",
-                                color = NinetyNineYellow,
+                                color = palette.amber,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
@@ -857,39 +1165,38 @@ private fun StartupDeliveryOfferCard(
                     }
                 }
 
-                // Valor total a receber + Badge Gigante de R$/km para leitura periférica instantânea
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = String.format(Locale("pt", "BR"), "R$ %.2f", offer.payout),
-                        color = EmeraldSuccess,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Black
+                        color = palette.emerald,
+                        fontSize = 27.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Surface(
-                        color = if (offer.ratePerKm >= 5.0) EmeraldSuccess.copy(alpha = 0.2f) else NinetyNineYellow.copy(alpha = 0.2f),
+                        color = rateTint,
                         shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, if (offer.ratePerKm >= 5.0) EmeraldSuccess.copy(alpha = 0.6f) else NinetyNineYellow.copy(alpha = 0.6f))
+                        border = BorderStroke(1.dp, rateColor.copy(alpha = 0.8f))
                     ) {
                         Text(
                             text = String.format(Locale("pt", "BR"), "R$ %.2f/km", offer.ratePerKm),
-                            color = if (offer.ratePerKm >= 5.0) EmeraldSuccess else NinetyNineYellow,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            color = rateColor,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
                 }
             }
 
-            // Destaque de Rota Encadeada Dupla (Exclusivo Radar)
             if (offer.isChained) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Surface(
-                    color = EmeraldSuccess.copy(alpha = 0.12f),
+                    color = palette.emeraldTint,
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.3f))
+                    border = BorderStroke(1.dp, palette.emerald.copy(alpha = 0.5f))
                 ) {
                     Row(
                         modifier = Modifier
@@ -901,9 +1208,9 @@ private fun StartupDeliveryOfferCard(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "Entrega Encadeada: +R$ ${String.format(Locale("pt", "BR"), "%.2f", offer.chainedBonus)} no mesmo trajeto!",
-                            color = EmeraldSuccess,
+                            color = palette.emerald,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.ExtraBold
                         )
                     }
                 }
@@ -911,9 +1218,8 @@ private fun StartupDeliveryOfferCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Timeline de Coleta e Entrega (Estilo iFood / Uber)
+            // Timeline Coleta -> Entrega
             Row(modifier = Modifier.fillMaxWidth()) {
-                // Coluna com indicadores visuais da rota
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.padding(top = 4.dp)
@@ -922,105 +1228,100 @@ private fun StartupDeliveryOfferCard(
                         modifier = Modifier
                             .size(10.dp)
                             .clip(CircleShape)
-                            .background(EmeraldSuccess)
+                            .background(palette.emerald)
                     )
                     Box(
                         modifier = Modifier
                             .width(2.dp)
                             .height(34.dp)
-                            .background(StartupCardBorder)
+                            .background(palette.border.copy(alpha = 0.6f))
                     )
                     Box(
                         modifier = Modifier
                             .size(10.dp)
                             .clip(CircleShape)
-                            .background(AlertDanger)
+                            .background(palette.danger)
                     )
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Endereços e Restaurante
                 Column(modifier = Modifier.weight(1f)) {
-                    // Ponto de Coleta
-                    Column {
-                        Text(
-                            text = offer.restaurant,
-                            color = StartupTextPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = offer.pickupAddress,
-                            color = StartupTextSecondary,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Text(
+                        text = offer.restaurant,
+                        color = palette.textPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = offer.pickupAddress,
+                        color = palette.textSecondary,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Ponto de Entrega
-                    Column {
-                        Text(
-                            text = "Destino do Cliente",
-                            color = StartupTextPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = offer.destinationAddress,
-                            color = StartupTextSecondary,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Text(
+                        text = "Destino do Cliente",
+                        color = palette.textPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = offer.destinationAddress,
+                        color = palette.textSecondary,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Barra com Distância e Tempo estimado
+            // Distância & Tempo
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(StartupCardSurface, RoundedCornerShape(10.dp))
+                    .background(palette.cardSurface, RoundedCornerShape(10.dp))
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "Distância total: ${offer.distanceKm} km",
-                    color = StartupTextPrimary,
+                    color = palette.textPrimary,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "~${offer.estimatedMinutes} minutos",
-                    color = StartupTextSecondary,
-                    fontSize = 12.sp
+                    color = palette.textSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Botões de Ação (Recusar e Aceitar)
+            // Botões Padrão Luva (56.dp): Recusar à esquerda, Aceitar gigante na zona do polegar direito
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 OutlinedButton(
                     onClick = onDecline,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AlertDanger),
-                    border = BorderStroke(1.dp, AlertDanger.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = palette.danger),
+                    border = BorderStroke(1.5.dp, palette.danger.copy(alpha = 0.7f)),
                     modifier = Modifier
                         .weight(1f)
-                        .height(46.dp)
+                        .height(56.dp)
+                        .testTag("decline_offer_button_${offer.id}")
                 ) {
                     Text(
                         text = "Recusar",
@@ -1031,17 +1332,19 @@ private fun StartupDeliveryOfferCard(
 
                 Button(
                     onClick = onAccept,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.emerald),
                     modifier = Modifier
-                        .weight(2f)
-                        .height(46.dp)
+                        .weight(2.2f)
+                        .height(56.dp)
+                        .testTag("accept_offer_button_${offer.id}")
                 ) {
                     Text(
                         text = "ACEITAR CORRIDA",
                         color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Black
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 0.5.sp
                     )
                 }
             }
@@ -1050,109 +1353,227 @@ private fun StartupDeliveryOfferCard(
 }
 
 // -----------------------------------------------------------------------------
-// ESTADO VAZIO COM BOTÃO DE SIMULAÇÃO
+// ESTADO VAZIO (INCLUI AVISO QUANDO OFERTAS ESTÃO OCULTAS PELO FILTRO)
 // -----------------------------------------------------------------------------
 @Composable
-private fun StartupEmptyStateCard(isOnline: Boolean, onSimulate: () -> Unit) {
+private fun StartupEmptyStateCard(
+    isOnline: Boolean,
+    hiddenByFilterCount: Int,
+    onOpenFilters: () -> Unit,
+    onSimulate: () -> Unit
+) {
+    val palette = LocalCockpitPalette.current
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = StartupSurface),
-        border = BorderStroke(1.dp, StartupCardBorder)
+        colors = CardDefaults.cardColors(containerColor = palette.surface),
+        border = BorderStroke(palette.borderWidth, palette.border)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(32.dp),
+                .padding(28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("📡", fontSize = 42.sp)
-            Spacer(modifier = Modifier.height(12.dp))
+            Text(if (hiddenByFilterCount > 0) "🛡️" else "📡", fontSize = 40.sp)
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = if (isOnline) "Monitorando Chamadas em Tempo Real" else "Radar em Pausa",
-                color = StartupTextPrimary,
+                text = when {
+                    hiddenByFilterCount > 0 -> "$hiddenByFilterCount oferta(s) abaixo do seu piso"
+                    isOnline -> "Monitorando Chamadas em Tempo Real"
+                    else -> "Radar em Pausa"
+                },
+                color = palette.textPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = if (isOnline)
-                    "Aguardando notificações ou ofertas na tela dos apps iFood, 99, Uber e Rappi."
-                else
-                    "Ative o botão online acima para começar a interceptar as melhores chamadas.",
-                color = StartupTextSecondary,
+                text = when {
+                    hiddenByFilterCount > 0 -> "O filtro automático está protegendo seu R$/km. Toque em Filtros se quiser ajustar."
+                    isOnline -> "Aguardando notificações dos apps iFood, 99, Uber e Rappi."
+                    else -> "Ative o botão online acima para começar a interceptar as melhores chamadas."
+                },
+                color = palette.textSecondary,
                 fontSize = 12.sp,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = onSimulate,
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = StartupCardSurface)
-            ) {
-                Text("Simular Chamada Agora", color = EmeraldSuccess, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (hiddenByFilterCount > 0) {
+                    OutlinedButton(
+                        onClick = onOpenFilters,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(48.dp)
+                    ) {
+                        Text("Ajustar Filtros", color = palette.emerald, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Button(
+                    onClick = onSimulate,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.cardSurface),
+                    modifier = Modifier.height(48.dp)
+                ) {
+                    Text("Simular Chamada", color = palette.emerald, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
 }
 
 // -----------------------------------------------------------------------------
-// BANNER DE RECURSOS PRO
+// MODAL SHEET: FILTROS DE RENTABILIDADE R$/KM
 // -----------------------------------------------------------------------------
 @Composable
-private fun StartupProFeatureBanner(onUpgrade: () -> Unit) {
-    Surface(
-        onClick = onUpgrade,
-        color = StartupCardSurface,
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, PixTeal.copy(alpha = 0.5f)),
-        modifier = Modifier.fillMaxWidth()
+private fun ProfitabilityFiltersSheetContent(
+    minGainPerKm: Float,
+    onMinGainChange: (Float) -> Unit,
+    minOfferValue: Float,
+    onMinOfferValueChange: (Float) -> Unit,
+    hideBelowThreshold: Boolean,
+    onToggleHideBelow: (Boolean) -> Unit,
+    autoAcceptEnabled: Boolean,
+    onToggleAutoAccept: (Boolean) -> Unit,
+    onClose: () -> Unit
+) {
+    val palette = LocalCockpitPalette.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Text(
+            text = "Filtros de Rentabilidade",
+            color = palette.textPrimary,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Black
+        )
+        Text(
+            text = "Defina seu piso mínimo de R$/km para nunca rodar no prejuízo.",
+            color = palette.textSecondary,
+            fontSize = 12.sp
+        )
+
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = palette.cardSurface),
+            border = BorderStroke(palette.borderWidth, palette.border)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(PixTeal.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("👑", fontSize = 22.sp)
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Ganho Mínimo por Km", color = palette.textPrimary, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = String.format(Locale("pt", "BR"), "R$ %.2f / km", minGainPerKm),
+                        color = palette.emerald,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+                Slider(
+                    value = minGainPerKm,
+                    onValueChange = onMinGainChange,
+                    valueRange = 2.0f..10.0f,
+                    steps = 15,
+                    colors = SliderDefaults.colors(
+                        thumbColor = palette.emerald,
+                        activeTrackColor = palette.emerald
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Valor Mínimo da Corrida", color = palette.textPrimary, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = String.format(Locale("pt", "BR"), "R$ %.2f", minOfferValue),
+                        color = palette.emerald,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+                Slider(
+                    value = minOfferValue,
+                    onValueChange = onMinOfferValueChange,
+                    valueRange = 8.0f..40.0f,
+                    steps = 15,
+                    colors = SliderDefaults.colors(
+                        thumbColor = palette.emerald,
+                        activeTrackColor = palette.emerald
+                    )
+                )
             }
-            Spacer(modifier = Modifier.width(14.dp))
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(palette.cardSurface)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Acesso Ilimitado ao Plano PRO",
-                    color = StartupTextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Rotas duplas, cálculo automático no fone e auto-aceite.",
-                    color = StartupTextSecondary,
-                    fontSize = 11.sp
-                )
+                Text("Ocultar corridas abaixo do piso", color = palette.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Mostra apenas chamadas que batem seu R$/km.", color = palette.textSecondary, fontSize = 11.sp)
             }
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = PixTeal
+            Switch(
+                checked = hideBelowThreshold,
+                onCheckedChange = onToggleHideBelow,
+                colors = SwitchDefaults.colors(checkedTrackColor = palette.emerald)
             )
         }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(palette.cardSurface)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Prioridade de Voz para Corridas VIP", color = palette.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Anuncia imediatamente no fone ofertas acima de R$ 7,00/km.", color = palette.textSecondary, fontSize = 11.sp)
+            }
+            Switch(
+                checked = autoAcceptEnabled,
+                onCheckedChange = onToggleAutoAccept,
+                colors = SwitchDefaults.colors(checkedTrackColor = palette.emerald)
+            )
+        }
+
+        Button(
+            onClick = onClose,
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = palette.emerald),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+        ) {
+            Text("Aplicar Filtros", color = Color.White, fontWeight = FontWeight.Black)
+        }
     }
 }
 
 // -----------------------------------------------------------------------------
-// -----------------------------------------------------------------------------
-// ABA 2: MESCLAGENS & ROTAS TÁTICAS (DEEP ORDER POOL MERGING ENGINE)
+// ABA 2: MESCLAGENS & ROTAS TÁTICAS
 // -----------------------------------------------------------------------------
 @Composable
-private fun StartupCombosTab(
-    onOpenSettings: () -> Unit = {}
-) {
+private fun StartupCombosTab() {
+    val palette = LocalCockpitPalette.current
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -1161,16 +1582,14 @@ private fun StartupCombosTab(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            // Card Principal do Motor de Mesclagem Multi-App
             DeepOrderPoolCockpitCard()
         }
 
         item {
-            // Dica de Condução Tática para o Piloto
             Surface(
-                color = StartupSurface,
+                color = palette.surface,
                 shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, StartupCardBorder),
+                border = BorderStroke(palette.borderWidth, palette.border),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -1182,13 +1601,13 @@ private fun StartupCombosTab(
                     Column {
                         Text(
                             text = "Dica do Copiloto Neural",
-                            color = StartupTextPrimary,
+                            color = palette.textPrimary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = "Combos com desvio angular menor que 15° garantem mais de R$ 50/hora sem atrasar pedidos.",
-                            color = StartupTextSecondary,
+                            color = palette.textSecondary,
                             fontSize = 11.sp
                         )
                     }
@@ -1199,15 +1618,14 @@ private fun StartupCombosTab(
 }
 
 // -----------------------------------------------------------------------------
-// ABA 3: FINANÇAS & PLANO PRO (LUCRO LÍQUIDO, METAS E ASSINATURA)
+// ABA 3: FINANÇAS & PLANO PRO (LUCRO LÍQUIDO, METAS E CHECKOUT PIX)
 // -----------------------------------------------------------------------------
 @Composable
 private fun StartupFinanceAndProTab(
     todayEarnings: Double,
-    completedTrips: Int,
-    onlineHours: String,
-    ratePerKm: Double
+    completedTrips: Int
 ) {
+    val palette = LocalCockpitPalette.current
     var showCheckoutModal by remember { mutableStateOf(false) }
 
     if (showCheckoutModal) {
@@ -1215,25 +1633,28 @@ private fun StartupFinanceAndProTab(
             onDismissRequest = { showCheckoutModal = false },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showCheckoutModal = false }) {
-                    Text("Fechar", color = StartupTextSecondary)
+                TextButton(
+                    onClick = { showCheckoutModal = false },
+                    modifier = Modifier.height(48.dp)
+                ) {
+                    Text("Fechar", color = palette.textSecondary, fontWeight = FontWeight.Bold)
                 }
             },
-            containerColor = StartupSurface,
+            containerColor = palette.surface,
             title = {
                 Text(
                     text = "👑 Assinatura PRO",
-                    color = StartupTextPrimary,
+                    color = palette.textPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
-                StartupFintechCheckoutScreen(
-                    onPaymentSuccess = {
-                        showCheckoutModal = false
-                    }
-                )
+                Box(modifier = Modifier.heightIn(max = 460.dp)) {
+                    StartupFintechCheckoutScreen(
+                        onPaymentSuccess = { showCheckoutModal = false }
+                    )
+                }
             }
         )
     }
@@ -1246,34 +1667,33 @@ private fun StartupFinanceAndProTab(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            // Banner de Acesso PRO com botão de ação
             StartupProFeatureBanner(onUpgrade = { showCheckoutModal = true })
         }
 
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = StartupSurface),
-                border = BorderStroke(1.dp, StartupCardBorder),
+                colors = CardDefaults.cardColors(containerColor = palette.surface),
+                border = BorderStroke(palette.borderWidth, palette.border),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Text(
                         text = "FATURAMENTO & LUCRO REAL",
-                        color = StartupTextSecondary,
+                        color = palette.textSecondary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = String.format(Locale("pt", "BR"), "R$ %.2f", todayEarnings),
-                        color = StartupTextPrimary,
+                        color = palette.textPrimary,
                         fontSize = 32.sp,
-                        fontWeight = FontWeight.ExtraBold
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace
                     )
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Linha com Lucro Líquido Real (descontando combustível de 17 centavos por km)
                     val fuelCostEstimate = completedTrips * 3.8 * 0.17
                     val netProfitReal = (todayEarnings - fuelCostEstimate).coerceAtLeast(0.0)
 
@@ -1282,44 +1702,44 @@ private fun StartupFinanceAndProTab(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text("Lucro Líquido (Bolso)", color = StartupTextSecondary, fontSize = 11.sp)
+                            Text("Lucro Líquido (Bolso)", color = palette.textSecondary, fontSize = 11.sp)
                             Text(
                                 String.format(Locale("pt", "BR"), "R$ %.2f", netProfitReal),
-                                color = EmeraldSuccess,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
+                                color = palette.emerald,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Black
                             )
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Gasto Gasolina (Est.)", color = StartupTextSecondary, fontSize = 11.sp)
+                            Text("Gasto Gasolina (Est.)", color = palette.textSecondary, fontSize = 11.sp)
                             Text(
                                 String.format(Locale("pt", "BR"), "-R$ %.2f", fuelCostEstimate),
-                                color = AlertDanger,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
+                                color = palette.danger,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
-                    HorizontalDivider(color = StartupCardBorder, thickness = 1.dp)
+                    HorizontalDivider(color = palette.border.copy(alpha = 0.4f), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Barra de Meta Diária
                     Text(
                         text = "Meta Diária: R$ ${String.format(Locale("pt", "BR"), "%.2f", todayEarnings)} de R$ 350,00",
-                        color = StartupTextSecondary,
-                        fontSize = 12.sp
+                        color = palette.textSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     LinearProgressIndicator(
                         progress = { (todayEarnings / 350.0).toFloat().coerceIn(0f, 1f) },
-                        color = EmeraldSuccess,
-                        trackColor = StartupCardSurface,
+                        color = palette.emerald,
+                        trackColor = palette.cardSurface,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .height(10.dp)
+                            .clip(RoundedCornerShape(5.dp))
                     )
                 }
             }
@@ -1328,7 +1748,7 @@ private fun StartupFinanceAndProTab(
         item {
             Text(
                 text = "Histórico de Corridas Recentes",
-                color = StartupTextPrimary,
+                color = palette.textPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -1339,8 +1759,8 @@ private fun StartupFinanceAndProTab(
                 HistoryItem("iFood", IFoodRed, "Madero Prime Faria Lima", 38.50, "13:42", "5.1 km"),
                 HistoryItem("99 Moto", NinetyNineYellow, "McDonald's Rebouças", 22.00, "13:05", "3.2 km"),
                 HistoryItem("iFood", IFoodRed, "Habib's Teodoro", 17.50, "12:28", "2.4 km"),
-                HistoryItem("Uber Flash", Color.White, "Droga Raia Jardins", 26.00, "11:50", "3.8 km"),
-                HistoryItem("Rappi", Color(0xFFFF5722), "Starbucks Frei Caneca", 29.50, "11:15", "4.0 km")
+                HistoryItem("Uber Flash", Color(0xFF0F172A), "Droga Raia Jardins", 26.00, "11:50", "3.8 km"),
+                HistoryItem("Rappi", RappiOrange, "Starbucks Frei Caneca", 29.50, "11:15", "4.0 km")
             )
         ) { item ->
             StartupHistoryDeliveryRow(item)
@@ -1348,141 +1768,115 @@ private fun StartupFinanceAndProTab(
     }
 }
 
-// -----------------------------------------------------------------------------
-// ABA 2 ANTERIOR (MANTIDA PARA COMPATIBILIDADE INTERNA)
-// -----------------------------------------------------------------------------
 @Composable
-private fun StartupEarningsTab(
-    todayEarnings: Double,
-    completedTrips: Int,
-    onlineHours: String,
-    ratePerKm: Double
-) {
-    val context = LocalContext.current
+private fun StartupProFeatureBanner(onUpgrade: () -> Unit) {
+    val palette = LocalCockpitPalette.current
 
-    val historyDeliveries = remember {
-        listOf(
-            HistoryItem("iFood", IFoodRed, "Madero Prime Faria Lima", 38.50, "13:42", "5.1 km"),
-            HistoryItem("99 Moto", NinetyNineYellow, "McDonald's Rebouças", 22.00, "13:05", "3.2 km"),
-            HistoryItem("iFood", IFoodRed, "Habib's Teodoro", 17.50, "12:28", "2.4 km"),
-            HistoryItem("Uber Flash", Color.White, "Droga Raia Jardins", 26.00, "11:50", "3.8 km"),
-            HistoryItem("Rappi", Color(0xFFFF5722), "Starbucks Frei Caneca", 29.50, "11:15", "4.0 km"),
-            HistoryItem("iFood", IFoodRed, "BK Paulista", 33.00, "10:30", "4.5 km")
-        )
-    }
-
-    LazyColumn(
+    Surface(
+        onClick = onUpgrade,
+        color = palette.cardSurface,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.5.dp, palette.pixTeal.copy(alpha = 0.7f)),
         modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .fillMaxWidth()
+            .testTag("upgrade_pro_banner")
     ) {
-        item {
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = StartupSurface),
-                border = BorderStroke(1.dp, StartupCardBorder),
-                modifier = Modifier.fillMaxWidth()
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(palette.pixTeal.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        text = "RESUMO DA SEMANA",
-                        color = StartupTextSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "R$ 1.642,80",
-                        color = StartupTextPrimary,
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Barra de Meta Diária
-                    Text(
-                        text = "Meta Diária: R$ 284,50 de R$ 350,00 (81%)",
-                        color = StartupTextSecondary,
-                        fontSize = 12.sp
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    LinearProgressIndicator(
-                        progress = { 0.81f },
-                        color = EmeraldSuccess,
-                        trackColor = StartupCardSurface,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                    )
-                }
+                Text("👑", fontSize = 22.sp)
             }
-        }
-
-        item {
-            Text(
-                text = "Histórico de Corridas Hoje",
-                color = StartupTextPrimary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Acesso Ilimitado ao Plano PRO",
+                    color = palette.textPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Rotas duplas, cálculo automático no fone e filtros de R$/km.",
+                    color = palette.textSecondary,
+                    fontSize = 11.sp
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "Abrir Planos PRO",
+                tint = palette.pixTeal
             )
         }
+    }
+}
 
-        items(historyDeliveries) { item ->
-            Card(
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = StartupSurface),
-                border = BorderStroke(1.dp, StartupCardBorder),
-                modifier = Modifier.fillMaxWidth()
+@Composable
+private fun StartupHistoryDeliveryRow(item: HistoryItem) {
+    val palette = LocalCockpitPalette.current
+
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = palette.surface),
+        border = BorderStroke(palette.borderWidth, palette.border),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                Surface(
+                    color = item.color,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.size(38.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            color = item.color,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = item.app.take(1),
-                                    color = if (item.color == Color.White) Color.Black else Color.White,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Black
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = item.restaurant,
-                                color = StartupTextPrimary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "${item.time} • ${item.distance}",
-                                color = StartupTextSecondary,
-                                fontSize = 11.sp
-                            )
-                        }
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = item.app.take(1),
+                            color = if (item.color == NinetyNineYellow) Color.Black else Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Black
+                        )
                     }
-
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
                     Text(
-                        text = String.format(Locale("pt", "BR"), "+R$ %.2f", item.amount),
-                        color = EmeraldSuccess,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
+                        text = item.restaurant,
+                        color = palette.textPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "${item.time} • ${item.distance}",
+                        color = palette.textSecondary,
+                        fontSize = 11.sp
                     )
                 }
             }
+
+            Text(
+                text = String.format(Locale("pt", "BR"), "+R$ %.2f", item.amount),
+                color = palette.emerald,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Black,
+                fontFamily = FontFamily.Monospace
+            )
         }
     }
 }
@@ -1497,557 +1891,28 @@ data class HistoryItem(
 )
 
 // -----------------------------------------------------------------------------
-// ABA 3: FILTROS DE R$/KM E PREFERÊNCIAS DE DESPACHO
-// -----------------------------------------------------------------------------
-@Composable
-private fun StartupFiltersTab(
-    minGainPerKm: Float,
-    onMinGainChange: (Float) -> Unit,
-    minOfferValue: Float,
-    onMinOfferValueChange: (Float) -> Unit,
-    autoAcceptEnabled: Boolean,
-    onToggleAutoAccept: (Boolean) -> Unit
-) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Text(
-                text = "Filtros de Rentabilidade",
-                color = StartupTextPrimary,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Recuse automaticamente corridas com taxas desvantajosas que dão prejuízo de combustível.",
-                color = StartupTextSecondary,
-                fontSize = 12.sp
-            )
-        }
-
-        // Filtro de Piso R$/km
-        item {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = StartupSurface),
-                border = BorderStroke(1.dp, StartupCardBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Ganho Mínimo por Km",
-                            color = StartupTextPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = String.format(Locale("pt", "BR"), "R$ %.2f / km", minGainPerKm),
-                            color = EmeraldSuccess,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Slider(
-                        value = minGainPerKm,
-                        onValueChange = onMinGainChange,
-                        valueRange = 2.0f..10.0f,
-                        steps = 16,
-                        colors = SliderDefaults.colors(
-                            thumbColor = EmeraldSuccess,
-                            activeTrackColor = EmeraldSuccess,
-                            inactiveTrackColor = StartupCardSurface
-                        )
-                    )
-                    Text(
-                        text = "Corridas abaixo desse piso serão silenciadas.",
-                        color = StartupTextMuted,
-                        fontSize = 11.sp
-                    )
-                }
-            }
-        }
-
-        // Filtro de Valor Mínimo Absoluto
-        item {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = StartupSurface),
-                border = BorderStroke(1.dp, StartupCardBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Valor Mínimo da Corrida",
-                            color = StartupTextPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = String.format(Locale("pt", "BR"), "R$ %.2f", minOfferValue),
-                            color = EmeraldSuccess,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Slider(
-                        value = minOfferValue,
-                        onValueChange = onMinOfferValueChange,
-                        valueRange = 8.0f..40.0f,
-                        steps = 16,
-                        colors = SliderDefaults.colors(
-                            thumbColor = EmeraldSuccess,
-                            activeTrackColor = EmeraldSuccess,
-                            inactiveTrackColor = StartupCardSurface
-                        )
-                    )
-                }
-            }
-        }
-
-        // Auto-Aceite Inteligente
-        item {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = StartupSurface),
-                border = BorderStroke(1.dp, StartupCardBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Auto-Aceite de Corridas VIP",
-                            color = StartupTextPrimary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Aceita automaticamente ofertas com taxa acima de R$ 7,00/km sem precisar tirar a mão do guidão.",
-                            color = StartupTextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-                    Switch(
-                        checked = autoAcceptEnabled,
-                        onCheckedChange = onToggleAutoAccept,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = EmeraldSuccess,
-                            uncheckedThumbColor = StartupTextMuted,
-                            uncheckedTrackColor = StartupCardSurface
-                        )
-                    )
-                }
-            }
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------
-// ABA 4: CHECKOUT FINTECH PROFISSIONAL (ASAAS / PIX / CARTÃO)
-// -----------------------------------------------------------------------------
-enum class ProPlanTier(
-    val id: String,
-    val title: String,
-    val priceDisplay: String,
-    val period: String,
-    val savingsBadge: String?,
-    val isPopular: Boolean
-) {
-    SEMANAL("weekly", "Semanal", "R$ 25,00", "/ semana", "MAIS ESCOLHIDO", true),
-    MENSAL("monthly", "Mensal", "R$ 89,90", "/ mês", "ECONOMIZE 10%", false),
-    TRIMESTRAL("annual", "Trimestral VIP", "R$ 229,00", "/ 3 meses", "ECONOMIZE 25%", false)
-}
-
-@Composable
-fun StartupFintechCheckoutScreen(
-    onPaymentSuccess: () -> Unit = {}
-) {
-    val context = LocalContext.current
-    var selectedPlan by remember { mutableStateOf(ProPlanTier.SEMANAL) }
-    var isCopied by remember { mutableStateOf(false) }
-
-    val pixKey = when (selectedPlan) {
-        ProPlanTier.SEMANAL -> "00020126580014br.gov.bcb.pix0136d8924b17-742a-43d9-9521-radarpro2026520400005303986540525.005802BR5916RADAR DELIVERY6009SAO PAULO62070503***6304E8A2"
-        ProPlanTier.MENSAL -> "00020126580014br.gov.bcb.pix0136d8924b17-742a-43d9-9521-radarpro2026520400005303986540589.905802BR5916RADAR DELIVERY6009SAO PAULO62070503***6304C4B1"
-        ProPlanTier.TRIMESTRAL -> "00020126580014br.gov.bcb.pix0136d8924b17-742a-43d9-9521-radarpro20265204000053039865406229.005802BR5916RADAR DELIVERY6009SAO PAULO62070503***6304F91A"
-    }
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // 1. Cabeçalho Fintech Seguro
-        item {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Surface(
-                    color = PixTeal.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(20.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = null,
-                            tint = PixTeal,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "CHECKOUT FINTECH CRIPTOGRAFADO 256-BIT",
-                            color = PixTeal,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = "Turbine Seus Ganhos com o PRO",
-                    color = StartupTextPrimary,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    textAlign = TextAlign.Center
-                )
-
-                Text(
-                    text = "Acesso completo a rotas duplas, cálculo automático no fone e auto-aceite nos 4 apps.",
-                    color = StartupTextSecondary,
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-        }
-
-        // 2. Seletor de Planos
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                ProPlanTier.values().forEach { plan ->
-                    val isSelected = selectedPlan == plan
-                    Surface(
-                        onClick = { selectedPlan = plan },
-                        color = if (isSelected) StartupCardSurface else StartupSurface,
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(
-                            1.5.dp,
-                            if (isSelected) PixTeal else StartupCardBorder
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                RadioButton(
-                                    selected = isSelected,
-                                    onClick = { selectedPlan = plan },
-                                    colors = RadioButtonDefaults.colors(
-                                        selectedColor = PixTeal,
-                                        unselectedColor = StartupTextMuted
-                                    )
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = plan.title,
-                                            color = StartupTextPrimary,
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        if (plan.savingsBadge != null) {
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Surface(
-                                                color = if (plan.isPopular) EmeraldSuccess else PixTeal,
-                                                shape = RoundedCornerShape(6.dp)
-                                            ) {
-                                                Text(
-                                                    text = plan.savingsBadge,
-                                                    color = Color.White,
-                                                    fontSize = 9.sp,
-                                                    fontWeight = FontWeight.Black,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                    Text(
-                                        text = "Liberação imediata via PIX",
-                                        color = StartupTextSecondary,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            }
-
-                            Row(verticalAlignment = Alignment.Bottom) {
-                                Text(
-                                    text = plan.priceDisplay,
-                                    color = StartupTextPrimary,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.ExtraBold
-                                )
-                                Text(
-                                    text = plan.period,
-                                    color = StartupTextSecondary,
-                                    fontSize = 11.sp,
-                                    modifier = Modifier.padding(bottom = 2.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. Card do QR Code PIX Nativo e Chave Copia e Cola
-        item {
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = StartupSurface),
-                border = BorderStroke(1.dp, StartupCardBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Pague com PIX Instantâneo",
-                        color = StartupTextPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Reconhecimento automático pelo gateway Asaas em menos de 10 segundos.",
-                        color = StartupTextSecondary,
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // QR Code Desenhado Nativamente via Canvas
-                    Box(
-                        modifier = Modifier
-                            .size(190.dp)
-                            .background(Color.White, RoundedCornerShape(14.dp))
-                            .padding(14.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        NativePixQrCanvas(modifier = Modifier.fillMaxSize())
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Botão Copiar Chave PIX
-                    Button(
-                        onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            val clip = ClipData.newPlainText("Chave PIX Radar PRO", pixKey)
-                            clipboard.setPrimaryClip(clip)
-                            isCopied = true
-                            HapticFeedbackHelper.vibrateSuccess(context)
-                            Toast.makeText(context, "Código PIX Copiado com Sucesso!", Toast.LENGTH_SHORT).show()
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isCopied) EmeraldSuccess else PixTeal
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .testTag("copy_pix_button")
-                    ) {
-                        Icon(
-                            imageVector = if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (isCopied) "CÓDIGO PIX COPIADO!" else "COPIAR CÓDIGO PIX (1 TOQUE)",
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Opção de Pagar via Link Asaas
-                    OutlinedButton(
-                        onClick = {
-                            val opened = AsaasCheckoutManager.openCheckout(context, selectedPlan.id, selectedPlan.title)
-                            if (!opened) {
-                                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(AsaasCheckoutManager.getCheckoutUrl(selectedPlan.id)))
-                                context.startActivity(browserIntent)
-                            }
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, StartupCardBorder),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                    ) {
-                        Text(
-                            text = "Pagar com Cartão de Crédito ou Boleto",
-                            color = StartupTextSecondary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-        }
-
-        // 4. Selos de Confiança e Garantia
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 6.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "🛡️ Cancelamento fácil sem carência • Processado por Asaas Fintech",
-                    color = StartupTextMuted,
-                    fontSize = 11.sp,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
-}
-
-// -----------------------------------------------------------------------------
-// CANVAS DO QR CODE PIX NATIVO
-// -----------------------------------------------------------------------------
-@Composable
-private fun NativePixQrCanvas(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val cellCount = 21
-        val cellSize = w / cellCount
-
-        // Padrões dos cantos (Finder Patterns)
-        fun drawFinderPattern(startX: Float, startY: Float) {
-            drawRoundRect(
-                color = Color.Black,
-                topLeft = Offset(startX, startY),
-                size = Size(cellSize * 7, cellSize * 7),
-                cornerRadius = CornerRadius(6f, 6f)
-            )
-            drawRoundRect(
-                color = Color.White,
-                topLeft = Offset(startX + cellSize, startY + cellSize),
-                size = Size(cellSize * 5, cellSize * 5),
-                cornerRadius = CornerRadius(4f, 4f)
-            )
-            drawRoundRect(
-                color = Color.Black,
-                topLeft = Offset(startX + cellSize * 2, startY + cellSize * 2),
-                size = Size(cellSize * 3, cellSize * 3),
-                cornerRadius = CornerRadius(2f, 2f)
-            )
-        }
-
-        drawFinderPattern(0f, 0f)
-        drawFinderPattern(w - cellSize * 7, 0f)
-        drawFinderPattern(0f, h - cellSize * 7)
-
-        // Matriz de dados com semente visual estável
-        for (i in 0 until cellCount) {
-            for (j in 0 until cellCount) {
-                // Não desenha sobre os cantos
-                val inTopLeft = (i < 8 && j < 8)
-                val inTopRight = (i > 13 && j < 8)
-                val inBottomLeft = (i < 8 && j > 13)
-                val inCenter = (i in 9..11 && j in 9..11)
-
-                if (!inTopLeft && !inTopRight && !inBottomLeft && !inCenter) {
-                    val pseudoRandomBit = ((i * 37 + j * 17 + (i xor j)) % 3) == 0
-                    if (pseudoRandomBit) {
-                        drawRect(
-                            color = Color.Black,
-                            topLeft = Offset(i * cellSize, j * cellSize),
-                            size = Size(cellSize - 1f, cellSize - 1f)
-                        )
-                    }
-                }
-            }
-        }
-
-        // Diamante central do PIX
-        val center = Offset(w / 2, h / 2)
-        val diamondSize = cellSize * 2.8f
-        val pixPath = Path().apply {
-            moveTo(center.x, center.y - diamondSize)
-            lineTo(center.x + diamondSize, center.y)
-            lineTo(center.x, center.y + diamondSize)
-            lineTo(center.x - diamondSize, center.y)
-            close()
-        }
-        drawPath(path = pixPath, color = PixTeal)
-    }
-}
-
-// -----------------------------------------------------------------------------
-// BARRA DE NAVEGAÇÃO INFERIOR ESTILO STARTUP (UBER / iFOOD)
+// BARRA DE NAVEGAÇÃO INFERIOR (3 ABAS COM RESPEITO A WINDOW INSETS)
 // -----------------------------------------------------------------------------
 @Composable
 private fun StartupBottomNavigationBar(
     currentTab: StartupTab,
     onSelectTab: (StartupTab) -> Unit
 ) {
+    val palette = LocalCockpitPalette.current
+
     NavigationBar(
-        containerColor = StartupSurface,
+        containerColor = palette.surface,
         tonalElevation = 8.dp,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
     ) {
         StartupTab.values().forEach { tab ->
             val isSelected = currentTab == tab
             NavigationBarItem(
                 selected = isSelected,
                 onClick = { onSelectTab(tab) },
+                modifier = Modifier.testTag("bottom_tab_${tab.name.lowercase()}"),
                 icon = {
                     Icon(
                         imageVector = tab.icon,
@@ -2059,15 +1924,15 @@ private fun StartupBottomNavigationBar(
                     Text(
                         text = tab.label,
                         fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = EmeraldSuccess,
-                    selectedTextColor = EmeraldSuccess,
-                    unselectedIconColor = StartupTextSecondary,
-                    unselectedTextColor = StartupTextSecondary,
-                    indicatorColor = EmeraldSuccess.copy(alpha = 0.12f)
+                    selectedIconColor = palette.emerald,
+                    selectedTextColor = palette.emerald,
+                    unselectedIconColor = palette.textSecondary,
+                    unselectedTextColor = palette.textSecondary,
+                    indicatorColor = palette.emeraldTint
                 )
             )
         }
