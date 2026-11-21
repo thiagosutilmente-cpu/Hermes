@@ -204,10 +204,10 @@ object JarvisVoiceAlertManager {
                 ),
                 decision = JarvisDecisionJson.JarvisDecisionDetails(
                     action = action,
-                    score_0_to_100 = score,
+                    score0To100 = score,
                     reason = reason
                 ),
-                voice_alert = voiceAlert
+                voiceAlert = voiceAlert
             )
         )
 

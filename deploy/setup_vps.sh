@@ -45,8 +45,19 @@ if [ -f "$SOURCE_DIR/vps_backend_complete.py" ]; then
     [ -f "$SOURCE_DIR/index.html" ] && cp -f "$SOURCE_DIR/index.html" "$APP_DIR/" && cp -f "$SOURCE_DIR/index.html" /var/www/html/index.html
     [ -f "$SOURCE_DIR/privacy.html" ] && cp -f "$SOURCE_DIR/privacy.html" "$APP_DIR/" && cp -f "$SOURCE_DIR/privacy.html" /var/www/html/privacy.html
 
-    # Fallback para arquivos na raiz do repositório (um nível acima de deploy/)
+    # Sincroniza vídeos, pôsteres e imagens da landing page para /var/www/html/assets
     REPO_ROOT="$(dirname "$SOURCE_DIR")"
+    mkdir -p /var/www/html/assets "$APP_DIR/assets"
+    if [ -d "$REPO_ROOT/public/assets" ]; then
+        cp -rf "$REPO_ROOT/public/assets/"* /var/www/html/assets/ 2>/dev/null || true
+        cp -rf "$REPO_ROOT/public/assets/"* "$APP_DIR/assets/" 2>/dev/null || true
+    fi
+    if [ -d "$SOURCE_DIR/assets" ]; then
+        cp -rf "$SOURCE_DIR/assets/"* /var/www/html/assets/ 2>/dev/null || true
+        cp -rf "$SOURCE_DIR/assets/"* "$APP_DIR/assets/" 2>/dev/null || true
+    fi
+
+    # Fallback para arquivos na raiz do repositório (um nível acima de deploy/)
     [ ! -f /var/www/html/index.html ] && [ -f "$REPO_ROOT/index.html" ] && cp -f "$REPO_ROOT/index.html" /var/www/html/index.html && cp -f "$REPO_ROOT/index.html" "$APP_DIR/index.html"
     [ ! -f /var/www/html/privacy.html ] && [ -f "$REPO_ROOT/privacy.html" ] && cp -f "$REPO_ROOT/privacy.html" /var/www/html/privacy.html && cp -f "$REPO_ROOT/privacy.html" "$APP_DIR/privacy.html"
 

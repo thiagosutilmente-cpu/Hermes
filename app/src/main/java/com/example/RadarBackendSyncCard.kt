@@ -342,7 +342,7 @@ fun RadarBackendSyncCard(
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedColors(contentColor = Color(0xFF38BDF8)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF38BDF8)),
                     border = ButtonDefaults.outlinedButtonBorder.copy(
                         brush = androidx.compose.ui.graphics.SolidColor(Color(0xFF38BDF8).copy(alpha = 0.5f))
                     ),

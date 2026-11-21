@@ -93,7 +93,6 @@ import org.json.JSONObject
 import java.util.Locale
 
 // Paleta Dark Tática do Jarvis
-private val DarkBg = Color(0xFF090A0F)
 private val DarkSurface = Color(0xFF11141C)
 private val DarkSurfaceBorder = Color(0xFF1E2433)
 private val NeonEmerald = Color(0xFF00FF88)

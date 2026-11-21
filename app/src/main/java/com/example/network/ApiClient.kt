@@ -127,4 +127,13 @@ object ApiClient {
         }
         return clean
     }
+
+    val vpsApi: HostingerVpsApiService
+        get() = getApiService()
 }
+
+object HostingerVpsClient {
+    val apiService: HostingerVpsApiService
+        get() = ApiClient.getApiService()
+}
+

@@ -2,6 +2,7 @@ package com.example
 
 import android.content.Context
 import android.util.Log
+import com.example.radar.data.RadarCacheRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -382,9 +383,9 @@ object StackedOrderCancellationManager {
                 restaurant = matchingCompleted.restaurant,
                 value = matchingCompleted.grossValue,
                 distanceKm = matchingCompleted.distanceKm,
-                estimatedTimeMin = matchingCompleted.timeMinutes,
+                timeMinutes = matchingCompleted.timeMinutes,
                 isMultiStack = matchingCompleted.restaurant.contains("&") || matchingCompleted.appSource.contains("+"),
-                neuralDecision = NeuralDecision("accept", "Ativa em rota", 0.90)
+                neuralDecision = NeuralDecision(decision = "accept", confidence = 0.90, reason = "Ativa em rota")
             )
         } else {
             // Fallback para stack demonstrativo se nenhum encontrado

@@ -121,7 +121,7 @@ data class RideAnalysisData(
                 decisionAction = ride.decision.action,
                 decisionScore = ride.decision.score,
                 decisionReason = ride.decision.reason,
-                voiceAlert = ride.voiceAlert,
+                voiceAlert = ride.voiceAlert.text,
                 isBatchRoute = ride.decision.action == "BATCH",
                 fuelCostEstimateBrl = fuelCost,
                 netProfitBrl = netProfit

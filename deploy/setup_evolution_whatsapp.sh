@@ -49,6 +49,10 @@ DATABASE_CONNECTION_URI=postgresql://evolution_user:${PG_PASS}@evolution-postgre
 DATABASE_CONNECTION_CLIENT_NAME=evolution_exchange
 CACHE_REDIS_ENABLED=false
 CACHE_LOCAL_ENABLED=true
+WEBHOOK_GLOBAL_ENABLED=true
+WEBHOOK_GLOBAL_URL=http://host.docker.internal:8000/webhook/evolution
+WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=false
+WEBHOOK_EVENTS_MESSAGES_UPSERT=true
 EOF
 
 cat <<EOF > "$STACK_DIR/docker-compose.yml"
@@ -76,6 +80,8 @@ services:
     depends_on:
       evolution-postgres:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
     env_file:

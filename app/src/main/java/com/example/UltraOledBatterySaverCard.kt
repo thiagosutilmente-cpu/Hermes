@@ -43,8 +43,6 @@ import androidx.compose.ui.unit.sp
 private val NeonEmerald = Color(0xFF00FF88)
 private val DarkCardSurface = Color(0xFF10141D)
 private val CardBorderColor = Color(0xFF1F2636)
-private val TextLight = Color(0xFFF3F4F8)
-private val TextMuted = Color(0xFF8A93A6)
 
 @Composable
 fun UltraOledBatterySaverCard(

@@ -62,8 +62,6 @@ private val AlertRed = Color(0xFFFF3366)
 private val CyberCyan = Color(0xFF00E5FF)
 private val DarkCardSurface = Color(0xFF10141D)
 private val CardBorderColor = Color(0xFF1F2636)
-private val TextLight = Color(0xFFF3F4F8)
-private val TextMuted = Color(0xFF8A93A6)
 
 /**
  * Card de Controle e Simulação da Bolha Flutuante Tática Aprimorada (HUD sobre iFood/99/Uber)

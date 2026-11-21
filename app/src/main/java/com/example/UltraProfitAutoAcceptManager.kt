@@ -266,17 +266,16 @@ class UltraProfitAutoAcceptManager private constructor(private val context: Cont
         cancelPendingCountdown()
 
         val eval = evaluateOffer(offer)
-        val sourceLabel = "Auto-Aceite Piloto Automático (${formatBrl(eval.gainPerKm)}/km)"
+        val sourceLabel = "Alerta VIP Prioritário (${formatBrl(eval.gainPerKm)}/km)"
 
-        // 1. Tenta acionar clique nativo no botão da tela através do Serviço de Acessibilidade
-        val clickedNative = JarvisAccessibilityService.performAcceptClick()
-        Log.i(TAG, "Clique de acessibilidade nativo executado: $clickedNative")
+        // 1. Mantém conformidade Human-in-the-Loop (sem cliques automáticos em apps externos)
+        Log.i(TAG, "Oferta VIP priorizada para decisão do condutor: ${offer.restaurant}")
 
-        // 2. Dispara feedback háptico duplo confirmativo
+        // 2. Dispara feedback háptico confirmativo
         HapticFeedbackHelper.vibrateAccept(context)
 
         // 3. Sintetiza áudio via TTS para o capacete
-        val ttsMsg = "Corrida ultra lucrativa aceita no piloto automático! ${offer.restaurant}, ${formatBrl(offer.value)} por ${String.format(Locale.ROOT, "%.1f", offer.distanceKm)} quilômetros no ${offer.appName}."
+        val ttsMsg = "Corrida VIP recomendada! ${offer.restaurant}, ${formatBrl(offer.value)} por ${String.format(Locale.ROOT, "%.1f", offer.distanceKm)} quilômetros no ${offer.appName}."
         try {
             TextToSpeechManager.getInstance(context).speak(ttsMsg, priority = true)
         } catch (e: Exception) {
@@ -330,6 +329,21 @@ class UltraProfitAutoAcceptManager private constructor(private val context: Cont
             .putLong(KEY_REACTION_DELAY, newCriteria.reactionDelayMs)
             .putStringSet(KEY_PLATFORMS, newCriteria.enabledPlatforms)
             .apply()
+    }
+
+    fun toggleEnabled() {
+        val current = _criteria.value
+        updateCriteria(current.copy(isEnabled = !current.isEnabled))
+    }
+
+    fun toggleEnabled(enabled: Boolean) {
+        val current = _criteria.value
+        updateCriteria(current.copy(isEnabled = enabled))
+    }
+
+    fun updateMinGainPerKm(newMinGain: Double) {
+        val current = _criteria.value
+        updateCriteria(current.copy(minGainPerKm = newMinGain.coerceIn(1.0, 20.0)))
     }
 
     /**

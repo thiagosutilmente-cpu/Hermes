@@ -2,6 +2,7 @@
 *.aab
 *.idsig
 *.log
+*-debug.log
 *.db
 *.keystore
 .gradle/

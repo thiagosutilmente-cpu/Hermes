@@ -87,7 +87,6 @@ fun FcmRealtimeOfferAlertCard(
         }
     }
 
-    val alert = fcmAlert
     val blitzAlert by RadarFirebaseMessagingService.latestBlitzAlert.collectAsState()
     val comboAlert by RadarFirebaseMessagingService.latestMergedComboPush.collectAsState()
     val ttsEngine = remember { OfferTextToSpeechEngine.getInstance(context) }
@@ -731,9 +730,9 @@ fun FcmRealtimeOfferAlertCard(
                                     distanceKm = alert.distanceKm,
                                     timeMinutes = (alert.distanceKm * 3.0).toInt().coerceAtLeast(8),
                                     neuralDecision = NeuralDecision(
-                                        if (alert.decision == "ACCEPT") "accept" else "decline",
-                                        alert.voiceAlert,
-                                        0.96
+                                        decision = if (alert.decision == "ACCEPT") "accept" else "decline",
+                                        confidence = 0.96,
+                                        reason = alert.voiceAlert
                                     )
                                 )
                                 onAcceptOffer(radarOffer)

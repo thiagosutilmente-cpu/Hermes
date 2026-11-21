@@ -48,14 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
 
-private val DarkBg = Color(0xFF0A0A0F)
-private val DarkCard = Color(0xFF13131D)
-private val DarkBorder = Color(0xFF262638)
-private val NeonGreen = Color(0xFF00FF88)
 private val GoldAccent = Color(0xFFFFD700)
 private val BlueAccent = Color(0xFF38BDF8)
-private val TextLight = Color(0xFFF3F4F6)
-private val TextMuted = Color(0xFF9CA3AF)
 
 /**
  * Painel Interativo de Métricas do Firebase Analytics:

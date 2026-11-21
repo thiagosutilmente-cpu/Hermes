@@ -13,6 +13,10 @@ mkdir -p /var/www/html /root/jarvis_backend
 [ -f /root/Hermes/deploy/privacy.html ] && cp -vf /root/Hermes/deploy/privacy.html /var/www/html/privacy.html
 [ -f /root/Hermes/privacy.html ] && cp -vf /root/Hermes/privacy.html /var/www/html/privacy.html
 [ -f /root/Hermes/deploy/vps_backend_complete.py ] && cp -vf /root/Hermes/deploy/*.py /root/jarvis_backend/
+mkdir -p /var/www/html/assets /root/jarvis_backend/assets
+[ -d /root/Hermes/public/assets ] && cp -rf /root/Hermes/public/assets/* /var/www/html/assets/ 2>/dev/null || true
+[ -d /root/Hermes/deploy/assets ] && cp -rf /root/Hermes/deploy/assets/* /var/www/html/assets/ 2>/dev/null || true
+[ -d /root/Hermes/deploy/assets ] && cp -rf /root/Hermes/deploy/assets/* /root/jarvis_backend/assets/ 2>/dev/null || true
 
 echo ">>> [2/4] Alinhando e descomprimindo resources.arsc no APK..."
 python3 -c "

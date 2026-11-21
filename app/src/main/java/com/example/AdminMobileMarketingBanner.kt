@@ -186,7 +186,7 @@ fun AdminMobileMarketingBanner(
                     modifier = Modifier
                         .weight(1f)
                         .testTag("btn_open_asaas_cockpit_banner"),
-                    colors = ButtonDefaults.outlinedColors(contentColor = Color(0xFF10B981)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF10B981)),
                     border = ButtonDefaults.outlinedButtonBorder.copy(
                         brush = Brush.horizontalGradient(
                             listOf(Color(0xFF10B981), Color(0xFF059669))

@@ -58,12 +58,9 @@ fun FocusModeHudCard(
         restaurant = "Burger King Paulista",
         value = 28.50,
         distanceKm = 3.2,
-        estimatedTimeMin = 14,
+        timeMinutes = 14,
         neuralDecision = NeuralDecision(RadarDecision.ACCEPT, "Ganho/km vantajoso", 0.94),
-        itemsCount = 2,
-        gainPerKm = 8.90,
-        fuelCost = 0.54,
-        netProfit = 27.96
+        itemsCount = 2
     ),
     onAcceptBestOffer: (() -> Unit)? = null,
     onDeclineBestOffer: (() -> Unit)? = null,

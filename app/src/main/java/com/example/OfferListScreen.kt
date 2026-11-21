@@ -83,8 +83,6 @@ import java.util.Locale
 
 private val DarkBackground = Color(0xFF0A0A0F)
 private val CardSurface = Color(0xFF13131F)
-private val NeonGreen = Color(0xFF00FF88)
-private val TextMuted = Color(0xFF8E8EA0)
 private val CyberCyan = Color(0xFF00D2FF)
 private val DangerRed = Color(0xFFFF4757)
 
@@ -631,6 +629,7 @@ fun OfferListScreen(
                     )
                 }
             }
+        }
         }
 
         // Bloqueio Integral da Interface do OfferListScreen por Velocidade (> 10 km/h)

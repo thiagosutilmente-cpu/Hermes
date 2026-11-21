@@ -57,6 +57,9 @@ object HapticFeedbackHelper {
 
     fun vibrateSuccess(context: Context) = vibrateAccept(context)
     fun vibrateWarning(context: Context) = vibrateDecline(context)
+    fun vibrateClick(context: Context) = vibrateTap(context)
+    fun vibrateReject(context: Context) = vibrateDecline(context)
+    fun performClick(context: Context) = vibrateTap(context)
 
     /**
      * Feedback Háptico Urgente de Alerta de Blitz Policial.

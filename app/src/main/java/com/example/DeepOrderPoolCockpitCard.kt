@@ -48,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import kotlin.math.roundToInt
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -313,7 +314,7 @@ fun DeepOrderPoolCockpitCard(
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterVertically
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             text = "Abra a aba 'Disponíveis' do iFood, 99Food ou Rappi",
@@ -323,7 +324,7 @@ fun DeepOrderPoolCockpitCard(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "O Jarvis lê os cards em segundo plano via Acessibilidade e calcula os combos de rota mais lucrativos.",
+                            text = "O Radar lê notificações de corridas e calcula os combos de rota mais lucrativos.",
                             color = Color(0xFF94A3B8),
                             fontSize = 11.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -545,6 +546,8 @@ private fun ComboItemView(
                         fontWeight = FontWeight.Bold
                     )
                 }
+            }
+
             Spacer(modifier = Modifier.height(6.dp))
 
             // IDENTIFICAÇÃO DO CORREDOR GEOGRÁFICO (VETOR DE DIREÇÃO & DESVIO)

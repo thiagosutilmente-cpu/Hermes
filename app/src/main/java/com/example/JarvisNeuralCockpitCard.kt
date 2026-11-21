@@ -1,6 +1,7 @@
 package com.example
 
 import android.content.Intent
+import kotlin.math.roundToInt
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut

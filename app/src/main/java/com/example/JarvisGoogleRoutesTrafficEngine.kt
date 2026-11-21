@@ -452,8 +452,8 @@ object JarvisGoogleRoutesTrafficEngine {
         return GoogleTrafficRouteResult(
             originLat = originLat,
             originLng = originLng,
-            destLat = destLat,
-            destLng = destLng,
+            destinationLat = destLat,
+            destinationLng = destLng,
             distanceKm = Math.round(distanceKm * 10.0) / 10.0,
             staticDurationMinutes = staticMin,
             trafficDurationMinutes = trafficMin,

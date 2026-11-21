@@ -126,12 +126,13 @@ class CrowdsourcedBlitzRadarManager private constructor(private val context: Con
         latitude: Double,
         longitude: Double,
         address: String,
-        description: String = ""
+        description: String = "",
+        title: String = ""
     ): HazardReport {
         val newReport = HazardReport(
             id = "hazard_${System.currentTimeMillis()}",
             type = type,
-            title = type.label,
+            title = title.ifBlank { type.label },
             description = description.ifBlank { "Reportado por entregador na rota" },
             address = address.ifBlank { "Coordenada Atual" },
             latitude = latitude,

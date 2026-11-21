@@ -48,14 +48,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
 
-private val NeonGreen = Color(0xFF00FF88)
 private val AmberGold = Color(0xFFFFB800)
 private val AlertRed = Color(0xFFFF3366)
 private val CyanTech = Color(0xFF00E5FF)
 private val DarkCardSurface = Color(0xFF10141D)
 private val CardBorderColor = Color(0xFF1F2636)
-private val TextLight = Color(0xFFF3F4F8)
-private val TextMuted = Color(0xFF8A93A6)
 
 /**
  * Card de Calibração e Monitoramento do Motor de Rentabilidade em Tempo Real (RealTimeProfitEngine)

@@ -326,11 +326,12 @@ fun HostingerAsaasDiagnosticPanel(
                                             val testReq = OfferDecisionRequest(
                                                 offerId = "sim_${System.currentTimeMillis()}",
                                                 appName = "iFood Entregas",
-                                                accepted = true,
+                                                restaurant = "Simulação VPS",
                                                 value = 23.50,
                                                 distanceKm = 4.8,
-                                                driverLatitude = -23.561684,
-                                                driverLongitude = -46.655981
+                                                gainPerKm = 4.90,
+                                                action = "ACCEPTED",
+                                                source = "Painel Diagnóstico"
                                             )
                                             val resp = service.sendOfferDecision(testReq)
                                             code = resp.code()

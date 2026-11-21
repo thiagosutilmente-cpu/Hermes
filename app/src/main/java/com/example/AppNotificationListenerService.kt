@@ -1,6 +1,7 @@
 package com.example
 
 import android.app.Notification
+import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -115,12 +116,9 @@ class AppNotificationListenerService : NotificationListenerService() {
                     restaurant = "Outback Shopping Paulista",
                     value = 24.50,
                     distanceKm = 3.5,
-                    estimatedTimeMin = 14,
+                    timeMinutes = 14,
                     neuralDecision = decision,
-                    itemsCount = 1,
-                    gainPerKm = 7.00,
-                    fuelCost = 3.5 * 0.17,
-                    netProfit = 24.50 - (3.5 * 0.17)
+                    itemsCount = 1
                 )
                 _lastInterceptedOffer.value = offer
                 _interceptedOffersCount.value += 1
@@ -304,12 +302,9 @@ class AppNotificationListenerService : NotificationListenerService() {
                 restaurant = restaurantName,
                 value = rd.financials.payoutBrl,
                 distanceKm = rd.financials.totalDistanceKm,
-                estimatedTimeMin = rd.financials.estimatedTimeMinutes,
+                timeMinutes = rd.financials.estimatedTimeMinutes,
                 neuralDecision = decision,
-                itemsCount = 1,
-                gainPerKm = rd.financials.ratePerKm,
-                fuelCost = rd.financials.totalDistanceKm * 0.17,
-                netProfit = rd.financials.payoutBrl - (rd.financials.totalDistanceKm * 0.17)
+                itemsCount = 1
             )
 
             // Alimenta o motor de Mesclagem Profunda para cruzamento imediato com outras ofertas abertas
@@ -390,8 +385,7 @@ class AppNotificationListenerService : NotificationListenerService() {
 
         // Fallback legado se a notificação não tiver o formato completo
         val gainPerKm = if (distanceKm > 0) value / distanceKm else value
-        val fuelCost = distanceKm * 0.17
-        val netProfit = value - fuelCost
+        val isAccept = gainPerKm >= 3.0
 
         // Dispara assinatura tátil para a notificação de fallback
         try {
@@ -406,18 +400,11 @@ class AppNotificationListenerService : NotificationListenerService() {
         }
 
         // Decisão Neural preliminar com base nas metas do condutor
-        val isAccept = gainPerKm >= 3.0
         val decision = NeuralDecision(
             if (isAccept) RadarDecision.ACCEPT else RadarDecision.DECLINE,
             if (isAccept) "Ganho excelente: R$ ${String.format(Locale.US, "%.2f", gainPerKm)}/km" else "Abaixo do piso",
             if (isAccept) 0.96 else 0.45
         )
-
-        val restaurantName = if (title.isNotBlank() && !title.contains("Nova Entrega", ignoreCase = true)) {
-            title
-        } else {
-            text.take(30).ifBlank { "Coleta Delivery" }
-        }
 
         val offer = RadarOffer(
             id = "notif_${System.currentTimeMillis() % 100000}",
@@ -425,12 +412,9 @@ class AppNotificationListenerService : NotificationListenerService() {
             restaurant = restaurantName,
             value = value,
             distanceKm = distanceKm,
-            estimatedTimeMin = timeMin,
+            timeMinutes = timeMin,
             neuralDecision = decision,
-            itemsCount = 1,
-            gainPerKm = gainPerKm,
-            fuelCost = fuelCost,
-            netProfit = netProfit
+            itemsCount = 1
         )
 
         _lastInterceptedOffer.value = offer

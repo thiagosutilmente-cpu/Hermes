@@ -47,7 +47,6 @@ private val DarkCardSurface = Color(0xFF11141C)
 private val DarkCardBorder = Color(0xFF222938)
 private val WhatsAppGreen = Color(0xFF25D366)
 private val AmberGold = Color(0xFFFFB800)
-private val TextMuted = Color(0xFF8C9BAE)
 
 /**
  * Card de Indicação Viral no WhatsApp para o Jarvis Neural Cockpit.

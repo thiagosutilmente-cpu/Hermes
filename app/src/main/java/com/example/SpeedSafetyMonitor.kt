@@ -85,7 +85,9 @@ data class SpeedSafetyState(
     val safetySpeedThresholdKmh: Double = 10.0,
     val sensorAccelerationMps2: Float = 0f,
     val provider: String = "Fused Location (GPS)"
-)
+) {
+    val currentAccuracyMeters: Float get() = gpsAccuracyMeters
+}
 
 /**
  * Monitor de Velocidade para Segurança do Entregador.

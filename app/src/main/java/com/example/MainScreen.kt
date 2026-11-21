@@ -80,13 +80,9 @@ import java.util.Locale
 // -------------------------------------------------------------------------
 // DESIGN SYSTEM - CORES DO COCKPIT
 // -------------------------------------------------------------------------
-private val NeonGreen = Color(0xFF00FF88)
 private val CyberCyan = Color(0xFF00D2FF)
-private val DarkBg = Color(0xFF0A0A0F)
 private val CardSurface = Color(0xFF13131D)
 private val CardBorder = Color(0xFF232335)
-private val TextLight = Color(0xFFF0F0F8)
-private val TextMuted = Color(0xFF8888A2)
 private val RedLock = Color(0xFFFF3366)
 private val AmberWarn = Color(0xFFFFB800)
 private val IFoodColor = Color(0xFFEA1D2C)
@@ -121,7 +117,7 @@ fun MainScreen(
     modifier: Modifier = Modifier,
     viewModel: SpeedSafetyViewModel = viewModel()
 ) {
-    val snackbarHostState = remember { SnackbarHostStateState() }
+    val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -457,6 +453,13 @@ fun MainScreen(
                 }
             }
         }
+    }
+
+    // Modal de Paywall de Assinatura (Venda Pro / PIX)
+    if (showSubscriptionPaywall) {
+        SubscriptionScreen(
+            onDismiss = { showSubscriptionPaywall = false }
+        )
     }
 }
 
@@ -884,21 +887,6 @@ fun EmptyOffersPlaceholder(
             Text("Simular Novas Ofertas 🔄", fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
     }
-
-    // Modal de Paywall de Assinatura (Venda Pro / PIX)
-    if (showSubscriptionPaywall) {
-        SubscriptionScreen(
-            onDismiss = { showSubscriptionPaywall = false }
-        )
-    }
-}
-
-// -------------------------------------------------------------------------
-// CLASSE AUXILIAR DE SNACKBAR STATE
-// -------------------------------------------------------------------------
-@Composable
-fun SnackbarHostStateState(): SnackbarHostState {
-    return remember { SnackbarHostState() }
 }
 
 // -------------------------------------------------------------------------

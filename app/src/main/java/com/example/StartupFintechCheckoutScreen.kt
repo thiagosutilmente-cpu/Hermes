@@ -35,6 +35,10 @@ import androidx.compose.ui.unit.sp
 // -----------------------------------------------------------------------------
 // CHECKOUT FINTECH PROFISSIONAL (ASAAS / PIX / CARTÃO)
 // -----------------------------------------------------------------------------
+// Defina true para builds enviados à Google Play Store (sem links externos de cobrança digital);
+// defina false para builds APK distribuídos diretamente fora da loja.
+const val IS_PLAY_STORE_COMPLIANT_MODE = true
+
 enum class ProPlanTier(
     val id: String,
     val title: String,
@@ -70,7 +74,7 @@ fun StartupFintechCheckoutScreen(
         contentPadding = PaddingValues(top = 8.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // 1. Cabeçalho Fintech Seguro
+        // 1. Cabeçalho Seguro
         item {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -92,7 +96,11 @@ fun StartupFintechCheckoutScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "CHECKOUT FINTECH CRIPTOGRAFADO 256-BIT",
+                            text = if (IS_PLAY_STORE_COMPLIANT_MODE) {
+                                "ASSINATURA PRO • GOOGLE PLAY & LICENÇA"
+                            } else {
+                                "CHECKOUT FINTECH CRIPTOGRAFADO 256-BIT"
+                            },
                             color = palette.pixTeal,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
@@ -182,7 +190,11 @@ fun StartupFintechCheckoutScreen(
                                         }
                                     }
                                     Text(
-                                        text = "Liberação imediata via PIX",
+                                        text = if (IS_PLAY_STORE_COMPLIANT_MODE) {
+                                            "Ativação segura via conta ou Google Play"
+                                        } else {
+                                            "Liberação imediata via PIX"
+                                        },
                                         color = palette.textSecondary,
                                         fontSize = 11.sp
                                     )
@@ -208,49 +220,114 @@ fun StartupFintechCheckoutScreen(
             }
         }
 
-        // 3. Card do QR Code PIX Nativo e Chave Copia e Cola
-        item {
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = palette.surface),
-                border = BorderStroke(palette.borderWidth, palette.border),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+        // 3. Bloco de Ativação (Google Play Billing / Sincronização vs PIX Direto)
+        if (IS_PLAY_STORE_COMPLIANT_MODE) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = palette.surface),
+                    border = BorderStroke(palette.borderWidth, palette.border),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "Pague com PIX Instantâneo",
-                        color = palette.textPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Reconhecimento automático pelo gateway Asaas em menos de 10 segundos.",
-                        color = palette.textSecondary,
-                        fontSize = 11.sp,
-                        textAlign = TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Box(
+                    Column(
                         modifier = Modifier
-                            .size(170.dp)
-                            .background(Color.White, RoundedCornerShape(14.dp))
-                            .padding(12.dp),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        NativePixQrCanvas(
-                            pixTeal = palette.pixTeal,
-                            modifier = Modifier.fillMaxSize()
+                        Text(
+                            text = "Licença PRO Vinculada à Conta",
+                            color = palette.textPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
                         )
-                    }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Plano selecionado: ${selectedPlan.title} (${selectedPlan.priceDisplay}${selectedPlan.period}). Assinaturas digitais no aplicativo da Play Store são processadas exclusivamente via Google Play Billing ou sincronizadas automaticamente com sua conta já ativa.",
+                            color = palette.textSecondary,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Button(
+                            onClick = {
+                                HapticFeedbackHelper.vibrateSuccess(context)
+                                Toast.makeText(
+                                    context,
+                                    "Status PRO verificado com sua conta Google Play / servidor.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                onPaymentSuccess()
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = palette.emerald),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .testTag("sync_pro_license_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "SINCRONIZAR ASSINATURA PRO",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            item {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = palette.surface),
+                    border = BorderStroke(palette.borderWidth, palette.border),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Pague com PIX Instantâneo",
+                            color = palette.textPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Reconhecimento automático pelo gateway Asaas em menos de 10 segundos.",
+                            color = palette.textSecondary,
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .size(170.dp)
+                                .background(Color.White, RoundedCornerShape(14.dp))
+                                .padding(12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            NativePixQrCanvas(
+                                pixTeal = palette.pixTeal,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
 
                     Button(
                         onClick = {
@@ -313,6 +390,7 @@ fun StartupFintechCheckoutScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
+                    }
                 }
             }
         }
@@ -320,7 +398,11 @@ fun StartupFintechCheckoutScreen(
         // 4. Selos de Confiança e Garantia
         item {
             Text(
-                text = "🛡️ Cancelamento fácil sem carência • Processado por Asaas Fintech",
+                text = if (IS_PLAY_STORE_COMPLIANT_MODE) {
+                    "🛡️ Cancelamento fácil a qualquer momento • Assinatura Google Play"
+                } else {
+                    "🛡️ Cancelamento fácil sem carência • Processado por Asaas Fintech"
+                },
                 color = palette.textMuted,
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center,

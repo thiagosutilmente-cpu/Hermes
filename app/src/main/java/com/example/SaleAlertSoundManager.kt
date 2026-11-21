@@ -134,4 +134,8 @@ object SaleAlertSoundManager {
             // Silencioso em caso de permissão pendente
         }
     }
+
+    fun playSaleNotification(context: Context, motoboyName: String = "Assinante VIP", value: Double = 25.0) {
+        showSaleNotification(context, motoboyName, value)
+    }
 }

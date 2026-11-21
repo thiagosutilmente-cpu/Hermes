@@ -1202,7 +1202,7 @@
       border-radius: 14px;
       overflow: hidden;
       backdrop-filter: blur(12px);
-      transition: all 0.3s ease;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
     }
 
     .faq-item[open] {
@@ -1306,6 +1306,31 @@
       font-size: 13.5px;
       line-height: 1.65;
       color: #cbd5e1;
+      will-change: transform, opacity;
+    }
+
+    @keyframes faqSlideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .faq-item[open] .faq-answer {
+      animation: faqSlideDown 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .faq-item[open] .faq-answer {
+        animation: none;
+      }
+      .faq-icon-chevron {
+        transition: none;
+      }
     }
 
     .faq-answer strong {
@@ -1353,6 +1378,606 @@
     .footer-links a:hover {
       text-decoration: underline;
     }
+
+    /* INVESTMENT ROI SECTION */
+    .roi-section {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .roi-card {
+      background: linear-gradient(155deg, rgba(16, 22, 36, 0.96), rgba(9, 13, 22, 0.98));
+      border: 1.5px solid rgba(0, 210, 255, 0.25);
+      border-radius: var(--radius-lg);
+      padding: 26px;
+      box-shadow: 0 22px 54px rgba(0, 0, 0, 0.65);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .roi-card::before {
+      content: "";
+      position: absolute;
+      top: -120px;
+      left: -120px;
+      width: 280px;
+      height: 280px;
+      background: radial-gradient(circle, rgba(0, 210, 255, 0.14) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .roi-card::after {
+      content: "";
+      position: absolute;
+      bottom: -120px;
+      right: -120px;
+      width: 280px;
+      height: 280px;
+      background: radial-gradient(circle, rgba(0, 255, 136, 0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .roi-grid {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+
+    @media (min-width: 780px) {
+      .roi-grid {
+        grid-template-columns: 1.05fr 1.15fr;
+        align-items: stretch;
+      }
+    }
+
+    .roi-inputs-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      background: rgba(7, 10, 17, 0.65);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+    }
+
+    .roi-input-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .roi-input-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .roi-currency-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1.5px solid rgba(0, 255, 136, 0.45);
+      border-radius: 10px;
+      padding: 6px 12px;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+
+    .roi-currency-box:focus-within {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.16);
+    }
+
+    .roi-currency-prefix {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    .roi-number-input {
+      width: 78px;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 17px;
+      font-weight: 800;
+      text-align: right;
+    }
+
+    .roi-number-input::-webkit-inner-spin-button,
+    .roi-number-input::-webkit-outer-spin-button {
+      opacity: 0.4;
+    }
+
+    .roi-presets-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .roi-chip-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 6px 11px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .roi-chip-btn:hover {
+      border-color: rgba(0, 255, 136, 0.45);
+      color: #fff;
+    }
+
+    .roi-chip-btn.active {
+      background: rgba(0, 255, 136, 0.16);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    .roi-seg-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .roi-seg-label strong {
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    .roi-seg-group {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .roi-seg-group.cols-3 {
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 480px) {
+      .roi-seg-group.cols-3 {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    .roi-seg-btn {
+      background: rgba(18, 23, 34, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 8px;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      transition: all 0.2s ease;
+    }
+
+    .roi-seg-btn small {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .roi-seg-btn:hover {
+      border-color: rgba(0, 210, 255, 0.45);
+      color: #fff;
+    }
+
+    .roi-seg-btn.active {
+      background: rgba(0, 210, 255, 0.14);
+      border-color: var(--cyan);
+      color: #fff;
+      box-shadow: 0 0 14px rgba(0, 210, 255, 0.14);
+    }
+
+    .roi-seg-btn.active small {
+      color: var(--cyan);
+    }
+
+    .roi-results-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+      background: rgba(4, 7, 13, 0.78);
+      border: 1.5px solid rgba(0, 255, 136, 0.22);
+      border-radius: var(--radius-md);
+      padding: 22px;
+    }
+
+    .roi-hero-metric {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .roi-hero-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    .roi-hero-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 36px;
+      line-height: 1.1;
+      font-weight: 900;
+      color: var(--primary);
+      text-shadow: 0 0 24px var(--primary-glow);
+    }
+
+    @media (min-width: 680px) {
+      .roi-hero-value {
+        font-size: 42px;
+      }
+    }
+
+    .roi-hero-sub {
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+
+    .roi-hero-sub strong {
+      color: #fff;
+    }
+
+    .roi-metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .roi-stat-box {
+      background: rgba(18, 24, 38, 0.75);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .roi-stat-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .roi-stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 16px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .roi-stat-value.highlight-cyan { color: var(--cyan); }
+    .roi-stat-value.highlight-gold { color: var(--gold); }
+    .roi-stat-value.highlight-green { color: var(--primary); }
+
+    .roi-comparison-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px 14px;
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .roi-bar-row {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .roi-bar-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .roi-bar-meta strong {
+      font-family: 'JetBrains Mono', monospace;
+      color: #fff;
+    }
+
+    .roi-bar-track {
+      height: 8px;
+      width: 100%;
+      background: #1e293b;
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .roi-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-full);
+      transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .roi-bar-fill.before {
+      background: #64748b;
+    }
+
+    .roi-bar-fill.after {
+      background: linear-gradient(90deg, var(--cyan), var(--primary));
+      box-shadow: 0 0 12px rgba(0, 255, 136, 0.45);
+    }
+
+    .roi-cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 4px;
+    }
+
+    .roi-payback-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(255, 183, 3, 0.12);
+      border: 1px solid rgba(255, 183, 3, 0.35);
+      border-radius: var(--radius-full);
+      font-size: 11.5px;
+      font-weight: 800;
+      color: var(--gold);
+    }
+
+    .roi-cta-btn {
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      color: #03060a;
+      border: none;
+      border-radius: var(--radius-full);
+      padding: 11px 20px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 900;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      text-decoration: none;
+      box-shadow: 0 6px 20px rgba(0, 255, 136, 0.32);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .roi-cta-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 26px rgba(0, 255, 136, 0.5);
+    }
+
+    /* DEPOIMENTOS DE VÍDEO */
+    .video-testimonials-section {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .video-testimonials-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+    }
+
+    @media (min-width: 680px) {
+      .video-testimonials-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (min-width: 960px) {
+      .video-testimonials-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    .video-testimonial-card {
+      background: linear-gradient(160deg, rgba(16, 22, 36, 0.94), rgba(9, 13, 22, 0.98));
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    .video-testimonial-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(0, 255, 136, 0.35);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55);
+    }
+
+    .video-testimonial-card.is-playing {
+      border-color: var(--primary);
+      box-shadow: 0 16px 40px rgba(0, 255, 136, 0.16);
+    }
+
+    .video-player-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #03050a;
+      overflow: hidden;
+    }
+
+    .video-testimonial-player {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      background: #03050a;
+    }
+
+    .video-play-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: linear-gradient(180deg, rgba(3, 6, 12, 0.15) 0%, rgba(3, 6, 12, 0.65) 100%);
+      border: none;
+      cursor: pointer;
+      color: #fff;
+      font-family: inherit;
+      transition: opacity 0.25s ease, background 0.25s ease;
+    }
+
+    .video-play-overlay:hover {
+      background: linear-gradient(180deg, rgba(3, 6, 12, 0.08) 0%, rgba(3, 6, 12, 0.5) 100%);
+    }
+
+    .video-testimonial-card.is-playing .video-play-overlay {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .video-play-circle {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(0, 255, 136, 0.92);
+      color: #03060a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 900;
+      padding-left: 3px;
+      box-shadow: 0 0 24px rgba(0, 255, 136, 0.55);
+      transition: transform 0.2s ease;
+    }
+
+    .video-play-overlay:hover .video-play-circle {
+      transform: scale(1.08);
+    }
+
+    .video-duration-pill {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(3, 6, 12, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: #f8fafc;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: var(--radius-full);
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+    }
+
+    .video-city-pill {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(3, 6, 12, 0.78);
+      border: 1px solid rgba(0, 210, 255, 0.35);
+      color: var(--cyan);
+      font-size: 10.5px;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: var(--radius-full);
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+    }
+
+    .video-card-body {
+      padding: 16px 18px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+      justify-content: space-between;
+    }
+
+    .video-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .video-rider-name {
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .video-rider-apps {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .video-card-quote {
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: #cbd5e1;
+    }
+
+    .video-card-quote strong {
+      color: var(--primary);
+    }
+
+    .video-card-footer {
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    .video-card-footer strong {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--gold);
+    }
   </style>
 </head>
 <body>
@@ -1368,7 +1993,9 @@
     </a>
     <div class="nav-actions">
       <a href="#recursos" class="nav-link">Recursos</a>
+      <a href="#roi" class="nav-link">ROI</a>
       <a href="#depoimentos" class="nav-link">Prova Social</a>
+      <a href="#depoimentos-video" class="nav-link">Vídeos</a>
       <a href="#faq" class="nav-link">Dúvidas Frequentes</a>
       <a href="#planos" class="nav-btn-checkout">
         <span>⚡</span>
@@ -1488,6 +2115,156 @@
           <div class="feature-icon-wrapper" style="background: rgba(255, 183, 3, 0.15); color: var(--gold);">🚨</div>
           <h3>Radar Preventivo</h3>
           <p>Avisos antecipados por voz de fiscalizações e pontos de blitz comunitários para você rodar com total tranquilidade.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEÇÃO ROI DO INVESTIMENTO -->
+    <section id="roi" class="roi-section">
+      <div class="section-header">
+        <span class="section-badge" style="color: var(--cyan); border-color: rgba(0, 210, 255, 0.4); background: rgba(0, 210, 255, 0.1);">ROI DO INVESTIMENTO • SIMULAÇÃO REAL</span>
+        <h2 class="section-title">Quanto dinheiro extra você pode colocar no bolso por mês?</h2>
+        <p class="section-desc">Informe sua média atual de ganhos por dia e veja o retorno estimado ao filtrar corridas ruins e aproveitar mesclagens com o Radar Coordinator.</p>
+      </div>
+
+      <div class="roi-card">
+        <div class="roi-grid">
+          <!-- CONTROLES DO MOTORISTA -->
+          <div class="roi-inputs-panel">
+            <div>
+              <div class="roi-input-header">
+                <label class="roi-input-label" for="roi-daily-input">Seu ganho médio atual por dia</label>
+                <div class="roi-currency-box">
+                  <span class="roi-currency-prefix">R$</span>
+                  <input
+                    type="number"
+                    id="roi-daily-input"
+                    class="roi-number-input"
+                    min="20"
+                    max="2000"
+                    step="5"
+                    value="200"
+                    aria-label="Ganho médio atual por dia em reais"
+                    oninput="sincronizarRoiInput('input')"
+                  >
+                </div>
+              </div>
+              <input
+                type="range"
+                id="roi-daily-slider"
+                class="sim-slider"
+                min="60"
+                max="600"
+                step="5"
+                value="200"
+                aria-label="Controle deslizante de ganho médio diário"
+                oninput="sincronizarRoiInput('slider')"
+                style="margin-top: 12px;"
+              >
+              <div class="roi-presets-row" style="margin-top: 10px;">
+                <button type="button" class="roi-chip-btn" data-daily="150" onclick="definirDiariaRoi(150)">R$ 150/dia</button>
+                <button type="button" class="roi-chip-btn active" data-daily="200" onclick="definirDiariaRoi(200)">R$ 200/dia</button>
+                <button type="button" class="roi-chip-btn" data-daily="280" onclick="definirDiariaRoi(280)">R$ 280/dia</button>
+                <button type="button" class="roi-chip-btn" data-daily="350" onclick="definirDiariaRoi(350)">R$ 350/dia</button>
+              </div>
+            </div>
+
+            <div>
+              <div class="roi-seg-label">
+                <span>Frequência semanal</span>
+                <strong id="roi-days-label">6 dias/sem (26 dias/mês)</strong>
+              </div>
+              <div class="roi-seg-group" id="roi-days-group">
+                <button type="button" class="roi-seg-btn" data-days="4" onclick="selecionarDiasRoi(4)">4 dias<small>17/mês</small></button>
+                <button type="button" class="roi-seg-btn" data-days="5" onclick="selecionarDiasRoi(5)">5 dias<small>22/mês</small></button>
+                <button type="button" class="roi-seg-btn active" data-days="6" onclick="selecionarDiasRoi(6)">6 dias<small>26/mês</small></button>
+                <button type="button" class="roi-seg-btn" data-days="7" onclick="selecionarDiasRoi(7)">7 dias<small>30/mês</small></button>
+              </div>
+            </div>
+
+            <div>
+              <div class="roi-seg-label">
+                <span>Estratégia com o Radar Coordinator</span>
+                <strong id="roi-boost-label">+32% eficiência</strong>
+              </div>
+              <div class="roi-seg-group cols-3" id="roi-strategy-group">
+                <button type="button" class="roi-seg-btn" data-boost="0.22" onclick="selecionarEstrategiaRoi(0.22)">Filtro R$/km<small>+22% conservador</small></button>
+                <button type="button" class="roi-seg-btn active" data-boost="0.32" onclick="selecionarEstrategiaRoi(0.32)">Radar Pro<small>+32% moderado</small></button>
+                <button type="button" class="roi-seg-btn" data-boost="0.45" onclick="selecionarEstrategiaRoi(0.45)">Mesclagens<small>+45% multi-app</small></button>
+              </div>
+            </div>
+
+            <div>
+              <div class="roi-seg-label">
+                <span>Plano de comparação</span>
+                <strong id="roi-plan-label">Pro Mensal (R$ 99,90/mês)</strong>
+              </div>
+              <div class="roi-seg-group" style="grid-template-columns: repeat(2, 1fr);" id="roi-plan-group">
+                <button type="button" class="roi-seg-btn active" data-plan-cost="99.90" onclick="selecionarPlanoRoi(99.90, 'Pro Mensal (R$ 99,90/mês)')">Pro Mensal<small>R$ 99,90/mês</small></button>
+                <button type="button" class="roi-seg-btn" data-plan-cost="54.16" onclick="selecionarPlanoRoi(54.16, 'Anual VIP (R$ 54,16/mês)')">Anual VIP<small>R$ 54,16/mês</small></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- PAINEL DE RESULTADO DO ROI -->
+          <div class="roi-results-panel">
+            <div class="roi-hero-metric">
+              <span class="roi-hero-kicker">📈 AUMENTO ESTIMADO NO FATURAMENTO MENSAL</span>
+              <div class="roi-hero-value" id="roi-monthly-increase">+ R$ 1.664,00</div>
+              <p class="roi-hero-sub">
+                Lucro líquido mensal já descontando a assinatura:
+                <strong id="roi-net-after-plan">+ R$ 1.564,10/mês</strong>
+              </p>
+            </div>
+
+            <div class="roi-metrics-grid">
+              <div class="roi-stat-box">
+                <span class="roi-stat-label">Projeção Mensal Total</span>
+                <span class="roi-stat-value highlight-cyan" id="roi-projected-monthly">R$ 6.864,00</span>
+              </div>
+              <div class="roi-stat-box">
+                <span class="roi-stat-label">Ganho Extra no Ano</span>
+                <span class="roi-stat-value highlight-green" id="roi-annual-increase">+ R$ 19.968,00</span>
+              </div>
+              <div class="roi-stat-box">
+                <span class="roi-stat-label">Retorno (ROI)</span>
+                <span class="roi-stat-value highlight-gold" id="roi-percent">1.566% (16,7x)</span>
+              </div>
+              <div class="roi-stat-box">
+                <span class="roi-stat-label">Média Atual Mensal</span>
+                <span class="roi-stat-value" id="roi-current-monthly">R$ 5.200,00</span>
+              </div>
+            </div>
+
+            <div class="roi-comparison-bars">
+              <div class="roi-bar-row">
+                <div class="roi-bar-meta">
+                  <span>Sem Radar Coordinator</span>
+                  <strong id="roi-bar-before-label">R$ 5.200,00/mês</strong>
+                </div>
+                <div class="roi-bar-track">
+                  <div class="roi-bar-fill before" id="roi-bar-before" style="width: 76%;"></div>
+                </div>
+              </div>
+              <div class="roi-bar-row">
+                <div class="roi-bar-meta">
+                  <span style="color: var(--primary);">Com Radar Coordinator</span>
+                  <strong style="color: var(--primary);" id="roi-bar-after-label">R$ 6.864,00/mês</strong>
+                </div>
+                <div class="roi-bar-track">
+                  <div class="roi-bar-fill after" id="roi-bar-after" style="width: 100%;"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="roi-cta-row">
+              <div class="roi-payback-pill" id="roi-payback-pill">⚡ O app se paga em ~2 dias de corrida</div>
+              <a href="#planos" class="roi-cta-btn">
+                <span>Garantir esse ganho agora</span>
+                <span>→</span>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -1647,6 +2424,140 @@
             <span>Zero atraso de SLA</span>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- SEÇÃO DE DEPOIMENTOS DE VÍDEO -->
+    <section id="depoimentos-video" class="video-testimonials-section">
+      <div class="section-header">
+        <span class="section-badge" style="color: var(--primary); border-color: rgba(0, 255, 136, 0.35); background: rgba(0, 255, 136, 0.08);">🎬 RELATOS EM VÍDEO NA RUA</span>
+        <h2 class="section-title">Depoimentos de Vídeo</h2>
+        <p class="section-desc">Assista às experiências curtas de entregadores que usam o Radar Coordinator no dia a dia para lucrar mais por quilômetro rodado.</p>
+      </div>
+
+      <div class="video-testimonials-grid">
+        <!-- VÍDEO 1: MARCOS (SP) -->
+        <article class="video-testimonial-card">
+          <div class="video-player-frame">
+            <video
+              class="video-testimonial-player"
+              controls
+              playsinline
+              preload="metadata"
+              poster="/assets/videos/poster_marcos.jpg"
+              aria-label="Depoimento em vídeo de Marcos Silva usando o Radar Coordinator em São Paulo"
+            >
+              <source src="/assets/videos/depoimento_marcos.mp4" type="video/mp4">
+              Seu navegador não suporta a reprodução de vídeo HTML5.
+            </video>
+            <span class="video-city-pill">📍 São Paulo • SP</span>
+            <span class="video-duration-pill">0:08</span>
+            <button type="button" class="video-play-overlay" aria-label="Reproduzir vídeo de Marcos Silva">
+              <span class="video-play-circle">▶</span>
+              <span style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.3px;">Assistir experiência</span>
+            </button>
+          </div>
+          <div class="video-card-body">
+            <div>
+              <div class="video-card-header">
+                <div>
+                  <div class="video-rider-name">Marcos "Grau" Silva <span style="font-size: 10px; color: var(--primary);">✓ Verificado</span></div>
+                  <div class="video-rider-apps">iFood & 99 Moto • Av. Paulista</div>
+                </div>
+                <div class="stars">★★★★★</div>
+              </div>
+              <p class="video-card-quote" style="margin-top: 10px;">
+                "Com o Radar cantando o <strong>R$/km no fone do capacete</strong>, parei de aceitar corrida fria no trânsito e passei a fechar diária acima de R$ 300 rodando menos."
+              </p>
+            </div>
+            <div class="video-card-footer">
+              <span>Resultado médio</span>
+              <strong>+R$ 1.300/mês</strong>
+            </div>
+          </div>
+        </article>
+
+        <!-- VÍDEO 2: RAFAEL (RJ) -->
+        <article class="video-testimonial-card">
+          <div class="video-player-frame">
+            <video
+              class="video-testimonial-player"
+              controls
+              playsinline
+              preload="metadata"
+              poster="/assets/videos/poster_rafael.jpg"
+              aria-label="Depoimento em vídeo de Rafael Santos usando o Radar Coordinator no Rio de Janeiro"
+            >
+              <source src="/assets/videos/depoimento_rafael.mp4" type="video/mp4">
+              Seu navegador não suporta a reprodução de vídeo HTML5.
+            </video>
+            <span class="video-city-pill">📍 Rio de Janeiro • RJ</span>
+            <span class="video-duration-pill">0:08</span>
+            <button type="button" class="video-play-overlay" aria-label="Reproduzir vídeo de Rafael Santos">
+              <span class="video-play-circle">▶</span>
+              <span style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.3px;">Assistir experiência</span>
+            </button>
+          </div>
+          <div class="video-card-body">
+            <div>
+              <div class="video-card-header">
+                <div>
+                  <div class="video-rider-name">Rafael Santos <span style="font-size: 10px; color: var(--primary);">✓ Verificado</span></div>
+                  <div class="video-rider-apps">iFood + Rappi • Barra / Centro</div>
+                </div>
+                <div class="stars">★★★★★</div>
+              </div>
+              <p class="video-card-quote" style="margin-top: 10px;">
+                "O alerta de <strong>mesclagem de entregas no mesmo corredor</strong> mudou meu jogo na saída do shopping: duas entregas juntas com apenas 350 m de desvio."
+              </p>
+            </div>
+            <div class="video-card-footer">
+              <span>Rota combinada</span>
+              <strong>R$ 44 em 22 min</strong>
+            </div>
+          </div>
+        </article>
+
+        <!-- VÍDEO 3: CAMILA (BH) -->
+        <article class="video-testimonial-card">
+          <div class="video-player-frame">
+            <video
+              class="video-testimonial-player"
+              controls
+              playsinline
+              preload="metadata"
+              poster="/assets/videos/poster_camila.jpg"
+              aria-label="Depoimento em vídeo de Camila Ferreira usando o Radar Coordinator em Belo Horizonte"
+            >
+              <source src="/assets/videos/depoimento_camila.mp4" type="video/mp4">
+              Seu navegador não suporta a reprodução de vídeo HTML5.
+            </video>
+            <span class="video-city-pill">📍 Belo Horizonte • MG</span>
+            <span class="video-duration-pill">0:08</span>
+            <button type="button" class="video-play-overlay" aria-label="Reproduzir vídeo de Camila Ferreira">
+              <span class="video-play-circle">▶</span>
+              <span style="font-size: 11.5px; font-weight: 800; letter-spacing: 0.3px;">Assistir experiência</span>
+            </button>
+          </div>
+          <div class="video-card-body">
+            <div>
+              <div class="video-card-header">
+                <div>
+                  <div class="video-rider-name">Camila Ferreira <span style="font-size: 10px; color: var(--primary);">✓ Verificada</span></div>
+                  <div class="video-rider-apps">iFood + Uber • Savassi / Centro</div>
+                </div>
+                <div class="stars">★★★★★</div>
+              </div>
+              <p class="video-card-quote" style="margin-top: 10px;">
+                "Uso no intercomunicador à noite sem ficar olhando para o guidão. Meu <strong>ganho por quilômetro subiu 38%</strong> e gasto bem menos gasolina."
+              </p>
+            </div>
+            <div class="video-card-footer">
+              <span>Eficiência por km</span>
+              <strong>+38% por turno</strong>
+            </div>
+          </div>
+        </article>
       </div>
     </section>
 
@@ -2057,6 +2968,271 @@
         alert("Para instalar direto:\\n1. Toque nos 3 pontinhos (⋮) no topo do Chrome\\n2. Escolha 'Adicionar à tela inicial' ou 'Instalar aplicativo'.");
       }
     }
+
+    // SMOOTH SLIDE-DOWN / SLIDE-UP ACCORDION PARA FAQ (<details>)
+    (function initSmoothFaqDetails() {
+      const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      document.querySelectorAll('details.faq-item').forEach((details) => {
+        const summary = details.querySelector('summary');
+        const answer = details.querySelector('.faq-answer');
+        if (!summary || !answer) return;
+
+        let activeAnimation = null;
+        let activeAnswerAnim = null;
+        let isClosing = false;
+        let isExpanding = false;
+
+        const clearStyles = () => {
+          details.style.height = '';
+          details.style.overflow = '';
+          if (activeAnswerAnim) {
+            activeAnswerAnim.cancel();
+            activeAnswerAnim = null;
+          }
+        };
+
+        const openDetails = () => {
+          isExpanding = true;
+          isClosing = false;
+          details.style.overflow = 'hidden';
+          const startHeight = `${details.offsetHeight}px`;
+          details.open = true;
+          const endHeight = `${details.scrollHeight}px`;
+
+          activeAnimation = details.animate(
+            { height: [startHeight, endHeight] },
+            { duration: 320, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+          );
+          activeAnimation.onfinish = () => {
+            isExpanding = false;
+            activeAnimation = null;
+            clearStyles();
+          };
+          activeAnimation.oncancel = () => {
+            isExpanding = false;
+            activeAnimation = null;
+          };
+        };
+
+        const shrinkDetails = () => {
+          isClosing = true;
+          isExpanding = false;
+          details.style.overflow = 'hidden';
+          const startHeight = `${details.offsetHeight}px`;
+          const endHeight = `${summary.offsetHeight}px`;
+
+          activeAnimation = details.animate(
+            { height: [startHeight, endHeight] },
+            { duration: 240, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' }
+          );
+          activeAnswerAnim = answer.animate(
+            { opacity: [1, 0], transform: ['translateY(0)', 'translateY(-6px)'] },
+            { duration: 200, easing: 'ease-out', fill: 'forwards' }
+          );
+          activeAnimation.onfinish = () => {
+            details.open = false;
+            isClosing = false;
+            activeAnimation = null;
+            clearStyles();
+          };
+          activeAnimation.oncancel = () => {
+            isClosing = false;
+            activeAnimation = null;
+            if (activeAnswerAnim) {
+              activeAnswerAnim.cancel();
+              activeAnswerAnim = null;
+            }
+          };
+        };
+
+        summary.addEventListener('click', (event) => {
+          if (prefersReducedMotion || typeof details.animate !== 'function') {
+            return;
+          }
+          event.preventDefault();
+
+          if (activeAnimation) {
+            activeAnimation.cancel();
+          }
+          if (activeAnswerAnim) {
+            activeAnswerAnim.cancel();
+            activeAnswerAnim = null;
+          }
+
+          if (isClosing || !details.open) {
+            openDetails();
+          } else if (isExpanding || details.open) {
+            shrinkDetails();
+          }
+        });
+      });
+    })();
+
+    // CALCULADORA DE ROI DO INVESTIMENTO
+    const roiState = {
+      dailyEarnings: 200,
+      daysPerWeek: 6,
+      boostRate: 0.32,
+      planCostMonthly: 99.90
+    };
+
+    function formatarMoedaBrl(valor) {
+      return 'R$ ' + valor.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    function atualizarRoi() {
+      const daily = Math.max(0, Number(roiState.dailyEarnings) || 0);
+      const monthlyDays = Math.round(roiState.daysPerWeek * 4.33);
+      const currentMonthly = daily * monthlyDays;
+      const monthlyIncrease = currentMonthly * roiState.boostRate;
+      const projectedMonthly = currentMonthly + monthlyIncrease;
+      const annualIncrease = monthlyIncrease * 12;
+      const netAfterPlan = monthlyIncrease - roiState.planCostMonthly;
+
+      const roiMultiplier = roiState.planCostMonthly > 0
+        ? monthlyIncrease / roiState.planCostMonthly
+        : 0;
+      const roiPct = roiState.planCostMonthly > 0
+        ? Math.round((netAfterPlan / roiState.planCostMonthly) * 100)
+        : 0;
+
+      const dailyIncrease = daily * roiState.boostRate;
+      const paybackDays = dailyIncrease > 0
+        ? Math.max(1, Math.ceil(roiState.planCostMonthly / dailyIncrease))
+        : 0;
+
+      document.getElementById('roi-monthly-increase').innerText = '+ ' + formatarMoedaBrl(monthlyIncrease);
+      document.getElementById('roi-net-after-plan').innerText =
+        (netAfterPlan >= 0 ? '+ ' : '- ') + formatarMoedaBrl(Math.abs(netAfterPlan)) + '/mês';
+      document.getElementById('roi-projected-monthly').innerText = formatarMoedaBrl(projectedMonthly);
+      document.getElementById('roi-annual-increase').innerText = '+ ' + formatarMoedaBrl(annualIncrease);
+      document.getElementById('roi-current-monthly').innerText = formatarMoedaBrl(currentMonthly);
+      document.getElementById('roi-percent').innerText =
+        roiPct.toLocaleString('pt-BR') + '% (' + roiMultiplier.toFixed(1).replace('.', ',') + 'x)';
+
+      document.getElementById('roi-bar-before-label').innerText = formatarMoedaBrl(currentMonthly) + '/mês';
+      document.getElementById('roi-bar-after-label').innerText = formatarMoedaBrl(projectedMonthly) + '/mês';
+
+      const beforePct = projectedMonthly > 0
+        ? Math.max(12, Math.round((currentMonthly / projectedMonthly) * 100))
+        : 0;
+      document.getElementById('roi-bar-before').style.width = beforePct + '%';
+      document.getElementById('roi-bar-after').style.width = projectedMonthly > 0 ? '100%' : '0%';
+
+      const paybackEl = document.getElementById('roi-payback-pill');
+      if (paybackDays > 0) {
+        paybackEl.innerText = '⚡ O app se paga em ~' + paybackDays + (paybackDays === 1 ? ' dia de corrida' : ' dias de corrida');
+      } else {
+        paybackEl.innerText = '⚡ Informe sua diária para calcular o payback';
+      }
+    }
+
+    function sincronizarPresetAtivo(valor) {
+      document.querySelectorAll('.roi-chip-btn').forEach((btn) => {
+        btn.classList.toggle('active', Number(btn.getAttribute('data-daily')) === valor);
+      });
+    }
+
+    function sincronizarRoiInput(origem) {
+      const inputEl = document.getElementById('roi-daily-input');
+      const sliderEl = document.getElementById('roi-daily-slider');
+
+      let valor = origem === 'slider' ? parseFloat(sliderEl.value) : parseFloat(inputEl.value);
+      if (Number.isNaN(valor) || valor < 0) valor = 0;
+
+      roiState.dailyEarnings = valor;
+
+      if (origem === 'slider') {
+        inputEl.value = valor;
+      } else {
+        sliderEl.value = Math.min(600, Math.max(60, valor));
+      }
+
+      sincronizarPresetAtivo(valor);
+      atualizarRoi();
+    }
+
+    function definirDiariaRoi(valor) {
+      roiState.dailyEarnings = valor;
+      document.getElementById('roi-daily-input').value = valor;
+      document.getElementById('roi-daily-slider').value = Math.min(600, Math.max(60, valor));
+      sincronizarPresetAtivo(valor);
+      atualizarRoi();
+    }
+
+    function selecionarDiasRoi(dias) {
+      roiState.daysPerWeek = dias;
+      const monthlyDays = Math.round(dias * 4.33);
+      document.getElementById('roi-days-label').innerText = `${dias} dias/sem (${monthlyDays} dias/mês)`;
+      document.querySelectorAll('#roi-days-group .roi-seg-btn').forEach((btn) => {
+        btn.classList.toggle('active', Number(btn.getAttribute('data-days')) === dias);
+      });
+      atualizarRoi();
+    }
+
+    function selecionarEstrategiaRoi(boostRate) {
+      roiState.boostRate = boostRate;
+      const pct = Math.round(boostRate * 100);
+      document.getElementById('roi-boost-label').innerText = `+${pct}% eficiência`;
+      document.querySelectorAll('#roi-strategy-group .roi-seg-btn').forEach((btn) => {
+        btn.classList.toggle('active', Number(btn.getAttribute('data-boost')) === boostRate);
+      });
+      atualizarRoi();
+    }
+
+    function selecionarPlanoRoi(custoMensal, labelText) {
+      roiState.planCostMonthly = custoMensal;
+      document.getElementById('roi-plan-label').innerText = labelText;
+      document.querySelectorAll('#roi-plan-group .roi-seg-btn').forEach((btn) => {
+        btn.classList.toggle('active', Number(btn.getAttribute('data-plan-cost')) === custoMensal);
+      });
+      atualizarRoi();
+    }
+
+    atualizarRoi();
+
+    // PLAYER DE DEPOIMENTOS DE VÍDEO (PLAY OVERLAY + AUTO-PAUSE ENTRE VÍDEOS)
+    (function initVideoTestimonials() {
+      const cards = document.querySelectorAll('.video-testimonial-card');
+      const allVideos = Array.from(document.querySelectorAll('.video-testimonial-player'));
+
+      cards.forEach((card) => {
+        const video = card.querySelector('.video-testimonial-player');
+        const overlayBtn = card.querySelector('.video-play-overlay');
+        if (!video) return;
+
+        if (overlayBtn) {
+          overlayBtn.addEventListener('click', () => {
+            allVideos.forEach((other) => {
+              if (other !== video && !other.paused) {
+                other.pause();
+              }
+            });
+            video.play().catch(() => {});
+          });
+        }
+
+        video.addEventListener('play', () => {
+          allVideos.forEach((other) => {
+            if (other !== video && !other.paused) {
+              other.pause();
+            }
+          });
+          card.classList.add('is-playing');
+        });
+
+        video.addEventListener('pause', () => {
+          card.classList.remove('is-playing');
+        });
+
+        video.addEventListener('ended', () => {
+          card.classList.remove('is-playing');
+        });
+      });
+    })();
   </script>
 </body>
 </html>

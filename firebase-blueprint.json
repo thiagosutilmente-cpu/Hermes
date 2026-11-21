@@ -1,0 +1,110 @@
+{
+  "entities": {
+    "RiderGoalProfile": {
+      "title": "RiderGoalProfile",
+      "description": "Configurações sincronizadas do piloto (meta diária e filtros mínimos de R$/km e valor).",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID do usuário autenticado via Google Sign-In."
+        },
+        "dailyGoalBrl": {
+          "type": "number",
+          "description": "Meta diária de faturamento em reais."
+        },
+        "minGainPerKm": {
+          "type": "number",
+          "description": "Filtro mínimo de ganho por quilômetro em R$/km."
+        },
+        "minOfferValue": {
+          "type": "number",
+          "description": "Filtro mínimo de valor por entrega em reais."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de criação preenchido pelo servidor (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de atualização preenchido pelo servidor (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "dailyGoalBrl",
+        "minGainPerKm",
+        "minOfferValue",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "DeliveryLog": {
+      "title": "DeliveryLog",
+      "description": "Registro de entrega aceita pelo piloto para backup em nuvem.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "UID do usuário autenticado via Google Sign-In."
+        },
+        "appSource": {
+          "type": "string",
+          "description": "Aplicativo de origem da entrega (ex: iFood, 99 Moto, Uber, Rappi)."
+        },
+        "restaurant": {
+          "type": "string",
+          "description": "Nome do estabelecimento ou ponto de coleta."
+        },
+        "payoutBrl": {
+          "type": "number",
+          "description": "Valor da corrida em reais."
+        },
+        "distanceKm": {
+          "type": "number",
+          "description": "Distância total da entrega em quilômetros."
+        },
+        "merged": {
+          "type": "boolean",
+          "description": "Indica se a corrida faz parte de uma mesclagem de rota."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de criação preenchido pelo servidor (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de atualização preenchido pelo servidor (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "appSource",
+        "restaurant",
+        "payoutBrl",
+        "distanceKm",
+        "merged",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/profiles/{profileId}": {
+      "schema": {
+        "$ref": "#/entities/RiderGoalProfile"
+      },
+      "description": "Perfil de metas e filtros do piloto autenticado."
+    },
+    "/users/{userId}/deliveries/{deliveryId}": {
+      "schema": {
+        "$ref": "#/entities/DeliveryLog"
+      },
+      "description": "Histórico de entregas aceitas do piloto autenticado."
+    }
+  }
+}

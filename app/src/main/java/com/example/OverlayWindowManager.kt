@@ -25,6 +25,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import java.util.Locale
 import kotlin.math.hypot
 
 /**
@@ -63,6 +64,7 @@ class OverlayWindowManager private constructor(private val context: Context) {
      * Modelo da Corrida Detectada na Bolha Flutuante
      */
     data class FloatingTacticalOffer(
+        val offerId: String = "",
         val appName: String = "iFood",
         val packageName: String = "com.ifood.driver",
         val value: Double = 28.50,
@@ -136,6 +138,8 @@ class OverlayWindowManager private constructor(private val context: Context) {
     private var isDragging = false
     private var touchStartTime: Long = 0
     private var currentSnapAnimator: ValueAnimator? = null
+
+    fun hasPermission(): Boolean = canDrawOverlays(context)
 
     companion object {
         @SuppressLint("StaticFieldLeak")

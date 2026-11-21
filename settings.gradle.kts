@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Radar Coordinator"
-// include(":app")
+include(":app")

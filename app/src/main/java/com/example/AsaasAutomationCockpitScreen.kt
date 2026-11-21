@@ -73,7 +73,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
 
-private val DarkBg = Color(0xFF07090E)
 private val DarkSurface = Color(0xFF10141E)
 private val DarkSurfaceBorder = Color(0xFF1C2436)
 private val NeonEmerald = Color(0xFF00FF88)

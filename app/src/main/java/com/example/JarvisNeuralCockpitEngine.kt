@@ -66,7 +66,9 @@ object JarvisNeuralCockpitEngine {
         @SerializedName("action") val action: String, // "ACCEPT" | "REJECT" | "BATCH"
         @SerializedName("score_0_to_100") val score: Int,
         @SerializedName("reason") val reason: String
-    )
+    ) {
+        val score_0_to_100: Int get() = score
+    }
 
     data class JarvisVoiceAlert(
         @SerializedName("style_used") val styleUsed: String, // "TACTICAL_ANGRY" | "STANDARD" | "WAR_GENERAL"
@@ -365,7 +367,7 @@ object JarvisNeuralCockpitEngine {
             ),
             decision = JarvisDecision(
                 action = decisionAction,
-                score_0_to_100 = decisionScore,
+                score = decisionScore,
                 reason = decisionReason
             ),
             voiceAlert = voiceAlert,

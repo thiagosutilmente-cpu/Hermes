@@ -54,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -244,6 +245,8 @@ object FilterPreferencesManager {
             selectedHotspotZoneId = prefs.getString(KEY_SELECTED_HOTSPOT_ID, null)
         )
     }
+
+    fun getSavedCriteria(context: android.content.Context): OfferFilterCriteria = loadCriteria(context)
 
     fun saveCriteria(context: android.content.Context, criteria: OfferFilterCriteria) {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
@@ -1375,6 +1378,7 @@ fun FilterSettingsDialog(
     onCriteriaChange: (OfferFilterCriteria) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     var tempCriteria by remember { mutableStateOf(criteria) }
 
     Dialog(

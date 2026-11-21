@@ -109,7 +109,8 @@ object AutoUpdateManager {
     }
 
     /**
-     * Faz o download do APK da VPS com monitoramento de progresso e inicia a instalação
+     * Redireciona o usuário com segurança para a página oficial do aplicativo na Google Play Store
+     * (conforme políticas de Integridade do Sistema do Google Play, sem sideloading de APK externo).
      */
     suspend fun downloadAndInstallApk(
         context: Context,
@@ -117,93 +118,34 @@ object AutoUpdateManager {
         onProgress: (Float) -> Unit,
         onComplete: () -> Unit,
         onError: (String) -> Unit
-    ) = withContext(Dispatchers.IO) {
+    ) = withContext(Dispatchers.Main) {
         try {
-            val url = URL(apkUrl)
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 15000
-                readTimeout = 30000
-                instanceFollowRedirects = true
-            }
-
-            val fileLength = conn.contentLength
-            val downloadDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.cacheDir
-            if (!downloadDir.exists()) downloadDir.mkdirs()
-
-            val apkFile = File(downloadDir, "JarvisNeuralCockpit_update.apk")
-            if (apkFile.exists()) apkFile.delete()
-
-            var input: InputStream? = null
-            var output: FileOutputStream? = null
-
-            try {
-                input = conn.inputStream
-                output = FileOutputStream(apkFile)
-
-                val data = ByteArray(8192)
-                var total: Long = 0
-                var count: Int
-
-                while (input.read(data).also { count = it } != -1) {
-                    total += count
-                    if (fileLength > 0) {
-                        withContext(Dispatchers.Main) {
-                            onProgress(total.toFloat() / fileLength.toFloat())
-                        }
-                    }
-                    output.write(data, 0, count)
-                }
-
-                output.flush()
-
-                withContext(Dispatchers.Main) {
-                    onProgress(1.0f)
-                    onComplete()
-                    triggerApkInstall(context, apkFile)
-                }
-            } finally {
-                output?.close()
-                input?.close()
-            }
+            onProgress(1.0f)
+            openPlayStoreListing(context)
+            onComplete()
         } catch (e: Exception) {
-            withContext(Dispatchers.Main) {
-                onError("Erro ao baixar atualização: ${e.localizedMessage ?: "Falha de rede"}")
-            }
+            onError("Erro ao abrir a Google Play Store: ${e.localizedMessage ?: "tente novamente"}")
         }
     }
 
     /**
-     * Dispara a tela nativa do Android para o usuário confirmar a instalação
+     * Abre a ficha oficial do Radar Coordinator na Google Play Store.
      */
-    fun triggerApkInstall(context: Context, apkFile: File) {
+    fun openPlayStoreListing(context: Context) {
+        val packageName = context.packageName
+        val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
         try {
-            // No Android 8.0+ (API 26), verifica se o app tem permissão para instalar fontes desconhecidas
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (!context.packageManager.canRequestPackageInstalls()) {
-                    val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                        data = Uri.parse("package:${context.packageName}")
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    context.startActivity(intent)
-                    return
-                }
-            }
-
-            val apkUri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.provider",
-                apkFile
-            )
-
-            val installIntent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(apkUri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            context.startActivity(marketIntent)
+        } catch (_: Exception) {
+            val webIntent = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
+            ).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            context.startActivity(installIntent)
-        } catch (e: Exception) {
-            e.printStackTrace()
+            context.startActivity(webIntent)
         }
     }
 }

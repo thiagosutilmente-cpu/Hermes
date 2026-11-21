@@ -366,6 +366,11 @@ object SubscriptionManager {
         }
     }
 
+    fun isSubscriptionActive(context: Context): Boolean {
+        if (!::prefs.isInitialized) initialize(context)
+        return _subscriptionState.value.isActive
+    }
+
     private fun parseExpiryToMs(expiresAt: String?): Long {
         if (expiresAt.isNullOrBlank()) return System.currentTimeMillis() + 7L * 24 * 60 * 60 * 1000
         return try {

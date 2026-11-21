@@ -376,7 +376,7 @@ class LocalNotificationManager(private val context: Context) {
             )
 
         if (soundUri != null) {
-            builder.setSound(soundUri, audioAttributes)
+            builder.setSound(soundUri)
         }
 
         notificationManager.notify(notificationId, builder.build())
@@ -412,9 +412,7 @@ class LocalNotificationManager(private val context: Context) {
                 decision = "ACEITAR_IMEDIATAMENTE",
                 reason = "Excelente rentabilidade de R$ 9.07/km em rota rápida",
                 confidence = 0.98
-            ),
-            gainPerKm = 9.07,
-            netProfit = 33.72
+            )
         )
 
         onScheduled()

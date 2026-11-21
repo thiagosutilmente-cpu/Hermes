@@ -32,24 +32,11 @@ object BatteryOptimizationHelper {
     }
 
     /**
-     * Abre a solicitação direta do sistema Android para desativar a otimização de bateria.
+     * Abre a tela de configurações gerais de bateria do sistema Android (compatível com Play Store).
      */
-    @SuppressLint("BatteryLife")
     fun requestIgnoreBatteryOptimization(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            try {
-                if (!isIgnoringBatteryOptimizations(context)) {
-                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = Uri.parse("package:${context.packageName}")
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    context.startActivity(intent)
-                    Log.i(TAG, "Solicitação de isenção de otimização de bateria disparada.")
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Falha ao abrir diálogo direto, tentando tela de configurações gerais: ${e.message}")
-                openGeneralBatterySettings(context)
-            }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !isIgnoringBatteryOptimizations(context)) {
+            openGeneralBatterySettings(context)
         }
     }
 

@@ -221,7 +221,7 @@ object LiveDispatchSimulator {
                     SubDeliveryOrder("Rappi", OrangeRappi, "Pizza Hut Paulista", computedValue * 0.52, distance * 0.55, "Al. Santos, 120", "Al. Lorena, 450")
                 )
             } else emptyList(),
-            synergySavingsKm = if (isMulti) (0.8..1.6).random() else 0.0,
+            synergySavingsKm = if (isMulti) Math.round((0.8 + Math.random() * 0.8) * 10.0) / 10.0 else 0.0,
             synergyBonusPercent = if (isMulti) (40..70).random() else 0,
             waypointRoute = if (isMulti) {
                 listOf(

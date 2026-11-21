@@ -1,0 +1,97 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Domain Validation Helpers
+    function isValidRiderProfile(data, userId) {
+      return data.userId is string &&
+             data.userId == userId &&
+             data.dailyGoalBrl is number && data.dailyGoalBrl >= 0 && data.dailyGoalBrl <= 50000 &&
+             data.minGainPerKm is number && data.minGainPerKm >= 0 && data.minGainPerKm <= 500 &&
+             data.minOfferValue is number && data.minOfferValue >= 0 && data.minOfferValue <= 5000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidDeliveryLog(data, userId) {
+      return data.userId is string &&
+             data.userId == userId &&
+             data.appSource is string && data.appSource.size() >= 1 && data.appSource.size() <= 40 &&
+             data.restaurant is string && data.restaurant.size() >= 1 && data.restaurant.size() <= 120 &&
+             data.payoutBrl is number && data.payoutBrl >= 0 && data.payoutBrl <= 10000 &&
+             data.distanceKm is number && data.distanceKm >= 0 && data.distanceKm <= 1000 &&
+             data.merged is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // User-scoped Rider Goal & Filter Profile
+    match /users/{userId}/profiles/{profileId} {
+      allow get: if isOwner(userId) && isValidId(profileId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(profileId) &&
+                       incoming().keys().hasAll(['userId', 'dailyGoalBrl', 'minGainPerKm', 'minOfferValue', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'dailyGoalBrl', 'minGainPerKm', 'minOfferValue', 'createdAt', 'updatedAt']) &&
+                       isValidRiderProfile(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(profileId) &&
+                       isValidRiderProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['dailyGoalBrl', 'minGainPerKm', 'minOfferValue', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(profileId);
+    }
+
+    // User-scoped Delivery Logs
+    match /users/{userId}/deliveries/{deliveryId} {
+      allow get: if isOwner(userId) && isValidId(deliveryId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(deliveryId) &&
+                       incoming().keys().hasAll(['userId', 'appSource', 'restaurant', 'payoutBrl', 'distanceKm', 'merged', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'appSource', 'restaurant', 'payoutBrl', 'distanceKm', 'merged', 'createdAt', 'updatedAt']) &&
+                       isValidDeliveryLog(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+                       isValidId(deliveryId) &&
+                       isValidDeliveryLog(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['appSource', 'restaurant', 'payoutBrl', 'distanceKm', 'merged', 'updatedAt']);
+
+      allow delete: if isOwner(userId) && isValidId(deliveryId);
+    }
+  }
+}

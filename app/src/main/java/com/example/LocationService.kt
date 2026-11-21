@@ -56,7 +56,9 @@ data class LocationSpeedState(
     val isTracking: Boolean = false,
     val speedSource: String = "GPS Fused",
     val lastUpdateTimeMillis: Long = System.currentTimeMillis()
-)
+) {
+    val calculatedSpeedKmh: Double get() = currentSpeedKmh
+}
 
 /**
  * [LocationService] utilizando [FusedLocationProviderClient] da Google Play Services.

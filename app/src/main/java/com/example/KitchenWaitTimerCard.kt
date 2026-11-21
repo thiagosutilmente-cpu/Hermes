@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,14 +45,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val NeonGreen = Color(0xFF00FF88)
 private val CyberCyan = Color(0xFF00D2FF)
 private val CyberGold = Color(0xFFFFD700)
 private val WarmOrange = Color(0xFFFF9100)
 private val CardSurface = Color(0xFF13131D)
 private val CardBorder = Color(0xFF232335)
-private val TextLight = Color(0xFFF0F0F8)
-private val TextMuted = Color(0xFF8888A2)
 
 @Composable
 fun KitchenWaitTimerCard(

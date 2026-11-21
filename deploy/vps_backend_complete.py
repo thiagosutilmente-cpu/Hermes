@@ -1170,12 +1170,68 @@ async def get_whatsapp_leads():
     return {"success": True, "total_leads": len(leads), "leads": leads}
 
 @app.post("/webhook/whatsapp/lead")
-async def handle_whatsapp_lead_webhook(data: WhatsAppIncomingLeadRequest):
-    """Webhook acionado pela Evolution API/Baileys quando um motoboy chama no WhatsApp."""
-    # Se a IA estiver ativa, ela assume o atendimento inteligente
+@app.post("/webhook/evolution")
+async def handle_whatsapp_lead_webhook(request: Request):
+    """
+    Webhook unificado para leads do WhatsApp:
+    1) Aceita payload direto: {"phone": "...", "message": "..."}
+    2) Aceita eventos oficiais da Evolution API v2 (event: "messages.upsert").
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="JSON inválido no webhook do WhatsApp")
+
+    phone = ""
+    message_text = ""
+
+    # Formato 2: Evento oficial Evolution API v2 (messages.upsert)
+    event_name = str(payload.get("event", "")).lower()
+    if event_name:
+        if "messages.upsert" not in event_name and "messages_upsert" not in event_name:
+            return {"success": True, "ignored": True, "reason": f"Evento ignorado: {event_name}"}
+
+        data_node = payload.get("data") or {}
+        key_node = data_node.get("key") or {}
+
+        # Proteção contra loop: nunca responder mensagens enviadas pelo próprio dono
+        if key_node.get("fromMe", False):
+            return {"success": True, "ignored": True, "reason": "fromMe_ignored"}
+
+        remote_jid = str(key_node.get("remoteJid", ""))
+        if not remote_jid or "@g.us" in remote_jid or "status@broadcast" in remote_jid:
+            return {"success": True, "ignored": True, "reason": "group_or_status_ignored"}
+
+        phone = "".join(filter(str.isdigit, remote_jid.split("@")[0]))
+        msg_obj = data_node.get("message") or {}
+        message_text = (
+            msg_obj.get("conversation")
+            or (msg_obj.get("extendedTextMessage") or {}).get("text")
+            or (msg_obj.get("imageMessage") or {}).get("caption")
+            or (msg_obj.get("videoMessage") or {}).get("caption")
+            or (msg_obj.get("buttonsResponseMessage") or {}).get("selectedDisplayText")
+            or ""
+        ).strip()
+    else:
+        # Formato 1: Payload simples direto {"phone": "...", "message": "..."}
+        phone = "".join(filter(str.isdigit, str(payload.get("phone", ""))))
+        message_text = str(payload.get("message", "")).strip()
+
+    if not phone or not message_text:
+        return {"success": True, "ignored": True, "reason": "empty_phone_or_text"}
+
+    if not WhatsAppMarketingEngine.is_auto_reply_active():
+        return {"success": False, "ignored": True, "reason": "auto_reply_disabled"}
+
+    # Se a IA vendedora estiver ativa, gera resposta e envia via Evolution API
     if WhatsAppAiSalesAgent.is_enabled():
-        return WhatsAppAiSalesAgent.generate_ai_response(phone=data.phone, user_message=data.message)
-    return WhatsAppMarketingEngine.handle_incoming_lead_message(phone=data.phone, message_text=data.message)
+        ai_res = WhatsAppAiSalesAgent.generate_ai_response(phone=phone, user_message=message_text)
+        reply_text = ai_res.get("ai_response", "")
+        sent_ok = send_evolution_whatsapp(phone, reply_text) if reply_text else False
+        ai_res["evolution_dispatched"] = sent_ok
+        return ai_res
+
+    return WhatsAppMarketingEngine.handle_incoming_lead_message(phone=phone, message_text=message_text)
 
 # ==============================================================================
 # ROTAS DA IA VENDEDORA 100% AUTÔNOMA E ATIVAÇÃO IMEDIATA ASAAS PIX

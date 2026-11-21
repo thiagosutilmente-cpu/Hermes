@@ -34,6 +34,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -175,7 +176,7 @@ fun GoogleMapsPickupCard(
             value = offer.value,
             distanceKm = offer.distanceKm,
             gainPerKm = offer.gainPerKm,
-            neuralDecision = offer.neuralDecision.decision.name,
+            neuralDecision = offer.neuralDecision.decision.uppercase(),
             viewSource = "maps_pickup_card"
         )
     }

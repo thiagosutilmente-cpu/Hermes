@@ -58,8 +58,7 @@ object MultiAppConflictResolutionEngine {
             appName = "iFood",
             restaurant = "Outback Shopping Paulista",
             value = 24.50,
-            distanceKm = 3.5,
-            gainPerKm = 7.00
+            distanceKm = 3.5
         )
     ) {
         val count = _engineState.value.totalConflictsResolved + 1
@@ -92,8 +91,7 @@ object MultiAppConflictResolutionEngine {
             appName = "iFood",
             restaurant = "Outback Shopping Paulista",
             value = 24.50,
-            distanceKm = 3.5,
-            gainPerKm = 7.00
+            distanceKm = 3.5
         )
     ) {
         val incident = ActiveCancellationIncident(

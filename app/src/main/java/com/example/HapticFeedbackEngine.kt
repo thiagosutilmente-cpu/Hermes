@@ -10,6 +10,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+enum class HapticPattern {
+    SUCCESS_DOUBLE_PULSE,
+    CLICK,
+    REJECT,
+    WARNING
+}
+
 /**
  * Categoria tátil da oferta de entrega.
  * Cada tipo possui uma assinatura sensorial exclusiva calibrada para que
@@ -77,6 +84,15 @@ class HapticFeedbackEngine private constructor(private val appContext: Context) 
         fun getInstance(context: Context): HapticFeedbackEngine {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: HapticFeedbackEngine(context.applicationContext).also { INSTANCE = it }
+            }
+        }
+
+        fun vibratePattern(context: Context, pattern: HapticPattern) {
+            when (pattern) {
+                HapticPattern.SUCCESS_DOUBLE_PULSE -> HapticFeedbackHelper.vibrateSuccess(context)
+                HapticPattern.CLICK -> HapticFeedbackHelper.vibrateTap(context)
+                HapticPattern.REJECT -> HapticFeedbackHelper.vibrateDecline(context)
+                HapticPattern.WARNING -> HapticFeedbackHelper.vibrateWarning(context)
             }
         }
     }

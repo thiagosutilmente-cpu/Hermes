@@ -339,6 +339,14 @@ class HandsFreeSpeechManager(
         }
     }
 
+    fun pauseTemporarilyForTts(durationMs: Long = 3500L) {
+        pauseForTts()
+        scope.launch {
+            kotlinx.coroutines.delay(durationMs)
+            resumeAfterTts()
+        }
+    }
+
     private fun scheduleRestartListening(delayMs: Long = 1000L) {
         if (!isShouldBeListening || isMutedForTts) return
         restartJob?.cancel()

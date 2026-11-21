@@ -776,9 +776,8 @@ fun PricePerKmNotificationFilterLayout(
                                     restaurant = "Pastelaria do Bairro",
                                     value = 14.00,
                                     distanceKm = 4.0,
-                                    estimatedTimeMin = 14,
-                                    neuralDecision = NeuralDecision(RadarDecision.DECLINE, "Ganho baixo por km", 0.85),
-                                    gainPerKm = 3.50
+                                    timeMinutes = 14,
+                                    neuralDecision = NeuralDecision(RadarDecision.DECLINE, "Ganho baixo por km", 0.85)
                                 )
                                 val passed = NotificationFilterManager.evaluateAndRecord(lowOffer, criteria)
                                 if (!passed) {
@@ -825,9 +824,8 @@ fun PricePerKmNotificationFilterLayout(
                                     restaurant = "Restaurante Paris 6",
                                     value = 41.00,
                                     distanceKm = 5.0,
-                                    estimatedTimeMin = 18,
-                                    neuralDecision = NeuralDecision(RadarDecision.ACCEPT, "Ganho alto R$ 8.20/km", 0.98),
-                                    gainPerKm = 8.20
+                                    timeMinutes = 18,
+                                    neuralDecision = NeuralDecision(RadarDecision.ACCEPT, "Ganho alto R$ 8.20/km", 0.98)
                                 )
                                 val passed = NotificationFilterManager.evaluateAndRecord(highOffer, criteria)
                                 if (passed) {

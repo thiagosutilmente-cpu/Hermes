@@ -46,6 +46,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -80,7 +81,6 @@ import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.runtime.collectAsState
 
 // Cores táticas Uber / 99 Dark
-private val DarkBg = Color(0xFF090A0F)
 private val DarkSurface = Color(0xFF11141C)
 private val DarkSurfaceBorder = Color(0xFF1E2433)
 private val WhatsAppGreen = Color(0xFF25D366)

@@ -429,8 +429,7 @@ fun FintechPlansSelectionScreen(
                             }
                         }
                     } else {
-                        SubscriptionManager.activateProSubscription(annual = isAnnual)
-                        onDismiss()
+                        Toast.makeText(context, "Não foi possível iniciar o Google Play neste contexto.", Toast.LENGTH_SHORT).show()
                     }
                 },
                 modifier = Modifier

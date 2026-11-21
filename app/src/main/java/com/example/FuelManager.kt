@@ -178,6 +178,12 @@ class FuelManager(
                 INSTANCE ?: FuelManager().also { INSTANCE = it }
             }
         }
+
+        val currentFuelPrice: Double
+            get() = getInstance().fuelPricePerLiter.value
+
+        fun getEffectiveKmPerLiter(): Double =
+            getInstance().calculateUrbanConsumptionKmPerLiter()
     }
 
     // Estado observável do modelo da moto

@@ -6,6 +6,9 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Looper
 import android.util.Log
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -71,18 +74,10 @@ class LocationManager private constructor(private val context: Context) {
         )
 
         /**
-         * Retorna a lista de permissões necessárias dependendo da versão do Android.
-         * Para Android 10+ (Q), pode incluir ACCESS_BACKGROUND_LOCATION se solicitado.
+         * Retorna a lista de permissões de localização em primeiro plano necessárias.
          */
         fun getRequiredPermissions(includeBackground: Boolean = false): Array<String> {
-            val list = mutableListOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            )
-            if (includeBackground && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                list.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            }
-            return list.toTypedArray()
+            return REQUIRED_PERMISSIONS
         }
 
         @Volatile
@@ -231,6 +226,8 @@ class LocationManager private constructor(private val context: Context) {
         }
         _isTracking.value = false
     }
+
+    fun stopLocationUpdates() = stopRealtimeLocationUpdates()
 
     /**
      * Retorna um [Flow] de [DriverGpsLocation] para coleta em Coroutines / Jetpack Compose.

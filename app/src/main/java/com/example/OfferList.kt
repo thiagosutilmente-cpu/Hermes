@@ -71,12 +71,9 @@ import androidx.compose.ui.unit.sp
 import java.util.Locale
 
 // Paleta visual inspirada no tema Cyberpunk / Dark Radar
-private val DarkBg = Color(0xFF0A0A0F)
 private val CardBg = Color(0xFF13131F)
 private val CardBgElevated = Color(0xFF1B1B2C)
-private val NeonGreen = Color(0xFF00FF88)
 private val CyberCyan = Color(0xFF00D2FF)
-private val TextMuted = Color(0xFF8E8EA0)
 private val DangerRed = Color(0xFFFF4757)
 private val AccentGold = Color(0xFFFFD166)
 

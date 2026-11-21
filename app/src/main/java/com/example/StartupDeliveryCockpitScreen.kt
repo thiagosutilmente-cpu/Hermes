@@ -12,8 +12,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -120,7 +122,10 @@ fun StartupDeliveryCockpitScreen(
     voiceManager: NeuralVoiceManager? = null,
     onOpenEmergencyDialog: () -> Unit = {},
     isNightMode: Boolean = true,
-    onToggleNightMode: () -> Unit = {}
+    onToggleNightMode: () -> Unit = {},
+    cloudViewModel: RiderCloudViewModel? = null,
+    userEmail: String? = null,
+    onSignOut: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val activePalette = if (isNightMode) NightCockpitPalette else SunlightHighContrastPalette
@@ -142,11 +147,21 @@ fun StartupDeliveryCockpitScreen(
         val onlineHours by remember { mutableStateOf("6h 40m") }
         val currentRatePerKm by remember { mutableDoubleStateOf(5.85) }
 
-        // Critérios ativos de filtro de R$/km
+        // Critérios ativos de filtro de R$/km (sincronizados com Firestore quando autenticado)
         var minGainPerKm by remember { mutableFloatStateOf(4.50f) }
         var minOfferValue by remember { mutableFloatStateOf(15.0f) }
         var hideBelowThreshold by remember { mutableStateOf(false) }
         var autoAcceptEnabled by remember { mutableStateOf(false) }
+
+        val cloudProfileState = cloudViewModel?.profileState?.collectAsStateWithLifecycle()?.value
+        LaunchedEffect(cloudProfileState) {
+            if (cloudProfileState is CloudUiState.Success) {
+                cloudProfileState.data?.let { profile ->
+                    minGainPerKm = profile.minGainPerKm.toFloat()
+                    minOfferValue = profile.minOfferValue.toFloat()
+                }
+            }
+        }
 
         // Lista de ofertas ativas
         val activeOffers = remember {
@@ -214,8 +229,9 @@ fun StartupDeliveryCockpitScreen(
                             appName = radarOffer.appName,
                             appColor = appColor,
                             restaurant = radarOffer.restaurant,
-                            pickupAddress = radarOffer.pickupLocation?.address
-                                ?: "${radarOffer.restaurant}, São Paulo",
+                            pickupAddress = radarOffer.pickupAddress.ifEmpty {
+                                "${radarOffer.restaurant}, São Paulo"
+                            },
                             destinationAddress = "Destino do Cliente",
                             payout = radarOffer.value,
                             distanceKm = radarOffer.distanceKm,
@@ -264,6 +280,13 @@ fun StartupDeliveryCockpitScreen(
                         .recordDeliveryEarnings(offer.payout, offer.distanceKm * 0.17)
                 } catch (_: Exception) {
                 }
+                cloudViewModel?.syncAcceptedDelivery(
+                    appSource = offer.appName,
+                    restaurant = offer.restaurant,
+                    payoutBrl = offer.payout,
+                    distanceKm = offer.distanceKm,
+                    merged = offer.isChained
+                )
                 Toast.makeText(
                     context,
                     "Corrida aceita no ${offer.appName} (+R$ ${String.format(Locale("pt", "BR"), "%.2f", offer.payout)})",
@@ -338,7 +361,14 @@ fun StartupDeliveryCockpitScreen(
                     onToggleHideBelow = { hideBelowThreshold = it },
                     autoAcceptEnabled = autoAcceptEnabled,
                     onToggleAutoAccept = { autoAcceptEnabled = it },
-                    onClose = { showFilterSheet = false }
+                    onClose = {
+                        showFilterSheet = false
+                        cloudViewModel?.saveFiltersToCloud(
+                            dailyGoalBrl = 300.0,
+                            minGainPerKm = minGainPerKm.toDouble(),
+                            minOfferValue = minOfferValue.toDouble()
+                        )
+                    }
                 )
             }
         }
@@ -381,7 +411,9 @@ fun StartupDeliveryCockpitScreen(
                         HapticFeedbackHelper.vibrateTap(context)
                         onToggleNightMode()
                     },
-                    onOpenEmergency = { showSosConfirmDialog = true }
+                    onOpenEmergency = { showSosConfirmDialog = true },
+                    userEmail = userEmail,
+                    onSignOut = onSignOut
                 )
             },
             bottomBar = {
@@ -497,7 +529,9 @@ private fun StartupTopHeader(
     onToggleVoice: () -> Unit,
     isNightMode: Boolean,
     onToggleNightMode: () -> Unit,
-    onOpenEmergency: () -> Unit
+    onOpenEmergency: () -> Unit,
+    userEmail: String? = null,
+    onSignOut: (() -> Unit)? = null
 ) {
     val palette = LocalCockpitPalette.current
 
@@ -648,6 +682,25 @@ private fun StartupTopHeader(
                             tint = palette.danger,
                             modifier = Modifier.size(22.dp)
                         )
+                    }
+
+                    if (onSignOut != null) {
+                        IconButton(
+                            onClick = onSignOut,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(palette.cardSurface)
+                                .border(palette.borderWidth, palette.border, CircleShape)
+                                .testTag("sign_out_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Logout,
+                                contentDescription = if (!userEmail.isNullOrBlank()) "Sair de $userEmail" else "Sair da conta Google",
+                                tint = palette.textSecondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }

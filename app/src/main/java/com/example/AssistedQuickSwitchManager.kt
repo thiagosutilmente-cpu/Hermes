@@ -64,6 +64,24 @@ object AssistedQuickSwitchManager {
         val destinationCorridor: String = "Corredor compatível"
     )
 
+    private var cachedContext: Context? = null
+
+    fun getInstance(context: Context): AssistedQuickSwitchManager {
+        cachedContext = context.applicationContext
+        return this
+    }
+
+    fun executeComboQuickSwitch(
+        primaryApp: String,
+        primaryPackage: String,
+        secondaryApp: String,
+        secondaryPackage: String
+    ) {
+        val ctx = cachedContext ?: return
+        val targetPkg = secondaryPackage.ifBlank { primaryPackage }
+        switchToSecondaryApp(ctx, targetPkg)
+    }
+
     /**
      * Alterna instantaneamente para o segundo aplicativo e aciona feedback tátil
      */

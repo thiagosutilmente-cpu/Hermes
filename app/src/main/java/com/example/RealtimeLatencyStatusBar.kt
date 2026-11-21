@@ -54,13 +54,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val NeonGreen = Color(0xFF00FF88)
 private val CyberCyan = Color(0xFF00D2FF)
 private val CyberGold = Color(0xFFFFD700)
 private val AlertRed = Color(0xFFFF3366)
-private val DarkBg = Color(0xFF0D0F18)
-private val TextLight = Color(0xFFF0F0F8)
-private val TextMuted = Color(0xFF9898B0)
 
 /**
  * RealtimeLatencyStatusBar

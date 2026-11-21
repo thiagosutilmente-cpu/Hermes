@@ -454,51 +454,16 @@ class JarvisAccessibilityService : AccessibilityService() {
         var isAutoClickEnabled: Boolean = false
 
         /**
-         * Dispara a ação de clique no botão "Aceitar" apenas se o condutor tiver ativado
-         * explicitamente o modo autônomo nas configurações de risco.
+         * Política Google Play (Human-in-the-Loop):
+         * O aplicativo não realiza cliques automáticos nem gestos em aplicativos de terceiros.
+         * O condutor humano sempre confirma a corrida diretamente no app de entrega.
          */
         fun performAcceptClick(): Boolean {
-            if (!isAutoClickEnabled) {
-                // Modo Assistente Tático: Zero automação forçada, sem risco de ban
-                return false
-            }
-
-            // 1. Tenta clique nativo via node se ainda conectado e visível
-            try {
-                val node = currentAcceptButtonNode
-                if (node != null) {
-                    val clicked = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    if (clicked) return true
-                }
-            } catch (_: Exception) {}
-
-            // 2. Fallback de alta precisão: Gesto de toque físico nas coordenadas centrais do botão
-            val bounds = currentAcceptBounds
-            if (bounds != null && bounds.centerX() > 0 && bounds.centerY() > 0) {
-                val dispatched = dispatchGestureClick(bounds.centerX().toFloat(), bounds.centerY().toFloat())
-                if (dispatched) return true
-            }
             return false
         }
 
-        /**
-         * Executa um clique gestual nas coordenadas físicas da tela (imune a nós reciclados ou view rebinds)
-         */
         fun dispatchGestureClick(x: Float, y: Float): Boolean {
-            val service = instance ?: return false
-            if (x <= 0f || y <= 0f) return false
-            return try {
-                val path = android.graphics.Path().apply {
-                    moveTo(x, y)
-                }
-                val stroke = android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 75)
-                val gesture = android.accessibilityservice.GestureDescription.Builder()
-                    .addStroke(stroke)
-                    .build()
-                service.dispatchGesture(gesture, null, null)
-            } catch (e: Exception) {
-                false
-            }
+            return false
         }
 
         /**

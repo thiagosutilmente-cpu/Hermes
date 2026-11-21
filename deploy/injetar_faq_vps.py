@@ -48,7 +48,7 @@ faq_css = '''
       border-radius: 14px;
       overflow: hidden;
       backdrop-filter: blur(12px);
-      transition: all 0.3s ease;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
     }
     .faq-item[open] {
       border-color: rgba(0, 255, 136, 0.4);
@@ -133,6 +133,24 @@ faq_css = '''
       font-size: 13.5px;
       line-height: 1.65;
       color: #cbd5e1;
+      will-change: transform, opacity;
+    }
+    @keyframes faqSlideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .faq-item[open] .faq-answer {
+      animation: faqSlideDown 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .faq-item[open] .faq-answer { animation: none; }
+      .faq-icon-chevron { transition: none; }
     }
     .faq-answer strong { color: #fff; }
     .faq-highlight-box {

@@ -46,14 +46,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
 
-private val NeonGreen = Color(0xFF00FF88)
 private val CyberCyan = Color(0xFF00D2FF)
 private val CyberGold = Color(0xFFFFD700)
 private val AlertRed = Color(0xFFFF4D4D)
 private val CardSurface = Color(0xFF13131D)
 private val CardBorder = Color(0xFF232335)
-private val TextLight = Color(0xFFF0F0F8)
-private val TextMuted = Color(0xFF8888A2)
 
 @Composable
 fun SignalLossDiagnosticCard(

@@ -649,4 +649,19 @@ object FirebaseAnalyticsManager {
             )
         )
     }
+
+    fun logVoiceCommandRecognized(command: String, spokenText: String) {
+        logEvent(
+            eventName = "voice_command_recognized",
+            category = AnalyticsCategory.PREMIUM_USAGE,
+            params = mapOf(
+                "command" to command,
+                "spoken_text" to spokenText
+            )
+        )
+    }
+
+    fun logFeatureUsed(featureName: String) {
+        logPremiumFeatureUsed(featureName = featureName, isSubscriber = true)
+    }
 }

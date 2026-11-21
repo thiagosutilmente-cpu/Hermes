@@ -123,6 +123,11 @@ object EmergencySosManager {
     @Volatile
     private var isInitialized = false
 
+    fun getInstance(context: Context): EmergencySosManager {
+        initialize(context)
+        return this
+    }
+
     fun initialize(context: Context) {
         if (isInitialized) return
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

@@ -24,7 +24,12 @@ data class DailyGoalState(
     val estimatedRidesRemaining: Int = 0,
     val hourlyEarningRate: Double = 0.00,
     val shiftStartTimestamp: Long = System.currentTimeMillis()
-)
+) {
+    val currentEarnings: Double get() = grossEarned
+    val targetEarnings: Double get() = targetAmount
+    val remainingEarnings: Double get() = remainingAmount
+    val progressPercent: Double get() = (progressFraction * 100.0)
+}
 
 /**
  * Gerenciador de Metas Diárias com Alarme Inteligente de Faturamento.
@@ -59,6 +64,7 @@ class DailyGoalTrackerManager private constructor(private val context: Context) 
 
     private val _goalState = MutableStateFlow(DailyGoalState())
     val goalState: StateFlow<DailyGoalState> = _goalState.asStateFlow()
+    val goalStatus: StateFlow<DailyGoalState> get() = goalState
 
     private var wasCelebratedToday = false
 

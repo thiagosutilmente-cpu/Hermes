@@ -250,14 +250,11 @@ object GeoPriceFilterEngine {
 // 3. COMPONENTES VISUAIS EM JETPACK COMPOSE
 // ==============================================================================
 
-private val NeonGreen = Color(0xFF00FF88)
 private val CyberCyan = Color(0xFF00D2FF)
-private val DarkBg = Color(0xFF0A0A0F)
 private val CardBg = Color(0xFF13131F)
 private val CardBorder = Color(0xFF262638)
 private val DangerRed = Color(0xFFFF4757)
 private val WarningAmber = Color(0xFFFFB300)
-private val TextMuted = Color(0xFF8E8EA0)
 
 /**
  * Card de Controle e Calibração dos Filtros de Geolocalização e Valor Mínimo.

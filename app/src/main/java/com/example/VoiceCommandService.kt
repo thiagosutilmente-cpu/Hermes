@@ -210,14 +210,9 @@ class VoiceCommandService : Service() {
                 // 1. Tenta aceitar a oferta pendente no HUD flutuante do Jarvis
                 val acceptedOnOverlay = OverlayWindowManager.getInstance(applicationContext).acceptCurrentOfferByVoice()
 
-                // 2. Se não havia oferta no HUD flutuante, tenta acionar clique automático via serviço de Acessibilidade
+                // 2. Se não havia oferta no HUD flutuante, orienta confirmação manual no app de entrega
                 if (!acceptedOnOverlay) {
-                    val clicked = JarvisAccessibilityService.performAcceptClick()
-                    if (clicked) {
-                        voiceManager?.speak("Chamada aceita com sucesso via comando de voz!")
-                    } else {
-                        voiceManager?.speak("Comando Aceitar processado.")
-                    }
+                    voiceManager?.speak("Oferta destacada. Confirme manualmente no aplicativo da entrega com segurança.")
                 }
 
                 // 3. Atualiza o HUD Flutuante

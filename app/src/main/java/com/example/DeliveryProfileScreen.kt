@@ -1,6 +1,7 @@
 package com.example
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -618,6 +619,7 @@ fun DecisionLogItemCard(log: OfferDecisionLog) {
         DecisionAction.ACCEPTED -> NeonGreen
         DecisionAction.DECLINED -> RedDecline
         DecisionAction.FAILED -> Color(0xFFFF9F43)
+        DecisionAction.CANCELLED_PARTIAL -> Color(0xFFFFB800)
     }
     val formattedValue = String.format(Locale.GERMANY, "R$ %.2f", log.value)
     val formattedGain = String.format(Locale.GERMANY, "R$ %.2f/km", log.gainPerKm)

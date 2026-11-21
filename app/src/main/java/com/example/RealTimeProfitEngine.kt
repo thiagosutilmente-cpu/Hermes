@@ -70,7 +70,9 @@ data class RealTimeProfitMetrics(
     val formattedFuelCost: String,
     val formattedMargin: String,
     val thresholdLabel: String
-)
+) {
+    val netProfit: Double get() = netProfitTotal
+}
 
 /**
  * Motor de Cálculo em Tempo Real de Rentabilidade e Combustível (RealTimeProfitEngine)
@@ -100,6 +102,11 @@ object RealTimeProfitEngine {
 
     fun initialize(context: Context) {
         prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    fun getInstance(context: Context): RealTimeProfitEngine {
+        if (!::prefs.isInitialized) initialize(context.applicationContext)
+        return this
     }
 
     fun getFuelPrice(): Double = if (::prefs.isInitialized) prefs.getFloat(KEY_FUEL_PRICE, DEFAULT_FUEL_PRICE.toFloat()).toDouble() else DEFAULT_FUEL_PRICE

@@ -127,7 +127,10 @@ data class PingResponse(
     val serverTime: Long,
 
     @SerializedName("version")
-    val version: String? = null
+    val version: String? = null,
+
+    @SerializedName("message")
+    val message: String? = "Online"
 )
 
 /**
@@ -761,7 +764,10 @@ data class TokenVerifyResponse(
 
     @SerializedName("message")
     val message: String? = null
-)
+) {
+    val token: String?
+        get() = authToken
+}
 
 data class KeyActivationRequest(
     @SerializedName("activationKey")
