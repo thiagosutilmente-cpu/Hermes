@@ -24,6 +24,9 @@ object JarvisVpsApiClient {
         val valor: String,
         val pixCopiaECola: String,
         val subscriptionId: String,
+        val paymentId: String = "",
+        val encodedImage: String = "",
+        val invoiceUrl: String = "",
         val isRecurrentPix: Boolean = true,
         val recurrenceInterval: String = "WEEKLY",
         val errorMessage: String? = null
@@ -37,36 +40,40 @@ object JarvisVpsApiClient {
     )
 
     /**
-     * Solicita à VPS a criação de autorização de Pix Automático / Débito Recorrente (Asaas)
+     * Solicita à VPS a criação de cobrança/assinatura PIX real no Asaas (sem geração de código fictício offline)
      */
     suspend fun requestRecurrentPix(
         plan: String,
         value: Double,
-        phone: String
+        phone: String,
+        cpfCnpj: String = "",
+        name: String = "Cliente Radar Coordinator",
+        email: String = ""
     ): PixResponse = withContext(Dispatchers.IO) {
+        val valueFormatted = String.format(java.util.Locale.GERMANY, "R$ %.2f", value)
+        val recurrenceType = when (plan) {
+            "PRO_ANNUAL" -> "ANNUALLY"
+            "PRO_MONTHLY" -> "MONTHLY"
+            else -> "WEEKLY"
+        }
         try {
             val url = URL("$DEFAULT_SERVER_URL/api/create-pix")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/json")
                 setRequestProperty("Accept", "application/json")
-                connectTimeout = 8000
-                readTimeout = 8000
+                connectTimeout = 10000
+                readTimeout = 12000
                 doOutput = true
             }
 
-            val recurrenceType = when (plan) {
-                "PRO_ANNUAL" -> "ANNUALLY"
-                "PRO_MONTHLY" -> "MONTHLY"
-                else -> "WEEKLY"
-            }
-
             val payload = JSONObject().apply {
-                put("phone", phone.ifBlank { "5511999999999" })
+                put("name", name.ifBlank { "Cliente Radar Coordinator" })
+                put("email", email)
+                put("phone", phone)
+                put("cpfCnpj", cpfCnpj)
                 put("plan", plan)
-                put("value", value)
-                put("billingType", "PIX_AUTOMATICO")
-                put("recurrence", recurrenceType)
+                put("recurrent", false)
             }
 
             OutputStreamWriter(conn.outputStream).use { writer ->
@@ -76,46 +83,48 @@ object JarvisVpsApiClient {
 
             val responseCode = conn.responseCode
             val stream = if (responseCode in 200..299) conn.inputStream else conn.errorStream
-            val responseText = BufferedReader(InputStreamReader(stream)).use { it.readText() }
-
-            val valueFormatted = String.format(java.util.Locale.GERMANY, "R$ %.2f", value)
+            val responseText = if (stream != null) BufferedReader(InputStreamReader(stream)).use { it.readText() } else "{}"
 
             if (responseCode in 200..299) {
                 val json = JSONObject(responseText)
+                val pixCode = json.optString("pixCopiaECola", "")
                 PixResponse(
-                    success = true,
+                    success = pixCode.isNotBlank(),
                     valor = json.optString("valor", valueFormatted),
-                    pixCopiaECola = json.optString("pixCopiaECola", ""),
-                    subscriptionId = json.optString("subscriptionId", "SUB_${System.currentTimeMillis()}"),
+                    pixCopiaECola = pixCode,
+                    subscriptionId = json.optString("subscriptionId", json.optString("paymentId", "")),
+                    paymentId = json.optString("paymentId", ""),
+                    encodedImage = json.optString("encodedImage", ""),
+                    invoiceUrl = json.optString("invoiceUrl", ""),
                     isRecurrentPix = true,
-                    recurrenceInterval = recurrenceType
+                    recurrenceInterval = recurrenceType,
+                    errorMessage = if (pixCode.isBlank()) "Código PIX não retornado pelo servidor." else null
                 )
             } else {
-                // Fallback dinâmico com código Pix de autorização recorrente do gateway
-                val mockPixCode = "00020126580014br.gov.bcb.pix0136asaas-recorrente-${plan.lowercase()}@jarvis.app520400005303986540${"%.2f".format(value).replace(",", ".")}5802BR5925JARVIS NEURAL RECORRENTE6009SAO PAULO62070503***6304ABCD"
+                val detail = try {
+                    JSONObject(responseText).optString("detail", "Erro HTTP $responseCode ao gerar PIX.")
+                } catch (_: Exception) {
+                    "Erro HTTP $responseCode ao gerar PIX."
+                }
                 PixResponse(
-                    success = true,
+                    success = false,
                     valor = valueFormatted,
-                    pixCopiaECola = mockPixCode,
-                    subscriptionId = "SUB_FALLBACK_${System.currentTimeMillis()}",
+                    pixCopiaECola = "",
+                    subscriptionId = "",
                     isRecurrentPix = true,
-                    recurrenceInterval = recurrenceType
+                    recurrenceInterval = recurrenceType,
+                    errorMessage = detail
                 )
             }
         } catch (e: Exception) {
-            val valueFormatted = String.format(java.util.Locale.GERMANY, "R$ %.2f", value)
-            val mockPixCode = "00020126580014br.gov.bcb.pix0136asaas-recorrente-${plan.lowercase()}@jarvis.app520400005303986540${"%.2f".format(value).replace(",", ".")}5802BR5925JARVIS NEURAL RECORRENTE6009SAO PAULO62070503***6304ABCD"
             PixResponse(
-                success = true,
+                success = false,
                 valor = valueFormatted,
-                pixCopiaECola = mockPixCode,
-                subscriptionId = "SUB_OFFLINE_${System.currentTimeMillis()}",
+                pixCopiaECola = "",
+                subscriptionId = "",
                 isRecurrentPix = true,
-                recurrenceInterval = when (plan) {
-                    "PRO_ANNUAL" -> "ANNUALLY"
-                    "PRO_MONTHLY" -> "MONTHLY"
-                    else -> "WEEKLY"
-                }
+                recurrenceInterval = recurrenceType,
+                errorMessage = "Servidor indisponível para gerar PIX real: ${e.localizedMessage ?: "verifique sua conexão"}"
             )
         }
     }

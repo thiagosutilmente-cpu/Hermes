@@ -142,7 +142,7 @@ enum class FintechPlanOption(
         title = "Plano Pro Anual VIP",
         badge = "🏆 MAIOR ECONOMIA • -55% OFF",
         priceMain = "12x R$ 54,16",
-        cadence = "ou R$ 650/ano no Pix",
+        cadence = "ou R$ 650/ano",
         dailyPrice = "Apenas R$ 1,78 por dia",
         description = "Economize mais de R$ 600 em relação ao semanal! Acesso VIP definitivo, prioridade máxima em rotas duplas e suporte prioritário.",
         savingsBadge = "ECONOMIA DE R$ 600",
@@ -156,7 +156,7 @@ enum class FintechPlanOption(
         priceMain = "R$ 25,00",
         cadence = "/semana",
         dailyPrice = "Apenas R$ 3,57 por dia",
-        description = "Debitado semanalmente no Pix. Menos que uma entrega curta do iFood! Se paga logo na primeira corrida mesclada.",
+        description = "Acesso imediato à inteligência de rotas duplas e alertas por voz. Se paga logo na primeira corrida mesclada.",
         savingsBadge = "MAIS POPULAR",
         priceValue = 25.00,
         accentColor = FintechEmerald
@@ -285,8 +285,12 @@ fun FintechPlansSelectionScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Selo do Banco Central / Pix Automático Recorrente
-            FintechBacenBadge()
+            if (IS_PLAY_STORE_COMPLIANT_MODE) {
+                GooglePlayVerifiedBadge()
+            } else {
+                // Selo do Banco Central / Pix Automático Recorrente
+                FintechBacenBadge()
+            }
 
             Spacer(modifier = Modifier.height(18.dp))
 
@@ -307,139 +311,214 @@ fun FintechPlansSelectionScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Botão Principal: Ativar via Pix Copia-e-Cola
-            Button(
-                onClick = {
-                    coroutineScope.launch {
-                        isGeneratingPix = true
-                        val planKey = when (selectedPlan) {
-                            FintechPlanOption.ANNUAL -> "PRO_ANNUAL"
-                            FintechPlanOption.MONTHLY -> "PRO_MONTHLY"
-                            FintechPlanOption.WEEKLY -> "PRO_WEEKLY"
-                        }
-                        val res = JarvisVpsApiClient.requestRecurrentPix(
-                            plan = planKey,
-                            value = selectedPlan.priceValue,
-                            phone = ""
-                        )
-                        isGeneratingPix = false
-                        pixTransactionId = res.subscriptionId
-                        pixFormattedAmount = when (selectedPlan) {
-                            FintechPlanOption.ANNUAL -> "R$ 650,00 (Anual VIP)"
-                            FintechPlanOption.MONTHLY -> "R$ 99,90 (Mensal)"
-                            FintechPlanOption.WEEKLY -> "R$ 25,00 (Semanal)"
-                        }
-                        pixCopiaEColaCode = if (res.pixCopiaECola.isNotBlank()) {
-                            res.pixCopiaECola
+            if (IS_PLAY_STORE_COMPLIANT_MODE) {
+                Button(
+                    onClick = {
+                        val activity = context.findActivity()
+                        val isAnnual = selectedPlan == FintechPlanOption.ANNUAL
+                        val productId = if (isAnnual) PlayBillingManager.SUBSCRIPTION_ID_ANNUAL else PlayBillingManager.SUBSCRIPTION_ID_MONTHLY
+                        if (activity != null) {
+                            PlayBillingManager.launchSubscriptionPurchase(activity, productId) { success, msg ->
+                                if (success) {
+                                    HapticFeedbackHelper.vibrateSuccess(context)
+                                    Toast.makeText(context, "🎉 Assinatura Google Play confirmada com sucesso!", Toast.LENGTH_LONG).show()
+                                    onDismiss()
+                                } else {
+                                    Toast.makeText(context, msg ?: "Compra não concluída.", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         } else {
-                            "00020126580014br.gov.bcb.pix0136pix-automatico-${selectedPlan.id}@jarvis.app520400005303986540${"%.2f".format(selectedPlan.priceValue).replace(",", ".")}5802BR5925JARVIS NEURAL PIX6009SAO PAULO62070503***6304ABCD"
+                            Toast.makeText(context, "Não foi possível iniciar o Google Play neste contexto.", Toast.LENGTH_SHORT).show()
                         }
-                        isCheckoutModalVisible = true
-                    }
-                },
-                enabled = !isGeneratingPix,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .testTag("btn_proceed_fintech_pix"),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = selectedPlan.accentColor,
-                    contentColor = Color.Black
-                ),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                if (isGeneratingPix) {
-                    CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "GERANDO PIX EM TEMPO REAL...",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 12.sp
-                    )
-                } else {
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .testTag("btn_play_billing_subscribe"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = selectedPlan.accentColor,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.Bolt, contentDescription = null, tint = Color.Black)
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(imageVector = Icons.Default.Lock, contentDescription = null, tint = Color.Black)
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = when (selectedPlan) {
-                                FintechPlanOption.ANNUAL -> "ATIVAR ANUAL VIP NO PIX (R$ 650) ⚡"
-                                FintechPlanOption.WEEKLY -> "PAGAR SEMANAL NO PIX (R$ 25,00) ⚡"
-                                FintechPlanOption.MONTHLY -> "PAGAR MENSAL NO PIX (R$ 99,90) ⚡"
+                                FintechPlanOption.ANNUAL -> "ASSINAR ANUAL VIP NO GOOGLE PLAY"
+                                FintechPlanOption.WEEKLY -> "ASSINAR PRO NO GOOGLE PLAY"
+                                FintechPlanOption.MONTHLY -> "ASSINAR MENSAL NO GOOGLE PLAY"
                             },
                             fontWeight = FontWeight.Black,
                             fontSize = 13.sp
                         )
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-            // Botão Checkout Oficial Asaas (Abre no Navegador para Cartão, Boleto ou Pix)
-            OutlinedButton(
-                onClick = {
-                    AsaasCheckoutManager.openCheckout(
-                        context = context,
-                        planId = selectedPlan.id,
-                        planTitle = selectedPlan.title
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .testTag("btn_open_asaas_checkout_browser"),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = FintechCyan
-                ),
-                border = androidx.compose.foundation.BorderStroke(1.5.dp, FintechCyan.copy(alpha = 0.85f))
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.OpenInNew,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = FintechCyan
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Pagar no Checkout Asaas (Cartão / Boleto / Pix) 🌐",
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Black,
-                        color = Color.White
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Pagamento alternativo via Google Play
-            OutlinedButton(
-                onClick = {
-                    val activity = context.findActivity()
-                    val isAnnual = selectedPlan == FintechPlanOption.ANNUAL
-                    val productId = if (isAnnual) PlayBillingManager.SUBSCRIPTION_ID_ANNUAL else PlayBillingManager.SUBSCRIPTION_ID_MONTHLY
-                    if (activity != null) {
-                        PlayBillingManager.launchSubscriptionPurchase(activity, productId) { success, msg ->
-                            if (success) {
-                                Toast.makeText(context, "🎉 Assinatura confirmada com sucesso!", Toast.LENGTH_LONG).show()
+                OutlinedButton(
+                    onClick = {
+                        PlayBillingManager.restorePurchases { count, msg ->
+                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                            if (count > 0) {
+                                HapticFeedbackHelper.vibrateSuccess(context)
                                 onDismiss()
-                            } else {
-                                Toast.makeText(context, msg ?: "Cancelado", Toast.LENGTH_SHORT).show()
                             }
                         }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("btn_play_billing_restore"),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = FintechCyan),
+                    border = androidx.compose.foundation.BorderStroke(1.2.dp, FintechCyan.copy(alpha = 0.7f))
+                ) {
+                    Icon(imageVector = Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp), tint = FintechCyan)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("JÁ SOU ASSINANTE • RESTAURAR COMPRA", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            } else {
+                // Botão Principal: Ativar via Pix Copia-e-Cola (exclusivo para builds diretos fora da Play Store)
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            isGeneratingPix = true
+                            val planKey = when (selectedPlan) {
+                                FintechPlanOption.ANNUAL -> "PRO_ANNUAL"
+                                FintechPlanOption.MONTHLY -> "PRO_MONTHLY"
+                                FintechPlanOption.WEEKLY -> "PRO_WEEKLY"
+                            }
+                            val res = JarvisVpsApiClient.requestRecurrentPix(
+                                plan = planKey,
+                                value = selectedPlan.priceValue,
+                                phone = ""
+                            )
+                            isGeneratingPix = false
+                            pixTransactionId = res.paymentId.ifBlank { res.subscriptionId }
+                            pixFormattedAmount = when (selectedPlan) {
+                                FintechPlanOption.ANNUAL -> "R$ 650,00 (Anual VIP)"
+                                FintechPlanOption.MONTHLY -> "R$ 99,90 (Mensal)"
+                                FintechPlanOption.WEEKLY -> "R$ 25,00 (Semanal)"
+                            }
+                            pixCopiaEColaCode = res.pixCopiaECola
+                            if (res.success && pixCopiaEColaCode.isNotBlank()) {
+                                isCheckoutModalVisible = true
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    res.errorMessage ?: "Servidor de cobrança indisponível no momento.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    },
+                    enabled = !isGeneratingPix,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .testTag("btn_proceed_fintech_pix"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = selectedPlan.accentColor,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    if (isGeneratingPix) {
+                        CircularProgressIndicator(color = Color.Black, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "GERANDO PIX EM TEMPO REAL...",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 12.sp
+                        )
                     } else {
-                        Toast.makeText(context, "Não foi possível iniciar o Google Play neste contexto.", Toast.LENGTH_SHORT).show()
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.Bolt, contentDescription = null, tint = Color.Black)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = when (selectedPlan) {
+                                    FintechPlanOption.ANNUAL -> "ATIVAR ANUAL VIP NO PIX (R$ 650) ⚡"
+                                    FintechPlanOption.WEEKLY -> "PAGAR SEMANAL NO PIX (R$ 25,00) ⚡"
+                                    FintechPlanOption.MONTHLY -> "PAGAR MENSAL NO PIX (R$ 99,90) ⚡"
+                                },
+                                fontWeight = FontWeight.Black,
+                                fontSize = 13.sp
+                            )
+                        }
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(42.dp)
-                    .testTag("btn_play_billing_alternative"),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = FintechTextMuted)
-            ) {
-                Text("Ou pagar via Cartão de Crédito / Google Play 💳", fontSize = 11.sp)
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Botão Checkout Oficial Asaas (Abre no Navegador para Cartão, Boleto ou Pix)
+                OutlinedButton(
+                    onClick = {
+                        AsaasCheckoutManager.openCheckout(
+                            context = context,
+                            planId = selectedPlan.id,
+                            planTitle = selectedPlan.title
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("btn_open_asaas_checkout_browser"),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = FintechCyan
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, FintechCyan.copy(alpha = 0.85f))
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.OpenInNew,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = FintechCyan
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Pagar no Checkout Asaas (Cartão / Boleto / Pix) 🌐",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Pagamento alternativo via Google Play
+                OutlinedButton(
+                    onClick = {
+                        val activity = context.findActivity()
+                        val isAnnual = selectedPlan == FintechPlanOption.ANNUAL
+                        val productId = if (isAnnual) PlayBillingManager.SUBSCRIPTION_ID_ANNUAL else PlayBillingManager.SUBSCRIPTION_ID_MONTHLY
+                        if (activity != null) {
+                            PlayBillingManager.launchSubscriptionPurchase(activity, productId) { success, msg ->
+                                if (success) {
+                                    Toast.makeText(context, "🎉 Assinatura confirmada com sucesso!", Toast.LENGTH_LONG).show()
+                                    onDismiss()
+                                } else {
+                                    Toast.makeText(context, msg ?: "Cancelado", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        } else {
+                            Toast.makeText(context, "Não foi possível iniciar o Google Play neste contexto.", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
+                        .testTag("btn_play_billing_alternative"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = FintechTextMuted)
+                ) {
+                    Text("Ou pagar via Cartão de Crédito / Google Play 💳", fontSize = 11.sp)
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -451,8 +530,8 @@ fun FintechPlansSelectionScreen(
         }
     }
 
-    // Modal de Checkout Pix com Confirmação em Tempo Real
-    if (isCheckoutModalVisible) {
+    // Modal de Checkout Pix com Confirmação em Tempo Real (somente builds diretos fora da Play Store)
+    if (!IS_PLAY_STORE_COMPLIANT_MODE && isCheckoutModalVisible) {
         RealtimePixCheckoutModal(
             plan = selectedPlan,
             amountFormatted = pixFormattedAmount,
@@ -637,6 +716,44 @@ fun FintechPixQrCanvas(
                 radius = step * 0.75f,
                 center = center
             )
+        }
+    }
+}
+
+@Composable
+private fun GooglePlayVerifiedBadge() {
+    Surface(
+        color = Color(0xFF0C1322),
+        shape = RoundedCornerShape(14.dp),
+        border = androidx.compose.foundation.BorderStroke(1.2.dp, FintechEmerald.copy(alpha = 0.55f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Security,
+                contentDescription = null,
+                tint = FintechEmerald,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Column {
+                Text(
+                    text = "ASSINATURA OFICIAL GOOGLE PLAY",
+                    color = FintechEmerald,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 0.5.sp
+                )
+                Text(
+                    text = "Gerenciada diretamente pela sua conta Google Play com cancelamento simples a qualquer momento.",
+                    color = Color.LightGray,
+                    fontSize = 10.5.sp
+                )
+            }
         }
     }
 }
@@ -1208,12 +1325,19 @@ fun RealtimePixCheckoutModal(
                         coroutineScope.launch {
                             isCheckingManual = true
                             paymentStatus = "PROCESSING"
-                            statusMessage = "Validando transferência no Banco Central..."
-                            delay(1800)
-                            paymentStatus = "APPROVED"
-                            statusMessage = "🎉 Pagamento Confirmado com Sucesso!"
-                            delay(1000)
-                            onPaymentApproved()
+                            statusMessage = "Consultando liquidação real no servidor..."
+                            val statusRes = JarvisVpsApiClient.checkPixStatus(transactionId)
+                            isCheckingManual = false
+                            if (statusRes.isConfirmed) {
+                                paymentStatus = "APPROVED"
+                                statusMessage = "🎉 Pagamento Confirmado com Sucesso!"
+                                delay(800)
+                                onPaymentApproved()
+                            } else {
+                                paymentStatus = "PENDING"
+                                statusMessage = statusRes.message.ifBlank { "Aguardando compensação do Pix..." }
+                                Toast.makeText(context, statusMessage, Toast.LENGTH_SHORT).show()
+                            }
                         }
                     },
                     enabled = !isCheckingManual && paymentStatus != "APPROVED",

@@ -71,6 +71,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.CircularProgressIndicator
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 import java.util.Locale
 
 /**
@@ -104,6 +107,9 @@ fun FilterSettingsScreen(
     var crashLogsContent by remember { mutableStateOf("") }
     var isCheckingVps by remember { mutableStateOf(false) }
     var vpsLatencyText by remember { mutableStateOf("Não testado") }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
+    var isDeletingAccount by remember { mutableStateOf(false) }
+    var deleteAccountFeedback by remember { mutableStateOf<String?>(null) }
 
     // Estados locais para edição dos sliders e controles
     var minValue by remember { mutableDoubleStateOf(currentCriteria.minValue) }
@@ -1586,6 +1592,75 @@ fun FilterSettingsScreen(
                 }
             }
 
+            // 9.8. CONTA, PRIVACIDADE & EXCLUSÃO DE DADOS (LGPD / GOOGLE PLAY)
+            item {
+                val signedInEmail = remember { Firebase.auth.currentUser?.email }
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 6.dp)
+                        .testTag("card_lgpd_account_privacy"),
+                    colors = CardDefaults.cardColors(containerColor = DarkCard),
+                    border = BorderStroke(1.dp, Color(0xFFFF5252).copy(alpha = 0.45f)),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Text(
+                            text = "🔐 CONTA, PRIVACIDADE & LGPD",
+                            color = Color(0xFFFF8A80),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 0.8.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (!signedInEmail.isNullOrBlank()) {
+                                "Conta conectada: $signedInEmail"
+                            } else {
+                                "Modo local ativo (dados sincronizados apenas neste aparelho)."
+                            },
+                            color = TextLight,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Você pode remover permanentemente sua conta Google vinculada, registros na nuvem e cache local a qualquer momento.",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
+                        if (!deleteAccountFeedback.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = deleteAccountFeedback ?: "",
+                                color = Color(0xFFFFB800),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = { showDeleteAccountDialog = true },
+                            enabled = !isDeletingAccount,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .testTag("btn_delete_account_and_data"),
+                            border = BorderStroke(1.dp, Color(0xFFFF5252)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = "Excluir Minha Conta e Dados",
+                                color = Color(0xFFFF5252),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
             // 10. RODAPÉ DE VERSÃO E GATILHO MODO DESENVOLVEDOR (5 TOQUES)
             item {
                 Column(
@@ -1690,6 +1765,95 @@ fun FilterSettingsScreen(
                     border = BorderStroke(1.dp, Color(0xFFFF5252))
                 ) {
                     Text("Limpar Histórico", color = Color(0xFFFF5252))
+                }
+            }
+        )
+    }
+
+    if (showDeleteAccountDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isDeletingAccount) showDeleteAccountDialog = false },
+            containerColor = DarkCardElevated,
+            title = {
+                Text(
+                    text = "Excluir conta e dados?",
+                    color = Color(0xFFFF8A80),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Esta ação é irreversível e apagará seu perfil na nuvem, histórico de entregas sincronizado, preferências locais, cache offline e o vínculo da sua conta Google com o Radar Coordinator.",
+                        color = TextLight,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                    if (isDeletingAccount) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color(0xFFFF5252),
+                                strokeWidth = 2.dp
+                            )
+                            Text(
+                                text = "Excluindo conta e limpando dados...",
+                                color = Color(0xFFFFB800),
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (isDeletingAccount) return@Button
+                        isDeletingAccount = true
+                        coroutineScope.launch {
+                            when (val result = AccountDeletionManager.deleteAccountAndData(context)) {
+                                is AccountDeletionResult.Success -> {
+                                    isDeletingAccount = false
+                                    showDeleteAccountDialog = false
+                                    deleteAccountFeedback = result.message
+                                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                    onNavigateBack()
+                                }
+                                is AccountDeletionResult.RequiresRecentLogin -> {
+                                    isDeletingAccount = false
+                                    showDeleteAccountDialog = false
+                                    deleteAccountFeedback = result.message
+                                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                }
+                                is AccountDeletionResult.Error -> {
+                                    isDeletingAccount = false
+                                    deleteAccountFeedback = result.message
+                                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    },
+                    enabled = !isDeletingAccount,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252)),
+                    modifier = Modifier.testTag("btn_confirm_delete_account")
+                ) {
+                    Text(
+                        text = if (isDeletingAccount) "Excluindo..." else "Confirmar Exclusão",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { if (!isDeletingAccount) showDeleteAccountDialog = false },
+                    enabled = !isDeletingAccount
+                ) {
+                    Text("Cancelar", color = TextMuted)
                 }
             }
         )

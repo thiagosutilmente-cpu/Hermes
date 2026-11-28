@@ -17,8 +17,11 @@ if ENV == "production" or ENV == "producao":
 else:
     BASE_URL = "https://sandbox.asaas.com/api/v3"
 
-# Chave de API lida de variável de ambiente ou parâmetro
-ASAAS_API_KEY = os.getenv("ASAAS_API_KEY", "$aact_YTU5YTE0M2M6NZ2I...")
+# Chave de API lida exclusivamente de variável de ambiente
+ASAAS_API_KEY = os.getenv("ASAAS_API_KEY", "").strip()
+if not ASAAS_API_KEY:
+    print("[ERRO] Defina a variável de ambiente ASAAS_API_KEY antes de executar este teste.")
+    sys.exit(1)
 
 HEADERS = {
     "access_token": ASAAS_API_KEY,

@@ -39,12 +39,38 @@ object NetworkModule {
     @Volatile
     private var retrofitInstance: Retrofit? = null
 
-    // Logging Interceptor com nível BODY para debug ou BASIC para economia
+    // Logging Interceptor com redação obrigatória de cabeçalhos de autorização
     private val loggingInterceptor: HttpLoggingInterceptor by lazy {
         HttpLoggingInterceptor { message ->
             Log.d("OkHttp_Jarvis", message)
         }.apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = HttpLoggingInterceptor.Level.BASIC
+            redactHeader("Authorization")
+            redactHeader("X-Admin-Token")
+            redactHeader("X-Admin-Key")
+        }
+    }
+
+    // Interceptador que injeta o token de sessão admin em memória apenas nas rotas administrativas
+    private val adminAuthInterceptor: okhttp3.Interceptor by lazy {
+        okhttp3.Interceptor { chain ->
+            val req = chain.request()
+            val path = req.url.encodedPath
+            val needsAdminAuth = path.startsWith("/api/admin/") ||
+                path.startsWith("/api/meta-ads/") ||
+                path.startsWith("/api/marketing/") ||
+                path.startsWith("/api/singularidade/") ||
+                path.startsWith("/api/v1/financial/split/audit")
+
+            val token = com.example.AdminSecurityManager.currentToken()
+            val finalReq = if (needsAdminAuth && !token.isNullOrBlank() && req.header("Authorization").isNullOrBlank()) {
+                req.newBuilder()
+                    .header("Authorization", "Bearer $token")
+                    .build()
+            } else {
+                req
+            }
+            chain.proceed(finalReq)
         }
     }
 
@@ -67,6 +93,7 @@ object NetworkModule {
 
     private fun provideOkHttpClient(): OkHttpClient {
         return OkHttpClient.Builder()
+            .addInterceptor(adminAuthInterceptor)
             .addInterceptor(retryInterceptor)
             .addInterceptor(latencyInterceptor)
             .addInterceptor(loggingInterceptor)

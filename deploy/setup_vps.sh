@@ -41,7 +41,8 @@ if [ -f "$SOURCE_DIR/vps_backend_complete.py" ]; then
     echo "📋 Copiando todos os módulos do backend a partir de $SOURCE_DIR..."
     cp -f "$SOURCE_DIR"/*.py "$APP_DIR/"
     [ -f "$SOURCE_DIR/requirements.txt" ] && cp -f "$SOURCE_DIR/requirements.txt" "$APP_DIR/"
-    [ -f "$SOURCE_DIR/admin.html" ] && cp -f "$SOURCE_DIR/admin.html" "$APP_DIR/" && cp -f "$SOURCE_DIR/admin.html" /var/www/html/admin.html
+    [ -f "$SOURCE_DIR/admin.html" ] && cp -f "$SOURCE_DIR/admin.html" "$APP_DIR/admin.html"
+    rm -f /var/www/html/admin.html
     [ -f "$SOURCE_DIR/index.html" ] && cp -f "$SOURCE_DIR/index.html" "$APP_DIR/" && cp -f "$SOURCE_DIR/index.html" /var/www/html/index.html
     [ -f "$SOURCE_DIR/privacy.html" ] && cp -f "$SOURCE_DIR/privacy.html" "$APP_DIR/" && cp -f "$SOURCE_DIR/privacy.html" /var/www/html/privacy.html
 
@@ -139,6 +140,11 @@ server {
 
     client_max_body_size 50M;
 
+    # Bloqueia exposição direta de arquivos admin no domínio público
+    location ~* ^/admin(\.html)?$ {
+        return 404;
+    }
+
     location / {
         try_files $uri $uri/ @backend;
     }
@@ -149,6 +155,31 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Admin-Origin "";
+    }
+}
+
+# Painel Administrativo isolado (acessível somente via túnel SSH: ssh -L 8443:127.0.0.1:8443)
+server {
+    listen 127.0.0.1:8443;
+    server_name localhost;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000/admin;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Admin-Origin "1";
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/api/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Admin-Origin "1";
     }
 }
 EOF

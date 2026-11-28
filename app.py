@@ -26,9 +26,37 @@ import urllib.request
 import socket
 import base64
 import hashlib
+import hmac
+import secrets
 import struct
 import time
 from http.server import HTTPServer, ThreadingHTTPServer, BaseHTTPRequestHandler
+
+_APP_ADMIN_SESSIONS = set()
+
+def check_app_admin_credentials(raw_pin: str) -> bool:
+    configured_pin = os.environ.get("ADMIN_PIN", "").strip()
+    configured_secret = os.environ.get("ADMIN_MASTER_SECRET", "").strip()
+    candidate = (raw_pin or "").strip()
+    if not candidate:
+        return False
+    if configured_pin and hmac.compare_digest(candidate, configured_pin):
+        return True
+    if configured_secret and hmac.compare_digest(candidate, configured_secret):
+        return True
+    return False
+
+def verify_app_bearer(auth_header: str) -> bool:
+    header = (auth_header or "").strip()
+    if not header.startswith("Bearer "):
+        return False
+    token = header[7:].strip()
+    if not token:
+        return False
+    master = os.environ.get("ADMIN_MASTER_SECRET", "").strip()
+    if master and hmac.compare_digest(token, master):
+        return True
+    return token in _APP_ADMIN_SESSIONS
 
 # Suporte opcional a Flask se instalado; fallback automático para servidor padrão Python (Zero dependências externas)
 try:
@@ -1073,6 +1101,8 @@ if FLASK_AVAILABLE:
     def f_hlth(): return flask_jsonify(get_health_data())
     @app.route("/api/failures", methods=["GET"])
     def f_failures_get():
+        if not verify_app_bearer(flask_request.headers.get("Authorization", "")):
+            return flask_jsonify({"error": "Acesso administrativo necessário"}), 401
         limit = int(flask_request.args.get("limit", 50))
         return flask_jsonify(get_failures_data(limit))
     @app.route("/api/failures", methods=["POST"])
@@ -1135,9 +1165,11 @@ if FLASK_AVAILABLE:
     def f_admin_auth():
         data = flask_request.get_json(silent=True) or {}
         pin = str(data.get("pin", "")).strip()
-        if pin == "748597":
-            return flask_jsonify({"success": True, "token": "radar_adm_tok_748597_valid", "message": "Acesso autorizado"}), 200
-        return flask_jsonify({"success": False, "message": "PIN incorreto. Acesso restrito ao proprietário."}), 401
+        if check_app_admin_credentials(pin):
+            tok = f"radar_adm_{secrets.token_hex(24)}"
+            _APP_ADMIN_SESSIONS.add(tok)
+            return flask_jsonify({"success": True, "token": tok, "message": "Acesso autorizado"}), 200
+        return flask_jsonify({"success": False, "message": "Credencial inválida ou ADMIN_PIN não configurado no servidor."}), 401
     @app.route("/manifest.json", methods=["GET"])
     def f_mnf(): return FlaskResponse(get_manifest_json(), mimetype="application/json")
     @app.route("/sw.js", methods=["GET"])
@@ -1423,6 +1455,12 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif path == "/api/failures":
+            if not verify_app_bearer(self.headers.get("Authorization", "")):
+                self.send_response(401)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "Acesso restrito"}')
+                return
             limit = int(qs.get("limit", [50])[0])
             body = json.dumps(get_failures_data(limit)).encode("utf-8")
             self.send_response(200)
@@ -1467,6 +1505,12 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif path == "/api/marketing/status":
+            if not verify_app_bearer(self.headers.get("Authorization", "")):
+                self.send_response(401)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "Acesso administrativo requerido"}')
+                return
             try:
                 import marketing.jarvis_autonomous_marketer as jam
                 conn = get_db()
@@ -1495,7 +1539,15 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_cors_headers("application/json")
             self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
         elif path == "/api/emergency/sos":
+            if not verify_app_bearer(self.headers.get("Authorization", "")):
+                self.send_response(401)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "Acesso administrativo requerido"}')
+                return
             conn = get_db()
             rows = conn.execute("SELECT * FROM emergency_sos_logs ORDER BY id DESC LIMIT 25").fetchall()
             conn.close()
@@ -1557,6 +1609,12 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif path == "/api/user/plan":
+            if not verify_app_bearer(self.headers.get("Authorization", "")):
+                self.send_response(401)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "Alteracao de plano requer verificacao autenticada do servidor"}')
+                return
             plan = req_data.get("plan", "pro")
             conn = get_db()
             conn.execute("UPDATE users SET plan = ? WHERE id = 'usr_thiago_01'", (plan,))
@@ -1646,6 +1704,12 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif path == "/api/marketing/trigger-daily":
+            if not verify_app_bearer(self.headers.get("Authorization", "")):
+                self.send_response(401)
+                self.send_cors_headers("application/json")
+                self.end_headers()
+                self.wfile.write(b'{"error": "Acesso administrativo requerido"}')
+                return
             import marketing.jarvis_autonomous_marketer as jam
             jam.generate_daily_marketing_batch()
             jam.audit_meta_ads_performance()
@@ -1654,6 +1718,8 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_cors_headers("application/json")
             self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
         elif path == "/api/emergency/sos":
             now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             worker_id = str(req_data.get("workerId", ""))
@@ -1690,11 +1756,13 @@ class RadarHTTPHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
         elif path == "/api/admin/auth":
             pin = str(req_data.get("pin", "")).strip()
-            if pin == "748597":
-                body = json.dumps({"success": True, "token": "radar_adm_tok_748597_valid", "message": "Acesso autorizado"}).encode("utf-8")
+            if check_app_admin_credentials(pin):
+                tok = f"radar_adm_{secrets.token_hex(24)}"
+                _APP_ADMIN_SESSIONS.add(tok)
+                body = json.dumps({"success": True, "token": tok, "message": "Acesso autorizado"}).encode("utf-8")
                 self.send_response(200)
             else:
-                body = json.dumps({"success": False, "message": "PIN incorreto. Acesso restrito ao proprietário."}).encode("utf-8")
+                body = json.dumps({"success": False, "message": "Credencial inválida ou ADMIN_PIN não configurado no servidor."}).encode("utf-8")
                 self.send_response(401)
             self.send_cors_headers("application/json")
             self.send_header("Content-Length", str(len(body)))
@@ -3738,154 +3806,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     </div>
   </section>
 
-  <!-- #ADMIN (Cockpit Protegido do Proprietário / Dono) -->
-  <section id="admin" class="view-section">
-    <!-- BLOQUEIO DE AUTENTICAÇÃO DO PROPRIETÁRIO -->
-    <div id="admin-auth-lock" class="glass" style="max-width: 420px; margin: 40px auto; padding: 28px 24px; text-align: center; border: 1.5px solid rgba(0, 255, 136, 0.3); border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
-      <div style="font-size: 40px; margin-bottom: 12px;">🛡️</div>
-      <h2 style="font-size: 18px; font-weight: 900; color: #ffffff; margin-bottom: 6px;">Cockpit do Proprietário</h2>
-      <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.4;">
-        Painel executivo restrito. Digite o PIN mestre de 6 dígitos para acessar métricas, faturamento e servidor.
-      </p>
-      
-      <div style="margin-bottom: 16px;">
-        <input type="password" id="admin-pin-input" maxlength="6" inputmode="numeric" placeholder="PIN mestre" 
-               style="width: 100%; max-width: 220px; padding: 12px 16px; font-size: 20px; font-weight: 800; letter-spacing: 6px; text-align: center; background: rgba(0,0,0,0.4); border: 1.5px solid rgba(0,255,136,0.4); border-radius: 12px; color: #00ff88; outline: none;" 
-               onkeydown="if(event.key==='Enter') submitAdminPin();" />
-      </div>
-
-      <div id="admin-pin-error" style="display: none; color: #ff4444; font-size: 11px; font-weight: 700; margin-bottom: 14px;"></div>
-
-      <button onclick="submitAdminPin()" class="btn btn-green" style="width: 100%; max-width: 220px; font-weight: 800; padding: 12px; font-size: 13px;">
-        🔓 ACESSAR COCKPIT
-      </button>
-      <div style="margin-top: 16px;">
-        <a href="#dashboard" style="font-size: 11px; color: var(--text-muted); text-decoration: none;">← Voltar ao início</a>
-      </div>
-    </div>
-
-    <!-- CONTEÚDO RESTRITO DESBLOQUEADO -->
-    <div id="admin-panel-content" style="display: none;">
-      <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,255,136,0.08); border: 1px solid rgba(0,255,136,0.25); border-radius: 12px; padding: 10px 16px; margin-bottom: 16px;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 12px;">🟢</span>
-          <span style="font-size: 12px; font-weight: 800; color: #00ff88;">Sessão Autenticada — Dono da Plataforma</span>
-        </div>
-        <button onclick="logoutAdmin()" class="btn btn-sm" style="background: rgba(255,68,68,0.15); color: #ff6b6b; border: 1px solid #ff4444; font-size: 11px; padding: 4px 10px; cursor: pointer;">
-          🔒 Bloquear / Sair
-        </button>
-      </div>
-
-      <h2 style="font-size: 18px; font-weight: 900; color: var(--primary); margin-bottom: 14px;">Métricas da Plataforma</h2>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-      <div class="glass" style="padding: 16px;">
-        <div style="font-size: 11px; color: var(--text-muted);">Usuários</div>
-        <div class="tabular" style="font-size: 26px; font-weight: 900; color: #ffffff;">1.247</div>
-        <div style="font-size: 10px; color: var(--primary); margin-top: 4px;">cadastrados</div>
-      </div>
-      <div class="glass" style="padding: 16px;">
-        <div style="font-size: 11px; color: var(--text-muted);">Ativos Hoje</div>
-        <div class="tabular neon-text" style="font-size: 26px; font-weight: 900;">342</div>
-        <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">em campo</div>
-      </div>
-      <div class="glass" style="padding: 16px;">
-        <div style="font-size: 11px; color: var(--text-muted);">Conversão</div>
-        <div class="tabular" style="font-size: 26px; font-weight: 900; color: #ffd700;">8.5%</div>
-        <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">Free ➔ Pro</div>
-      </div>
-      <div class="glass" style="padding: 16px;">
-        <div style="font-size: 11px; color: var(--text-muted);">MRR</div>
-        <div class="tabular neon-text" style="font-size: 26px; font-weight: 900;">R$ 18.700</div>
-        <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">recorrência</div>
-      </div>
-    </div>
-
-    <!-- GRÁFICOS SIMULADOS CSS: EVOLUÇÃO DE MRR E USUÁRIOS ATIVOS -->
-    <div class="glass" style="padding: 16px; margin-top: 16px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
-        <div>
-          <h3 style="font-size: 14px; font-weight: 800; color: #ffffff;">📈 Curva de Crescimento & MRR (Últimos 6 Meses)</h3>
-          <p style="font-size: 11px; color: var(--text-muted);">Gráfico simulado em puro CSS3</p>
-        </div>
-        <span style="font-size: 11px; font-weight: 800; color: var(--primary); background: rgba(0,255,136,0.12); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--primary);">+139.7% no semestre</span>
-      </div>
-
-      <!-- Gráfico de Barras CSS: MRR Mensal -->
-      <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; height: 160px; padding: 12px 6px 6px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 12px;">
-        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;">
-          <div style="font-size: 9px; color: #00d2ff; font-weight: 800; margin-bottom: 4px;">R$ 7.8k</div>
-          <div style="width: 80%; height: 42%; background: linear-gradient(180deg, #00d2ff 0%, rgba(0,210,255,0.4) 100%); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px rgba(0,210,255,0.2);"></div>
-          <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">Abr</div>
-        </div>
-        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;">
-          <div style="font-size: 9px; color: #00d2ff; font-weight: 800; margin-bottom: 4px;">R$ 9.4k</div>
-          <div style="width: 80%; height: 50%; background: linear-gradient(180deg, #00d2ff 0%, rgba(0,210,255,0.4) 100%); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px rgba(0,210,255,0.2);"></div>
-          <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">Mai</div>
-        </div>
-        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;">
-          <div style="font-size: 9px; color: #00d2ff; font-weight: 800; margin-bottom: 4px;">R$ 11.6k</div>
-          <div style="width: 80%; height: 62%; background: linear-gradient(180deg, #00d2ff 0%, rgba(0,210,255,0.4) 100%); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px rgba(0,210,255,0.2);"></div>
-          <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">Jun</div>
-        </div>
-        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;">
-          <div style="font-size: 9px; color: #00d2ff; font-weight: 800; margin-bottom: 4px;">R$ 13.9k</div>
-          <div style="width: 80%; height: 74%; background: linear-gradient(180deg, #00d2ff 0%, rgba(0,210,255,0.4) 100%); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px rgba(0,210,255,0.2);"></div>
-          <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">Jul</div>
-        </div>
-        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;">
-          <div style="font-size: 9px; color: #00d2ff; font-weight: 800; margin-bottom: 4px;">R$ 16.2k</div>
-          <div style="width: 80%; height: 86%; background: linear-gradient(180deg, #00d2ff 0%, rgba(0,210,255,0.4) 100%); border-radius: 4px 4px 0 0; box-shadow: 0 0 10px rgba(0,210,255,0.2);"></div>
-          <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px;">Ago</div>
-        </div>
-        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;">
-          <div style="font-size: 9px; color: var(--primary); font-weight: 900; margin-bottom: 4px;">R$ 18.7k</div>
-          <div style="width: 80%; height: 100%; background: linear-gradient(180deg, #00ff88 0%, rgba(0,255,136,0.4) 100%); border-radius: 4px 4px 0 0; box-shadow: 0 0 14px rgba(0,255,136,0.5);"></div>
-          <div style="font-size: 10px; color: var(--primary); font-weight: 800; margin-top: 6px;">Set (Atual)</div>
-        </div>
-      </div>
-
-      <!-- Gráfico de Linha Simulada CSS: Ativos Diários no Turno -->
-      <div style="margin-top: 14px; background: rgba(0,0,0,0.3); border-radius: 10px; padding: 12px;">
-        <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 8px;">
-          <span style="color: var(--text-muted);">Pico de Concorrência Concorrente (Hoje):</span>
-          <span style="color: var(--primary); font-weight: 800;">342 motociclistas ativos às 12h30</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 4px; height: 28px;">
-          <div style="flex: 1; height: 12px; background: rgba(0,255,136,0.2); border-radius: 3px;" title="08h: 42 ativos"></div>
-          <div style="flex: 1; height: 16px; background: rgba(0,255,136,0.3); border-radius: 3px;" title="10h: 110 ativos"></div>
-          <div style="flex: 1.5; height: 28px; background: #00ff88; border-radius: 3px; box-shadow: 0 0 8px #00ff88;" title="12h: 342 ativos (PICO ALMOÇO)"></div>
-          <div style="flex: 1; height: 18px; background: rgba(0,255,136,0.4); border-radius: 3px;" title="14h: 180 ativos"></div>
-          <div style="flex: 1; height: 14px; background: rgba(0,255,136,0.25); border-radius: 3px;" title="16h: 130 ativos"></div>
-          <div style="flex: 1.5; height: 26px; background: #00ff88; border-radius: 3px; box-shadow: 0 0 8px #00ff88;" title="19h: 310 ativos (PICO JANTAR)"></div>
-          <div style="flex: 1; height: 20px; background: rgba(0,255,136,0.5); border-radius: 3px;" title="21h: 210 ativos"></div>
-          <div style="flex: 0.8; height: 10px; background: rgba(0,255,136,0.2); border-radius: 3px;" title="23h: 65 ativos"></div>
-        </div>
-        <div style="display: flex; justify-content: space-between; font-size: 9px; color: var(--text-muted); margin-top: 4px;">
-          <span>08:00</span>
-          <span>12:00 (Almoço)</span>
-          <span>16:00</span>
-          <span>20:00 (Jantar)</span>
-          <span>23:59</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- LOGS DE EVENTOS E FALHAS DE PROCESSAMENTO (DEPURAÇÃO DE CAMPO) -->
-    <div style="margin-top: 24px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <div style="font-size: 14px; font-weight: 800; color: #ffffff; display: flex; align-items: center; gap: 6px;">
-          <span>⚠️</span> Logs de Falhas de Ofertas (Campo)
-        </div>
-        <button class="btn btn-sm" onclick="fetchFailures()" style="font-size: 10px; padding: 4px 8px;">🔄 Atualizar</button>
-      </div>
-
-      <div id="admin-failure-logs" style="display: flex; flex-direction: column; gap: 8px;">
-        <div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 12px;">Carregando logs de diagnóstico...</div>
-      </div>
-    </div>
-    </div> <!-- /#admin-panel-content -->
-  </section>
+  <!-- Painel Administrativo removido do frontend público dos usuários por isolamento de segurança -->
 
   <!-- #AI-COPILOT (Jarvis Neural AI Copilot & Intelligent Assistant) -->
   <section id="ai-copilot" class="view-section">
@@ -4116,67 +4037,10 @@ HTML_CONTENT = """<!DOCTYPE html>
       }
 
       if (hash === '#admin') {
-        checkAdminAuth();
+        window.location.hash = '#dashboard';
       }
     }
     window.addEventListener('hashchange', handleRouting);
-
-    function checkAdminAuth() {
-      const isAuth = sessionStorage.getItem('radar_admin_auth') === 'true';
-      const lock = document.getElementById('admin-auth-lock');
-      const content = document.getElementById('admin-panel-content');
-      if (lock && content) {
-        if (isAuth) {
-          lock.style.display = 'none';
-          content.style.display = 'block';
-          if (typeof fetchFailures === 'function') fetchFailures();
-        } else {
-          lock.style.display = 'block';
-          content.style.display = 'none';
-        }
-      }
-    }
-
-    async function submitAdminPin() {
-      const pinInput = document.getElementById('admin-pin-input');
-      const err = document.getElementById('admin-pin-error');
-      const pin = (pinInput ? pinInput.value : '').trim();
-      if (!pin) {
-        if (err) { err.textContent = 'Digite o PIN mestre de 6 dígitos.'; err.style.display = 'block'; }
-        return;
-      }
-      try {
-        const res = await fetch('/api/admin/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pin: pin })
-        });
-        const data = await res.json();
-        if (data.success) {
-          sessionStorage.setItem('radar_admin_auth', 'true');
-          if (err) err.style.display = 'none';
-          if (pinInput) pinInput.value = '';
-          checkAdminAuth();
-        } else {
-          if (err) { err.textContent = data.message || 'PIN incorreto. Acesso restrito.'; err.style.display = 'block'; }
-        }
-      } catch (e) {
-        if (pin === '748597') {
-          sessionStorage.setItem('radar_admin_auth', 'true');
-          if (err) err.style.display = 'none';
-          if (pinInput) pinInput.value = '';
-          checkAdminAuth();
-        } else {
-          if (err) { err.textContent = 'PIN incorreto. Acesso restrito ao proprietário.'; err.style.display = 'block'; }
-        }
-      }
-    }
-
-    function logoutAdmin() {
-      sessionStorage.removeItem('radar_admin_auth');
-      checkAdminAuth();
-      location.hash = '#dashboard';
-    }
 
     // Funções obrigatórias
     function toggleVoz() {
@@ -6132,41 +5996,6 @@ HTML_CONTENT = """<!DOCTYPE html>
       }
     }
 
-    async function fetchFailures() {
-      try {
-        const res = await fetch('/api/failures');
-        const list = await res.json();
-        const container = document.getElementById('admin-failure-logs');
-        if (!container) return;
-        if (!list || list.length === 0) {
-          container.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 12px;">Nenhuma falha de processamento registrada no momento. Sistema estável.</div>';
-          return;
-        }
-        container.innerHTML = list.map(item => `
-          <div class="glass" style="padding: 10px 12px; border-left: 3px solid #ff9f43;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-              <span style="font-size: 10px; font-weight: 800; color: #ff9f43; background: rgba(255,159,67,0.15); padding: 2px 6px; border-radius: 4px;">
-                ${item.error_code || 'ERR_GENERIC'}
-              </span>
-              <span style="font-size: 10px; color: var(--text-muted);">${item.created_at || ''}</span>
-            </div>
-            <div style="font-size: 12px; font-weight: 700; color: #ffffff; margin-bottom: 2px;">
-              ${item.app_name} • ${item.restaurant}
-            </div>
-            <div style="font-size: 11px; color: #ffb86c;">
-              ⚠️ ${item.reason}
-            </div>
-            <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">
-              Valor: R$ ${Number(item.value).toFixed(2)} | Distância: ${item.distance_km} km | ID: ${item.offer_id || 'N/A'}
-            </div>
-          </div>
-        `).join('');
-      } catch (e) {
-        const container = document.getElementById('admin-failure-logs');
-        if (container) container.innerHTML = '<div style="font-size: 12px; color: #ff6b6b; text-align: center; padding: 12px;">Erro ao carregar logs do servidor.</div>';
-      }
-    }
-
     // =========================================================================
     // FUNÇÕES DO JARVIS NEURAL AI COPILOT & MODAL DE ANÁLISE COGNITIVA
     // =========================================================================
@@ -6580,7 +6409,6 @@ HTML_CONTENT = """<!DOCTYPE html>
       initFilterUI();
       fetchStacks();
       loadAnalytics();
-      fetchFailures();
       fetchGeofences();
       loadAiDemandPredictions();
       loadAiCoachSummary();

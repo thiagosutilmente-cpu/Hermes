@@ -2709,53 +2709,47 @@
       </div>
 
       <!-- CONTEÚDO PIX -->
-      <div id="content-pix" style="display: flex; flex-direction: column; gap: 14px;">
-        <div class="pix-qr-container">
-          <svg class="pix-qr-svg" viewBox="0 0 100 100">
-            <!-- Padrão QR Code estilizado -->
-            <rect width="100" height="100" fill="#ffffff" />
-            <rect x="10" y="10" width="24" height="24" fill="#000000" rx="3" />
-            <rect x="14" y="14" width="16" height="16" fill="#ffffff" rx="2" />
-            <rect x="18" y="18" width="8" height="8" fill="#000000" />
+      <div id="content-pix" style="display: flex; flex-direction: column; gap: 12px;">
+        <!-- Formulário de Dados Exigidos pelo Asaas/Bacen -->
+        <form id="pix-checkout-form" onsubmit="gerarPixRealAsaas(event)" style="display: flex; flex-direction: column; gap: 10px;">
+          <input type="text" id="pix-payer-name" class="pix-input" placeholder="Seu nome completo" required minlength="3" style="color: #fff; font-family: inherit; font-size: 13px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <input type="tel" id="pix-payer-phone" class="pix-input" placeholder="WhatsApp (DDD + número)" required minlength="10" style="color: #fff; font-family: inherit; font-size: 13px;">
+            <input type="text" id="pix-payer-cpf" class="pix-input" placeholder="CPF ou CNPJ (só números)" required minlength="11" maxlength="18" style="color: #fff; font-family: inherit; font-size: 13px;">
+          </div>
+          <div id="pix-form-error" style="display:none; color:#ff4d6d; font-size:12px; font-weight:700; text-align:left;"></div>
+          <button type="submit" id="btn-generate-real-pix" class="btn-action-primary" style="width:100%;">
+            <span>⚡</span>
+            <span>Gerar QR Code PIX Oficial</span>
+          </button>
+        </form>
 
-            <rect x="66" y="10" width="24" height="24" fill="#000000" rx="3" />
-            <rect x="70" y="14" width="16" height="16" fill="#ffffff" rx="2" />
-            <rect x="74" y="18" width="8" height="8" fill="#000000" />
+        <!-- Área do QR Code Real gerado pelo Asaas -->
+        <div id="pix-generated-box" style="display: none; flex-direction: column; gap: 12px;">
+          <div class="pix-qr-container">
+            <img id="pix-qr-image" alt="QR Code PIX Oficial Asaas" style="width:100%; height:100%; object-fit:contain; border-radius:8px; display:none;" />
+          </div>
 
-            <rect x="10" y="66" width="24" height="24" fill="#000000" rx="3" />
-            <rect x="14" y="70" width="16" height="16" fill="#ffffff" rx="2" />
-            <rect x="18" y="74" width="8" height="8" fill="#000000" />
+          <div class="timer-row">
+            <span>Tempo restante para pagar:</span>
+            <span class="timer-badge" id="pix-timer">14:59</span>
+          </div>
 
-            <!-- Pixels de dados centrais -->
-            <rect x="42" y="14" width="6" height="6" fill="#000000" />
-            <rect x="52" y="22" width="6" height="6" fill="#000000" />
-            <rect x="42" y="32" width="6" height="6" fill="#000000" />
-            <rect x="22" y="44" width="6" height="6" fill="#000000" />
-            <rect x="34" y="44" width="6" height="6" fill="#000000" />
-            <rect x="44" y="44" width="12" height="12" fill="#00cc6a" rx="2" />
-            <rect x="60" y="44" width="6" height="6" fill="#000000" />
-            <rect x="72" y="44" width="6" height="6" fill="#000000" />
-            <rect x="42" y="60" width="6" height="6" fill="#000000" />
-            <rect x="54" y="66" width="6" height="6" fill="#000000" />
-            <rect x="70" y="70" width="6" height="6" fill="#000000" />
-            <rect x="80" y="60" width="6" height="6" fill="#000000" />
-            <rect x="64" y="82" width="6" height="6" fill="#000000" />
-          </svg>
-        </div>
+          <div class="pix-copia-box">
+            <input type="text" class="pix-input" id="pix-code-input" readonly value="">
+            <button type="button" class="btn-copy-pix" id="btn-copy-pix" onclick="copiarPix()">Copiar Código</button>
+          </div>
 
-        <div class="timer-row">
-          <span>Tempo restante para pagar:</span>
-          <span class="timer-badge" id="pix-timer">14:59</span>
-        </div>
+          <div class="pix-status-radar" id="pix-status-banner">
+            <span class="pulse-dot"></span>
+            <span id="pix-status-text">Aguardando confirmação bancária do Pix...</span>
+          </div>
 
-        <div class="pix-copia-box">
-          <input type="text" class="pix-input" id="pix-code-input" readonly value="00020126580014br.gov.bcb.pix0136pix-automatico@jarvis.app52040000530398654025.005802BR5925JARVIS NEURAL PIX6009SAO PAULO62070503***6304ABCD">
-          <button class="btn-copy-pix" id="btn-copy-pix" onclick="copiarPix()">Copiar Código</button>
-        </div>
-
-        <div class="pix-status-radar">
-          <span class="pulse-dot"></span>
-          <span>Aguardando confirmação bancária do Pix...</span>
+          <div id="pix-activation-result" style="display:none; background:rgba(0,230,118,0.14); border:1px solid rgba(0,230,118,0.4); border-radius:10px; padding:12px; text-align:center;">
+            <div style="font-size:12px; color:#00e676; font-weight:800; margin-bottom:4px;">LICENÇA PRO LIBERADA!</div>
+            <div style="font-size:11px; color:#cbd5e1;">Sua chave de ativação:</div>
+            <div id="pix-activation-key" style="font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:900; color:#fff; margin-top:4px; letter-spacing:1px;"></div>
+          </div>
         </div>
       </div>
 
@@ -2835,22 +2829,112 @@
     // MODAL DE CHECKOUT
     let currentPlanId = 'anual';
     let currentPriceValue = 650.00;
+    let currentPaymentId = '';
+    let pixPollInterval = null;
 
     function abrirCheckout(planId, planTitle, planPriceStr, priceVal) {
       currentPlanId = planId;
       currentPriceValue = priceVal;
+      currentPaymentId = '';
+      if (pixPollInterval) { clearInterval(pixPollInterval); pixPollInterval = null; }
+      clearInterval(timerInterval);
+
       document.getElementById('modal-plan-title').innerText = planTitle;
       document.getElementById('modal-plan-price').innerText = planPriceStr;
-      
-      // Gera payload Pix dinâmico
-      const dummyPix = '00020126580014br.gov.bcb.pix0136pix-automatico-' + planId + '@jarvis.app520400005303986540' + priceVal.toFixed(2) + '5802BR5925JARVIS NEURAL PIX6009SAO PAULO62070503***6304ABCD';
-      document.getElementById('pix-code-input').value = dummyPix;
-      
+      document.getElementById('pix-checkout-form').style.display = 'flex';
+      document.getElementById('pix-generated-box').style.display = 'none';
+      document.getElementById('pix-activation-result').style.display = 'none';
+      document.getElementById('pix-form-error').style.display = 'none';
+      document.getElementById('pix-code-input').value = '';
       document.getElementById('checkout-modal').classList.add('open');
-      iniciarTimerPix();
+    }
+
+    async function gerarPixRealAsaas(event) {
+      event.preventDefault();
+      const errEl = document.getElementById('pix-form-error');
+      const btnEl = document.getElementById('btn-generate-real-pix');
+      errEl.style.display = 'none';
+
+      const name = (document.getElementById('pix-payer-name').value || '').trim();
+      const phone = (document.getElementById('pix-payer-phone').value || '').replace(/\D/g, '');
+      const cpfCnpj = (document.getElementById('pix-payer-cpf').value || '').replace(/\D/g, '');
+
+      if (cpfCnpj.length !== 11 && cpfCnpj.length !== 14) {
+        errEl.innerText = 'Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      btnEl.disabled = true;
+      btnEl.innerHTML = '<span>⏳</span><span>Gerando cobrança oficial no Asaas...</span>';
+
+      const planMap = { 'semanal': 'PRO_WEEKLY', 'mensal': 'PRO_MONTHLY', 'anual': 'PRO_ANNUAL' };
+      try {
+        const res = await fetch('/api/create-pix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name,
+            phone: phone,
+            cpfCnpj: cpfCnpj,
+            plan: planMap[currentPlanId] || 'PRO_WEEKLY',
+            recurrent: false
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.pixCopiaECola) {
+          errEl.innerText = data.detail || 'Não foi possível gerar o PIX no Asaas.';
+          errEl.style.display = 'block';
+          return;
+        }
+
+        currentPaymentId = data.paymentId || data.subscriptionId || '';
+        document.getElementById('pix-code-input').value = data.pixCopiaECola;
+        const imgEl = document.getElementById('pix-qr-image');
+        if (data.encodedImage) {
+          imgEl.src = 'data:image/png;base64,' + data.encodedImage;
+          imgEl.style.display = 'block';
+        } else {
+          imgEl.style.display = 'none';
+        }
+
+        document.getElementById('pix-checkout-form').style.display = 'none';
+        document.getElementById('pix-generated-box').style.display = 'flex';
+        document.getElementById('pix-status-text').innerText = 'Aguardando confirmação bancária do Pix...';
+        iniciarTimerPix();
+        iniciarPollingPixStatus();
+      } catch (err) {
+        errEl.innerText = 'Falha de conexão com o servidor de pagamentos.';
+        errEl.style.display = 'block';
+      } finally {
+        btnEl.disabled = false;
+        btnEl.innerHTML = '<span>⚡</span><span>Gerar QR Code PIX Oficial</span>';
+      }
+    }
+
+    function iniciarPollingPixStatus() {
+      if (pixPollInterval) clearInterval(pixPollInterval);
+      if (!currentPaymentId) return;
+      pixPollInterval = setInterval(async () => {
+        try {
+          const res = await fetch('/api/check-pix-status?id=' + encodeURIComponent(currentPaymentId));
+          if (!res.ok) return;
+          const statusData = await res.json();
+          if (statusData.confirmed) {
+            clearInterval(pixPollInterval);
+            clearInterval(timerInterval);
+            document.getElementById('pix-status-text').innerText = statusData.message || 'Pagamento confirmado!';
+            document.getElementById('pix-activation-key').innerText = statusData.activationKey || 'ATIVO';
+            document.getElementById('pix-activation-result').style.display = 'block';
+            showPixToast('PIX confirmado! Sua licença PRO foi ativada.');
+          }
+        } catch (e) {}
+      }, 4000);
     }
 
     function fecharCheckout() {
+      if (pixPollInterval) { clearInterval(pixPollInterval); pixPollInterval = null; }
+      clearInterval(timerInterval);
       document.getElementById('checkout-modal').classList.remove('open');
     }
 

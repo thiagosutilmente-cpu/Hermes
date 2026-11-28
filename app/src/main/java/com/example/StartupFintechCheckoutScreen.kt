@@ -1,8 +1,10 @@
 package com.example
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -50,6 +52,12 @@ enum class ProPlanTier(
     SEMANAL("weekly", "Semanal", "R$ 25,00", "/ semana", "MAIS ESCOLHIDO", true),
     MENSAL("monthly", "Mensal", "R$ 89,90", "/ mês", "ECONOMIZE 10%", false),
     TRIMESTRAL("annual", "Trimestral VIP", "R$ 229,00", "/ 3 meses", "ECONOMIZE 25%", false)
+}
+
+private tailrec fun Context.findCheckoutActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findCheckoutActivity()
+    else -> null
 }
 
 @Composable
@@ -253,33 +261,90 @@ fun StartupFintechCheckoutScreen(
 
                         Button(
                             onClick = {
-                                HapticFeedbackHelper.vibrateSuccess(context)
-                                Toast.makeText(
-                                    context,
-                                    "Status PRO verificado com sua conta Google Play / servidor.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                onPaymentSuccess()
+                                val activity = context.findCheckoutActivity()
+                                val productId = if (selectedPlan == ProPlanTier.TRIMESTRAL) {
+                                    PlayBillingManager.SUBSCRIPTION_ID_ANNUAL
+                                } else {
+                                    PlayBillingManager.SUBSCRIPTION_ID_MONTHLY
+                                }
+                                if (activity != null) {
+                                    PlayBillingManager.launchSubscriptionPurchase(activity, productId) { success, msg ->
+                                        if (success) {
+                                            HapticFeedbackHelper.vibrateSuccess(context)
+                                            Toast.makeText(
+                                                context,
+                                                "Assinatura Google Play ativada com sucesso!",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            onPaymentSuccess()
+                                        } else {
+                                            Toast.makeText(
+                                                context,
+                                                msg ?: "Compra não concluída no Google Play.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "Não foi possível abrir o Google Play Billing neste contexto.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             },
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = palette.emerald),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(52.dp)
-                                .testTag("sync_pro_license_button")
+                                .testTag("play_billing_subscribe_button")
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Check,
+                                imageVector = Icons.Default.Lock,
                                 contentDescription = null,
                                 tint = Color.White,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "SINCRONIZAR ASSINATURA PRO",
+                                text = "ASSINAR VIA GOOGLE PLAY",
                                 color = Color.White,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Black
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedButton(
+                            onClick = {
+                                PlayBillingManager.restorePurchases { count, msg ->
+                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                    if (count > 0) {
+                                        HapticFeedbackHelper.vibrateSuccess(context)
+                                        onPaymentSuccess()
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .testTag("sync_pro_license_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = palette.emerald,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "RESTAURAR ASSINATURA GOOGLE PLAY",
+                                color = palette.textPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }

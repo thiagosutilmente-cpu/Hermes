@@ -47,7 +47,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,11 +77,13 @@ fun AdminDeveloperCockpitScreen(
     onOpenWebViewCockpit: () -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     BackHandler { onNavigateBack() }
 
     var showChangePinSection by remember { mutableStateOf(false) }
     var currentPinInput by remember { mutableStateOf("") }
     var newPinInput by remember { mutableStateOf("") }
+    var isUpdatingPin by remember { mutableStateOf(false) }
     var pinMessage by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
@@ -542,8 +546,8 @@ fun AdminDeveloperCockpitScreen(
 
                             OutlinedTextField(
                                 value = currentPinInput,
-                                onValueChange = { currentPinInput = it.filter { c -> c.isDigit() } },
-                                label = { Text("PIN Atual", color = Color(0xFF94A3B8), fontSize = 11.sp) },
+                                onValueChange = { currentPinInput = it },
+                                label = { Text("Credencial Atual", color = Color(0xFF94A3B8), fontSize = 11.sp) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -556,8 +560,8 @@ fun AdminDeveloperCockpitScreen(
 
                             OutlinedTextField(
                                 value = newPinInput,
-                                onValueChange = { newPinInput = it.filter { c -> c.isDigit() } },
-                                label = { Text("Novo PIN (mínimo 4 dígitos)", color = Color(0xFF94A3B8), fontSize = 11.sp) },
+                                onValueChange = { newPinInput = it },
+                                label = { Text("Nova Credencial (mínimo 6 caracteres)", color = Color(0xFF94A3B8), fontSize = 11.sp) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -578,14 +582,24 @@ fun AdminDeveloperCockpitScreen(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             Button(
+                                enabled = !isUpdatingPin,
                                 onClick = {
-                                    val ok = AdminSecurityManager.changePin(context, currentPinInput, newPinInput)
-                                    if (ok) {
-                                        pinMessage = "PIN alterado com sucesso!"
-                                        currentPinInput = ""
-                                        newPinInput = ""
-                                    } else {
-                                        pinMessage = "PIN atual incorreto ou novo PIN menor que 4 dígitos."
+                                    if (newPinInput.trim().length < 6) {
+                                        pinMessage = "A nova credencial deve ter ao menos 6 caracteres."
+                                        return@Button
+                                    }
+                                    isUpdatingPin = true
+                                    pinMessage = null
+                                    coroutineScope.launch {
+                                        val ok = AdminSecurityManager.changePinOnServer(context, currentPinInput, newPinInput)
+                                        isUpdatingPin = false
+                                        if (ok) {
+                                            pinMessage = "Credencial atualizada com sucesso no servidor!"
+                                            currentPinInput = ""
+                                            newPinInput = ""
+                                        } else {
+                                            pinMessage = "Credencial atual inválida, sessão expirada ou servidor offline."
+                                        }
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(
@@ -595,7 +609,7 @@ fun AdminDeveloperCockpitScreen(
                                 shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("SALVAR NOVO PIN", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text(if (isUpdatingPin) "SALVANDO..." else "SALVAR NOVA CREDENCIAL", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
                     }

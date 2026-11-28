@@ -23,6 +23,8 @@ cd /opt/jarvis_marketing
 
 # 4. Criar arquivo de variáveis de ambiente se não existir
 if [ ! -f .env ]; then
+    RAND_EVO_KEY=$(python3 -c "import secrets; print(secrets.token_hex(24))" 2>/dev/null || openssl rand -hex 24)
+    RAND_WEBHOOK_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(24))" 2>/dev/null || openssl rand -hex 24)
     cat <<EOT > .env
 # Chaves da Meta Marketing API
 META_ACCESS_TOKEN=""
@@ -31,19 +33,19 @@ META_PAGE_ID=""
 
 # Chaves da Evolution API (WhatsApp)
 EVOLUTION_API_URL="http://localhost:8080"
-EVOLUTION_API_KEY="jarvis_evolution_secret_key"
+EVOLUTION_API_KEY="${RAND_EVO_KEY}"
 EVOLUTION_INSTANCE="jarvis_owner_whatsapp"
-OWNER_PERSONAL_PHONE="(11) 98765-4321"
+OWNER_PERSONAL_PHONE=""
 
 # Configurações do Asaas Pix (Liberação Instantânea)
 ASAAS_API_KEY=""
-ASAAS_WEBHOOK_SECRET="radar_asaas_webhook_secret_2026"
+ASAAS_WEBHOOK_SECRET="${RAND_WEBHOOK_SECRET}"
 
 # Servidor FastAPI
 PORT=8000
 HOST=0.0.0.0
 EOT
-    echo "📄 Arquivo .env criado em /opt/jarvis_marketing/.env com suporte a IA e Pix Asaas"
+    echo "📄 Arquivo .env criado em /opt/jarvis_marketing/.env com segredos aleatórios gerados"
 fi
 
 # 5. Liberar portas necessárias no firewall

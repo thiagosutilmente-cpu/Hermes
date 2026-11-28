@@ -134,15 +134,15 @@ fun AdminPinAuthDialog(
                 OutlinedTextField(
                     value = pinText,
                     onValueChange = { input ->
-                        if (input.length <= 8) {
-                            pinText = input.filter { it.isDigit() }
+                        if (input.length <= 64) {
+                            pinText = input
                             errorMessage = null
                         }
                     },
-                    label = { Text("PIN de Acesso", color = Color(0xFF94A3B8), fontSize = 12.sp) },
+                    label = { Text("Senha / PIN de Acesso", color = Color(0xFF94A3B8), fontSize = 12.sp) },
                     singleLine = true,
                     visualTransformation = if (isPinVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     keyboardActions = KeyboardActions(onDone = { handleConfirm() }),
                     trailingIcon = {
                         IconButton(onClick = { isPinVisible = !isPinVisible }) {

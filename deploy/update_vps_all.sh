@@ -6,7 +6,7 @@ set -e
 
 echo ">>> [1/4] Atualizando Dashboard e Arquivos no Nginx..."
 mkdir -p /var/www/html /root/jarvis_backend
-[ -f /root/Hermes/deploy/admin.html ] && cp -vf /root/Hermes/deploy/admin.html /var/www/html/admin.html
+rm -f /var/www/html/admin.html
 [ -f /root/Hermes/deploy/admin.html ] && cp -vf /root/Hermes/deploy/admin.html /root/jarvis_backend/admin.html
 [ -f /root/Hermes/deploy/index.html ] && cp -vf /root/Hermes/deploy/index.html /var/www/html/index.html
 [ -f /root/Hermes/index.html ] && cp -vf /root/Hermes/index.html /var/www/html/index.html
@@ -55,11 +55,11 @@ systemctl restart jarvis 2>/dev/null || echo "Jarvis reiniciado ou em container.
 nginx -s reload 2>/dev/null || true
 
 echo ">>> [4/4] Verificando endpoints..."
-curl -s -H "Authorization: Bearer jarvis_admin_master_secret_2026" http://127.0.0.1:8000/api/admin/metrics | head -n 5 || echo "Status 200"
+curl -s http://127.0.0.1:8000/api/ping | head -n 5 || echo "Ping falhou"
 
 echo ""
 echo "=================================================================="
-echo "✅ VPS 100% ATUALIZADA!"
-echo "👉 Painel com Caixa-Preta de Erros: http://187.77.248.73/admin"
-echo "👉 Download do APK Blindado: http://187.77.248.73/download/apk"
+echo "✅ VPS 100% ATUALIZADA E BLINDADA!"
+echo "👉 Painel Admin Isolado (via túnel SSH 8443): http://127.0.0.1:8443/"
+echo "👉 Landing Page Pública: http://187.77.248.73/"
 echo "=================================================================="

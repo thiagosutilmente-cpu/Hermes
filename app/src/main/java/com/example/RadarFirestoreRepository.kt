@@ -179,4 +179,31 @@ class RadarFirestoreRepository(
             Result.failure(e)
         }
     }
+
+    suspend fun deleteAllUserData(userId: String): Result<Unit> {
+        val basePath = "users/$userId"
+        return try {
+            val uid = requireUserId()
+            check(uid == userId) { "Sessão alterada; exclusão entre usuários bloqueada." }
+
+            val userDoc = db.collection("users").document(uid)
+            val subcollections = listOf("profiles", "deliveries")
+            for (sub in subcollections) {
+                val snapshot = userDoc.collection(sub).get().await()
+                if (!snapshot.isEmpty) {
+                    val batch = db.batch()
+                    snapshot.documents.forEach { doc ->
+                        batch.delete(doc.reference)
+                    }
+                    batch.commit().await()
+                }
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, basePath)
+            Result.failure(e)
+        }
+    }
 }

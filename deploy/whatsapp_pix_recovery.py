@@ -18,7 +18,7 @@ logger = logging.getLogger("PixRecovery")
 
 DB_FILE = os.path.join(os.path.dirname(__file__), "jarvis_whatsapp_leads.db")
 EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "http://localhost:8080")
-EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "radar_hostinger_secret_key_2026")
+EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
 EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "radar_marketing")
 
 def init_recovery_tables():

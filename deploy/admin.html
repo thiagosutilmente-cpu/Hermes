@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="robots" content="noindex, nofollow">
   <title>JARVIS HQ — Cockpit Tático & Faturamento</title>
   <style>
     :root {
@@ -30,6 +31,48 @@
       padding-bottom: 40px;
       line-height: 1.5;
     }
+    .auth-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(8, 12, 20, 0.96);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 1000;
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--card-bg);
+      border: 1px solid rgba(0, 229, 255, 0.35);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+      text-align: center;
+    }
+    .auth-input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      background: #050810;
+      color: #fff;
+      font-size: 14px;
+      margin-bottom: 12px;
+      outline: none;
+    }
+    .auth-input:focus {
+      border-color: var(--cyan);
+    }
+    .auth-error {
+      color: var(--red);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: none;
+    }
     .header {
       display: flex;
       justify-content: space-between;
@@ -37,6 +80,7 @@
       padding-bottom: 16px;
       border-bottom: 1px solid var(--card-border);
       margin-bottom: 16px;
+      gap: 10px;
     }
     .brand {
       display: flex;
@@ -67,6 +111,11 @@
       font-weight: 700;
       letter-spacing: 1px;
     }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
     .live-indicator {
       display: flex;
       align-items: center;
@@ -78,6 +127,16 @@
       font-size: 11px;
       font-weight: 700;
       color: var(--green);
+    }
+    .logout-btn {
+      background: rgba(255, 23, 68, 0.15);
+      border: 1px solid rgba(255, 23, 68, 0.4);
+      color: #ff6b81;
+      padding: 6px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
     }
     .pulse-dot {
       width: 8px;
@@ -251,194 +310,354 @@
 </head>
 <body>
 
-  <!-- HEADER -->
-  <div class="header">
-    <div class="brand">
-      <div class="logo-badge">⚡</div>
-      <div>
-        <div class="brand-title">JARVIS NEURAL HQ</div>
-        <div class="brand-sub">Cockpit Operacional & Faturamento</div>
+  <!-- MODAL DE AUTENTICAÇÃO ADMIN (Sessão exclusivamente em memória JS) -->
+  <div id="auth-overlay" class="auth-overlay">
+    <div class="auth-card">
+      <div style="font-size: 36px; margin-bottom: 8px;">🛡️</div>
+      <div class="brand-title" id="auth-title" style="margin-bottom: 6px;">Acesso Administrativo Isolado</div>
+      <div id="auth-subtitle" style="font-size: 12px; color: var(--text-muted); margin-bottom: 18px;">
+        Autentique-se contra o servidor para carregar métricas financeiras e operacionais.
+      </div>
+      <form id="auth-form" onsubmit="handleAuthSubmit(event)">
+        <input type="password" id="auth-secret-input" class="auth-input" placeholder="Senha ou PIN administrativo" autocomplete="current-password" required minlength="6">
+        <div id="auth-error" class="auth-error"></div>
+        <button type="submit" id="auth-submit-btn" class="btn btn-green">Desbloquear Cockpit</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="dashboard-shell" style="display: none;">
+    <!-- HEADER -->
+    <div class="header">
+      <div class="brand">
+        <div class="logo-badge">⚡</div>
+        <div>
+          <div class="brand-title">JARVIS NEURAL HQ</div>
+          <div class="brand-sub">Cockpit Operacional & Faturamento</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="live-indicator">
+          <div class="pulse-dot"></div>
+          AO VIVO
+        </div>
+        <button type="button" class="logout-btn" onclick="logoutAdmin()">🔒 Sair</button>
       </div>
     </div>
-    <div class="live-indicator">
-      <div class="pulse-dot"></div>
-      AO VIVO
-    </div>
-  </div>
 
-  <!-- MÉTRICAS PRINCIPAIS -->
-  <div class="metrics-grid">
-    <div class="card">
-      <div class="card-label">💰 Total Bruto Faturado</div>
-      <div class="card-val green" id="stat-total-revenue">R$ 0,00</div>
-      <div class="card-sub" id="stat-pix-count">0 PIX confirmados</div>
+    <!-- MÉTRICAS PRINCIPAIS -->
+    <div class="metrics-grid">
+      <div class="card">
+        <div class="card-label">💰 Total Bruto Faturado</div>
+        <div class="card-val green" id="stat-total-revenue">R$ 0,00</div>
+        <div class="card-sub" id="stat-pix-count">0 PIX confirmados</div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">🏍️ Motoboys Cadastrados</div>
+        <div class="card-val cyan" id="stat-total-users">0</div>
+        <div class="card-sub" id="stat-active-users">0 ativos no plano</div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">🏦 Repasse PJ Master (60%)</div>
+        <div class="card-val" id="stat-master-revenue">R$ 0,00</div>
+        <div class="card-sub">Split bancário automático</div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">📍 Repasse Líder Praça (40%)</div>
+        <div class="card-val" id="stat-leader-revenue">R$ 0,00</div>
+        <div class="card-sub">Bonificação operacional</div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">📈 MRR Estimado &amp; Conversão</div>
+        <div class="card-val cyan" id="stat-mrr-estimate">R$ 0,00</div>
+        <div class="card-sub" id="stat-conversion-churn">Conversão 0% • 0 cancelados</div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">🧠 Custo IA &amp; APIs (30d)</div>
+        <div class="card-val" id="stat-ai-cost">R$ 0,00</div>
+        <div class="card-sub" id="stat-ai-calls">0 chamadas hoje • 0 falhas 24h</div>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="card-label">🏍️ Motoboys Cadastrados</div>
-      <div class="card-val cyan" id="stat-total-users">0</div>
-      <div class="card-sub" id="stat-active-users">0 ativos no plano</div>
+    <div id="alerts-banner" class="card" style="display: none; margin-bottom: 16px; border-color: rgba(255, 214, 0, 0.45);">
+      <div class="card-label" style="color: var(--yellow);">🚨 Central de Alertas Automáticos</div>
+      <div id="alerts-list" style="font-size: 12px; color: var(--text);"></div>
     </div>
 
-    <div class="card">
-      <div class="card-label">🏦 Repasse PJ Master (60%)</div>
-      <div class="card-val" id="stat-master-revenue">R$ 0,00</div>
-      <div class="card-sub">Split bancário automático</div>
+    <!-- META DO DIA -->
+    <div class="card" style="margin-bottom: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <span class="card-label" style="margin: 0;">🎯 Meta R$ 3 Milhões/Ano</span>
+        <span style="font-size: 12px; font-weight: 800; color: var(--yellow);" id="stat-daily-target">R$ 8.333,00 / dia</span>
+      </div>
+      <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;">
+        <div id="stat-progress-bar" style="width: 2%; height: 100%; background: linear-gradient(90deg, #00e5ff, #00e676); border-radius: 4px; transition: width 0.5s;"></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 10px; color: var(--text-muted);">
+        <span>Foco: 2.500 motoboys pagando R$ 25/semana</span>
+        <span id="stat-progress-pct">0.1%</span>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="card-label">📍 Repasse Líder Praça (40%)</div>
-      <div class="card-val" id="stat-leader-revenue">R$ 0,00</div>
-      <div class="card-sub">Bonificação operacional</div>
-    </div>
-  </div>
-
-  <!-- META DO DIA -->
-  <div class="card" style="margin-bottom: 16px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-      <span class="card-label" style="margin: 0;">🎯 Meta R$ 3 Milhões/Ano</span>
-      <span style="font-size: 12px; font-weight: 800; color: var(--yellow);" id="stat-daily-target">R$ 8.333,00 / dia</span>
-    </div>
-    <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;">
-      <div id="stat-progress-bar" style="width: 2%; height: 100%; background: linear-gradient(90deg, #00e5ff, #00e676); border-radius: 4px; transition: width 0.5s;"></div>
-    </div>
-    <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 10px; color: var(--text-muted);">
-      <span>Foco: 2.500 motoboys pagando R$ 25/semana</span>
-      <span id="stat-progress-pct">0.1%</span>
-    </div>
-  </div>
-
-  <!-- AÇÕES TÁTICAS RÁPIDAS -->
-  <div class="section-title">⚡ Ações Táticas Rápidas</div>
-  <div class="actions-box">
-    <button class="btn btn-green" onclick="simulatePixPayment()">
-      <span>⚡</span> Simular PIX de R$ 25,00 (Teste de Split)
-    </button>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-      <button class="btn btn-outline" onclick="triggerSwarmCycle()">
-        <span>🤖</span> Ciclo Enxame
+    <!-- AÇÕES TÁTICAS RÁPIDAS -->
+    <div class="section-title">⚡ Ações Táticas Rápidas</div>
+    <div class="actions-box">
+      <button class="btn btn-green" onclick="simulatePixPayment()">
+        <span>⚡</span> Simular PIX Sandbox R$ 25,00 (Teste de Split)
       </button>
-      <button class="btn btn-outline" onclick="optimizeMetaAds()">
-        <span>📊</span> Otimizar Ads
-      </button>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <button class="btn btn-outline" onclick="triggerSwarmCycle()">
+          <span>🤖</span> Ciclo Enxame
+        </button>
+        <button class="btn btn-outline" onclick="optimizeMetaAds()">
+          <span>📊</span> Otimizar Ads
+        </button>
+      </div>
     </div>
-  </div>
 
-  <!-- TABELA: ÚLTIMAS ASSINATURAS & CLIENTES -->
-  <div class="section-title">🏍️ Entregadores & Licenças VIP</div>
-  <div class="table-container">
-    <table>
-      <thead>
-        <tr>
-          <th>ID / Cliente</th>
-          <th>Telefone</th>
-          <th>Plano</th>
-          <th>Status</th>
-          <th>Validade</th>
-        </tr>
-      </thead>
-      <tbody id="users-table-body">
-        <tr>
-          <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">Carregando dados da VPS...</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+    <!-- TABELA: ÚLTIMAS ASSINATURAS & CLIENTES -->
+    <div class="section-title">🏍️ Entregadores & Licenças VIP</div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>ID / Cliente</th>
+            <th>Telefone</th>
+            <th>Plano</th>
+            <th>Status</th>
+            <th>Validade</th>
+          </tr>
+        </thead>
+        <tbody id="users-table-body">
+          <tr>
+            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">Carregando dados da VPS...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-  <!-- TABELA: HISTÓRICO DE REPASSES (SPLIT 60/40) -->
-  <div class="section-title">📊 Histórico de Repasses Split Asaas</div>
-  <div class="table-container">
-    <table>
-      <thead>
-        <tr>
-          <th>Data</th>
-          <th>Valor Total</th>
-          <th>PJ Master (60%)</th>
-          <th>Líder Praça (40%)</th>
-        </tr>
-      </thead>
-      <tbody id="splits-table-body">
-        <tr>
-          <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">Carregando splits...</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+    <!-- TABELA: HISTÓRICO DE REPASSES (SPLIT 60/40) -->
+    <div class="section-title">📊 Histórico de Repasses Split Asaas</div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Valor Total</th>
+            <th>PJ Master (60%)</th>
+            <th>Líder Praça (40%)</th>
+          </tr>
+        </thead>
+        <tbody id="splits-table-body">
+          <tr>
+            <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">Carregando splits...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-  <!-- TABELA: CAIXA-PRETA DE ERROS E CRASHES DO APP -->
-  <div class="section-title" style="color: #ff5252;">🚨 Telemetria de Falhas e Quedas do App (Caixa-Preta)</div>
-  <div class="table-container">
-    <table>
-      <thead>
-        <tr>
-          <th>Data / Hora</th>
-          <th>Dispositivo</th>
-          <th>Erro</th>
-          <th>Detalhes / Linha</th>
-        </tr>
-      </thead>
-      <tbody id="crashes-table-body">
-        <tr>
-          <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">Nenhum erro registrado até o momento. App rodando estável!</td>
-        </tr>
-      </tbody>
-    </table>
+    <!-- TABELA: CAIXA-PRETA DE ERROS E CRASHES DO APP -->
+    <div class="section-title" style="color: #ff5252;">🚨 Telemetria de Falhas e Quedas do App (Caixa-Preta)</div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Data / Hora</th>
+            <th>Dispositivo</th>
+            <th>Erro</th>
+            <th>Detalhes / Linha</th>
+          </tr>
+        </thead>
+        <tbody id="crashes-table-body">
+          <tr>
+            <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">Nenhum erro registrado até o momento. App rodando estável!</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <div id="toast" class="toast">Ação executada com sucesso!</div>
 
   <script>
+    // Token mantido exclusivamente na memória do navegador (nunca em localStorage/sessionStorage)
+    let adminBearerToken = null;
+    let isBootstrapMode = false;
+    let pollTimersStarted = false;
+    let metricsIntervalId = null;
+    let crashesIntervalId = null;
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function showToast(msg) {
       const toast = document.getElementById('toast');
-      toast.innerText = msg;
+      toast.textContent = msg;
       toast.style.display = 'block';
       setTimeout(() => { toast.style.display = 'none'; }, 2500);
     }
 
-    async function loadMetrics() {
+    function authHeaders(extra = {}) {
+      const headers = Object.assign({}, extra);
+      if (adminBearerToken) {
+        headers['Authorization'] = 'Bearer ' + adminBearerToken;
+      }
+      return headers;
+    }
+
+    async function checkBootstrapStatus() {
       try {
-        const res = await fetch('/api/admin/metrics');
+        const res = await fetch('/api/admin/bootstrap-status');
+        if (!res.ok) return;
+        const data = await res.json();
+        isBootstrapMode = !data.configured;
+        const titleEl = document.getElementById('auth-title');
+        const subEl = document.getElementById('auth-subtitle');
+        const btnEl = document.getElementById('auth-submit-btn');
+        const inputEl = document.getElementById('auth-secret-input');
+        if (isBootstrapMode) {
+          titleEl.textContent = 'Configuração Inicial do Administrador';
+          subEl.textContent = 'Defina a senha mestre inicial (mínimo 6 caracteres). Este setup será bloqueado após o primeiro uso.';
+          btnEl.textContent = 'Criar Senha e Entrar';
+          inputEl.setAttribute('autocomplete', 'new-password');
+        } else {
+          titleEl.textContent = 'Acesso Administrativo Isolado';
+          subEl.textContent = 'Autentique-se contra o servidor para carregar métricas financeiras e operacionais.';
+          btnEl.textContent = 'Desbloquear Cockpit';
+          inputEl.setAttribute('autocomplete', 'current-password');
+        }
+      } catch (e) {
+        console.error('Erro ao checar status de bootstrap:', e);
+      }
+    }
+
+    async function handleAuthSubmit(event) {
+      event.preventDefault();
+      const inputEl = document.getElementById('auth-secret-input');
+      const errEl = document.getElementById('auth-error');
+      const rawSecret = (inputEl.value || '').trim();
+      errEl.style.display = 'none';
+
+      if (rawSecret.length < 6) {
+        errEl.textContent = 'Informe ao menos 6 caracteres.';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      const endpoint = isBootstrapMode ? '/api/admin/bootstrap' : '/api/admin/login';
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: rawSecret })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.adminToken) {
+          errEl.textContent = data.detail || 'Credencial recusada pelo servidor.';
+          errEl.style.display = 'block';
+          return;
+        }
+        adminBearerToken = data.adminToken;
+        inputEl.value = '';
+        document.getElementById('auth-overlay').style.display = 'none';
+        document.getElementById('dashboard-shell').style.display = 'block';
+        startDashboard();
+      } catch (e) {
+        errEl.textContent = 'Falha de comunicação segura com o servidor.';
+        errEl.style.display = 'block';
+      }
+    }
+
+    function logoutAdmin() {
+      adminBearerToken = null;
+      if (metricsIntervalId) clearInterval(metricsIntervalId);
+      if (crashesIntervalId) clearInterval(crashesIntervalId);
+      pollTimersStarted = false;
+      document.getElementById('dashboard-shell').style.display = 'none';
+      document.getElementById('auth-overlay').style.display = 'flex';
+      checkBootstrapStatus();
+    }
+
+    function startDashboard() {
+      loadMetrics();
+      loadCrashes();
+      if (!pollTimersStarted) {
+        pollTimersStarted = true;
+        metricsIntervalId = setInterval(loadMetrics, 8000);
+        crashesIntervalId = setInterval(loadCrashes, 8000);
+      }
+    }
+
+    async function loadMetrics() {
+      if (!adminBearerToken) return;
+      try {
+        const res = await fetch('/api/admin/metrics', { headers: authHeaders() });
+        if (res.status === 401) {
+          logoutAdmin();
+          return;
+        }
         if (!res.ok) return;
         const data = await res.json();
 
-        // Totais
-        document.getElementById('stat-total-revenue').innerText = 'R$ ' + (data.total_revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-        document.getElementById('stat-pix-count').innerText = (data.total_pix_count || 0) + ' PIX recebidos';
-        document.getElementById('stat-total-users').innerText = (data.total_users || 0);
-        document.getElementById('stat-active-users').innerText = (data.active_users || 0) + ' ativos no plano';
-        document.getElementById('stat-master-revenue').innerText = 'R$ ' + (data.master_revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-        document.getElementById('stat-leader-revenue').innerText = 'R$ ' + (data.leader_revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        document.getElementById('stat-total-revenue').textContent = 'R$ ' + Number(data.total_revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        document.getElementById('stat-pix-count').textContent = Number(data.total_pix_count || 0) + ' PIX recebidos';
+        document.getElementById('stat-total-users').textContent = Number(data.total_users || 0);
+        document.getElementById('stat-active-users').textContent = Number(data.active_users || 0) + ' ativos no plano';
+        document.getElementById('stat-master-revenue').textContent = 'R$ ' + Number(data.master_revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        document.getElementById('stat-leader-revenue').textContent = 'R$ ' + Number(data.leader_revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        document.getElementById('stat-mrr-estimate').textContent = 'R$ ' + Number(data.mrr_estimate || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        document.getElementById('stat-conversion-churn').textContent = 'Conversão ' + Number(data.conversion_rate || 0).toFixed(1) + '% • ' + Number(data.churn_count || 0) + ' churn';
+        document.getElementById('stat-ai-cost').textContent = 'R$ ' + Number(data.ai_cost_30d || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+        document.getElementById('stat-ai-calls').textContent = Number(data.ai_calls_today || 0) + ' chamadas hoje • ' + Number(data.crashes_24h || 0) + ' falhas 24h';
 
-        // Progresso diário
-        const pct = Math.min(100, Math.max(1, ((data.total_revenue || 0) / 8333) * 100)).toFixed(1);
+        const alertsBanner = document.getElementById('alerts-banner');
+        const alertsList = document.getElementById('alerts-list');
+        if (Array.isArray(data.alerts) && data.alerts.length > 0) {
+          alertsBanner.style.display = 'block';
+          alertsList.innerHTML = data.alerts.map(a => `<div style="margin-top:4px;"><strong>[${escapeHtml(a.level)}]</strong> ${escapeHtml(a.message)}</div>`).join('');
+        } else {
+          alertsBanner.style.display = 'none';
+          alertsList.innerHTML = '';
+        }
+
+        const pct = Math.min(100, Math.max(1, (Number(data.total_revenue || 0) / 8333) * 100)).toFixed(1);
         document.getElementById('stat-progress-bar').style.width = pct + '%';
-        document.getElementById('stat-progress-pct').innerText = pct + '%';
+        document.getElementById('stat-progress-pct').textContent = pct + '%';
 
-        // Tabela Usuários
         const usersTbody = document.getElementById('users-table-body');
         if (data.users && data.users.length > 0) {
           usersTbody.innerHTML = data.users.map(u => `
             <tr>
-              <td><strong>${u.customer_id || 'ID #' + u.id}</strong></td>
-              <td>${u.phone || 'Sem fone'}</td>
-              <td><span style="font-weight:700; color:var(--cyan);">${u.plan_type || 'PLANO_SEMANAL'}</span></td>
-              <td><span class="badge ${u.status === 'ACTIVE' ? 'badge-active' : 'badge-pending'}">${u.status}</span></td>
-              <td>${u.expires_at ? u.expires_at.substring(0, 10) : '—'}</td>
+              <td><strong>${escapeHtml(u.customer_id || 'ID #' + u.id)}</strong></td>
+              <td>${escapeHtml(u.phone || 'Sem fone')}</td>
+              <td><span style="font-weight:700; color:var(--cyan);">${escapeHtml(u.plan_type || 'PLANO_SEMANAL')}</span></td>
+              <td><span class="badge ${u.status === 'ACTIVE' ? 'badge-active' : 'badge-pending'}">${escapeHtml(u.status)}</span></td>
+              <td>${escapeHtml(u.expires_at ? String(u.expires_at).substring(0, 10) : '—')}</td>
             </tr>
           `).join('');
         } else {
           usersTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 15px;">Nenhum motoboy registrado ainda.</td></tr>';
         }
 
-        // Tabela Splits
         const splitsTbody = document.getElementById('splits-table-body');
         if (data.splits && data.splits.length > 0) {
           splitsTbody.innerHTML = data.splits.map(s => `
             <tr>
-              <td>${s.created_at ? s.created_at.substring(0, 16) : 'Hoje'}</td>
-              <td style="font-weight:800; color:var(--green);">R$ ${(s.total_value || 25).toFixed(2)}</td>
-              <td>R$ ${(s.master_pj_amount || 15).toFixed(2)}</td>
-              <td>R$ ${(s.leader_amount || 10).toFixed(2)}</td>
+              <td>${escapeHtml(s.created_at ? String(s.created_at).substring(0, 16) : 'Hoje')}</td>
+              <td style="font-weight:800; color:var(--green);">R$ ${Number(s.total_value || 25).toFixed(2)}</td>
+              <td>R$ ${Number(s.master_pj_amount || 15).toFixed(2)}</td>
+              <td>R$ ${Number(s.leader_amount || 10).toFixed(2)}</td>
             </tr>
           `).join('');
         } else {
@@ -450,18 +669,23 @@
     }
 
     async function loadCrashes() {
+      if (!adminBearerToken) return;
       try {
-        const res = await fetch('/api/admin/crashes');
+        const res = await fetch('/api/admin/crashes', { headers: authHeaders() });
+        if (res.status === 401) {
+          logoutAdmin();
+          return;
+        }
         if (!res.ok) return;
         const crashes = await res.json();
         const tbody = document.getElementById('crashes-table-body');
         if (crashes && crashes.length > 0) {
           tbody.innerHTML = crashes.map(c => `
             <tr>
-              <td style="color:#ff5252; font-weight:700;">${c.timestamp || c.created_at || 'Agora'}</td>
-              <td><strong>${c.device || 'Android'}</strong> <br><small style="color:var(--text-muted);">${c.app_version || 'v3.1.0'}</small></td>
-              <td><span style="color:#ffb74d; font-weight:800;">${c.error_type || 'Exception'}</span>: ${c.message || ''}</td>
-              <td><pre style="max-height:80px; overflow-y:auto; font-size:10px; background:#050810; padding:6px; border-radius:4px; color:#cfd8dc;">${(c.stack_trace || '').substring(0, 400)}</pre></td>
+              <td style="color:#ff5252; font-weight:700;">${escapeHtml(c.timestamp || c.created_at || 'Agora')}</td>
+              <td><strong>${escapeHtml(c.device || 'Android')}</strong> <br><small style="color:var(--text-muted);">${escapeHtml(c.app_version || 'v3.1.0')}</small></td>
+              <td><span style="color:#ffb74d; font-weight:800;">${escapeHtml(c.error_type || 'Exception')}</span>: ${escapeHtml(c.message || '')}</td>
+              <td><pre style="max-height:80px; overflow-y:auto; font-size:10px; background:#050810; padding:6px; border-radius:4px; color:#cfd8dc;">${escapeHtml(String(c.stack_trace || '').substring(0, 400))}</pre></td>
             </tr>
           `).join('');
         }
@@ -471,10 +695,18 @@
     }
 
     async function simulatePixPayment() {
+      if (!adminBearerToken) return;
       try {
-        const res = await fetch('/api/admin/simulate-pix', { method: 'POST' });
+        const res = await fetch('/api/admin/simulate-pix', {
+          method: 'POST',
+          headers: authHeaders()
+        });
         const data = await res.json();
-        showToast('PIX de R$ 25,00 recebido! Split 60/40 liquidado.');
+        if (!res.ok) {
+          showToast(data.detail || 'Simulação desabilitada em produção.');
+          return;
+        }
+        showToast(data.message || 'PIX Sandbox liquidado.');
         loadMetrics();
       } catch (e) {
         showToast('Erro ao simular PIX.');
@@ -482,9 +714,17 @@
     }
 
     async function triggerSwarmCycle() {
+      if (!adminBearerToken) return;
       try {
         showToast('Iniciando ciclo do MIND-0...');
-        const res = await fetch('/api/singularidade/cycle/run', { method: 'POST' });
+        const res = await fetch('/api/singularidade/cycle/run', {
+          method: 'POST',
+          headers: authHeaders()
+        });
+        if (!res.ok) {
+          showToast('Erro de autorização ou execução do ciclo.');
+          return;
+        }
         showToast('Ciclo do Enxame executado com sucesso!');
         loadMetrics();
       } catch (e) {
@@ -493,20 +733,24 @@
     }
 
     async function optimizeMetaAds() {
+      if (!adminBearerToken) return;
       try {
         showToast('Analisando campanhas no Meta Ads...');
-        const res = await fetch('/api/marketing/super-auto/optimize-ads', { method: 'POST' });
+        const res = await fetch('/api/marketing/super-auto/optimize-ads', {
+          method: 'POST',
+          headers: authHeaders()
+        });
+        if (!res.ok) {
+          showToast('Erro de autorização ao otimizar Ads.');
+          return;
+        }
         showToast('Otimização concluída!');
       } catch (e) {
         showToast('Erro ao otimizar Ads.');
       }
     }
 
-    // Inicialização e auto-refresh a cada 8 segundos
-    loadMetrics();
-    loadCrashes();
-    setInterval(loadMetrics, 8000);
-    setInterval(loadCrashes, 8000);
+    checkBootstrapStatus();
   </script>
 </body>
 </html>
